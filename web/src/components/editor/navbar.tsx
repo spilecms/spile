@@ -30,7 +30,6 @@ interface NavbarProps {
 
 export default function Navbar({
 	title,
-	onTitleChange,
 	onUndo,
 	onRedo,
 	saving,
