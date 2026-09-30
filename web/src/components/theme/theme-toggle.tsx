@@ -1,37 +1,67 @@
-import { Moon, Sun } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Moon, Sun } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useTheme } from "@/components/theme/theme-provider"
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function ModeToggle() {
-  const { setTheme } = useTheme()
+	const [isDark, setIsDark] = useState(false);
 
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger>
-        <Button variant="outline" size="icon">
-          <Sun className="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-          <Moon className="absolute h-[1.2rem] w-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-          <span className="sr-only">Toggle theme</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
-          Light
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
-          Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          System
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
+	useEffect(() => {
+		setIsDark(document.documentElement.classList.contains("dark"));
+	}, []);
+
+	function toggleTheme() {
+		const nextIsDark = !isDark;
+		document.documentElement.classList.toggle("dark", nextIsDark);
+		setIsDark(nextIsDark);
+	}
+
+	const label = isDark ? "Switch to light theme" : "Switch to dark theme";
+
+	return (
+		<TooltipProvider delay={250}>
+			<Tooltip>
+				<TooltipTrigger
+					render={
+						<Button
+							aria-label={label}
+							className="size-8 rounded-md text-muted-foreground "
+							onClick={toggleTheme}
+							size="icon"
+							variant="ghost"
+						>
+							<span className="relative flex size-4 items-center justify-center">
+								<Moon
+									aria-hidden="true"
+									className={`absolute transition-all duration-300 ease-out ${
+										isDark
+											? "rotate-90 scale-0 opacity-0"
+											: "rotate-0 scale-100 opacity-100"
+									}`}
+								/>
+								<Sun
+									aria-hidden="true"
+									className={`absolute transition-all duration-300 ease-out ${
+										isDark
+											? "rotate-0 scale-100 opacity-100"
+											: "-rotate-90 scale-0 opacity-0"
+									}`}
+								/>
+							</span>
+							<span className="sr-only">{label}</span>
+						</Button>
+					}
+				/>
+				<TooltipContent side="bottom">{label}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
 }
+
+export default ModeToggle;
