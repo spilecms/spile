@@ -16,6 +16,7 @@ import Underline from "@editorjs/underline";
 import DragDrop from "editorjs-dnd";
 import Undo from "editorjs-undo";
 import { useEffect, useRef, useState } from "react";
+import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
 import Navbar from "./navbar";
 import CodeHighlightTool from "./plugins/code-highlight";
@@ -26,7 +27,7 @@ import TocTool from "./plugins/toc";
 
 const AUTOSAVE_DELAY = 800;
 
-export default function Editor() {
+export default function Editor({ onPublish }: { onPublish: () => void }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const undoRef = useRef<Undo | null>(null);
@@ -55,8 +56,32 @@ export default function Editor() {
 				if (cancelled || !editor) return;
 				editor
 					.save()
-					.then((data: OutputData) => {
+					.then(async (data: OutputData) => {
 						setBlocks(data);
+						const {
+							postId,
+							title: currentTitle,
+							excerpt,
+							slug,
+							status,
+							tagIds,
+							seo,
+							scheduledFor,
+							featuredImage,
+						} = useEditorStore.getState();
+						if (postId) {
+							await mockApi.posts.update(postId, {
+								title: currentTitle,
+								content: data,
+								excerpt,
+								slug,
+								status,
+								tagIds,
+								seo,
+								scheduledFor,
+								featuredImage,
+							});
+						}
 						setSavedAt(Date.now());
 					})
 					.catch((err) => console.error("Autosave failed:", err))
@@ -134,7 +159,7 @@ export default function Editor() {
 						undoRef.current = new Undo({ editor });
 						undoRef.current.initialize(blocks);
 						const dragDrop = new DragDrop(editor, {
-							dropLineColor: "oklch(0.926 0.195 104.561)",
+							dropLineColor: "oklch(0.398 0.195 277.366)",
 							dropLineStyle: "solid",
 							dropLineSize: 2,
 						});
@@ -192,6 +217,7 @@ export default function Editor() {
 				onTitleChange={setTitle}
 				onUndo={() => undoRef.current?.undo()}
 				onRedo={() => undoRef.current?.redo()}
+				onPublish={onPublish}
 				saving={saving}
 				savedAt={savedAt}
 			/>

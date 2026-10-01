@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { Check, LoaderCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface SaveStatusProps {
 	saving: boolean;

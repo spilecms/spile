@@ -1,6 +1,6 @@
-import * as React from "react";
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
 import { cn } from "cn";
+import type * as React from "react";
 
 import { Button } from "@/components/ui/button";
 

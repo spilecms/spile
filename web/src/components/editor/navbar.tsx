@@ -1,3 +1,6 @@
+import { ChevronLeftIcon, CircleUserRound, Redo2, Undo2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ModeToggle } from "@/components/theme/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,8 +18,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ModeToggle } from "@/components/theme/theme-toggle";
-import { CircleUserRound, Redo2, Undo2 } from "lucide-react";
 import { SaveStatus } from "./save-status";
 
 interface NavbarProps {
@@ -24,29 +25,50 @@ interface NavbarProps {
 	onTitleChange: (title: string) => void;
 	onUndo: () => void;
 	onRedo: () => void;
+	onPublish: () => void;
 	saving: boolean;
 	savedAt: number | null;
 }
 
 export default function Navbar({
 	title,
+	onTitleChange,
 	onUndo,
 	onRedo,
+	onPublish,
 	saving,
 	savedAt,
 }: NavbarProps) {
+	const navigate = useNavigate();
+
 	return (
 		<header className="sticky top-0 z-40 flex h-12 items-center justify-between gap-3 border-b bg-background/80 px-4 backdrop-blur-sm mb-1">
-			<div className="flex min-w-0 flex-1 items-center gap-3">
-				{title ? (
-					title.length < 15 ? (
-						<p>{title}</p>
-					) : (
-						<p className="truncate">{title}...</p>
-					)
-				) : (
-					<p>untitled</p>
-				)}
+			<div className="flex min-w-0 flex-1 items-center gap-2">
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<Button
+									size="icon-sm"
+									variant="ghost"
+									aria-label="Back to posts"
+									onClick={() => navigate("/posts")}
+								/>
+							}
+						>
+							<ChevronLeftIcon />
+						</TooltipTrigger>
+						<TooltipContent>Back to posts</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+
+				<input
+					value={title}
+					onChange={(e) => onTitleChange(e.target.value)}
+					placeholder="Untitled"
+					aria-label="Post title"
+					className="min-w-0 max-w-md flex-1 truncate rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-medium outline-none transition-colors hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+				/>
 				<SaveStatus saving={saving} savedAt={savedAt} />
 			</div>
 
@@ -86,6 +108,12 @@ export default function Navbar({
 						<TooltipContent>Redo</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
+
+				<div className="mx-2 h-5 w-px bg-border" />
+
+				<Button size="sm" onClick={onPublish}>
+					Publish…
+				</Button>
 
 				<div className="mx-2 h-5 w-px bg-border" />
 

@@ -273,7 +273,9 @@ export function createMediaTool(
 
 		private buildPlayer(): HTMLElement {
 			const media = document.createElement(isVideo ? "video" : "audio");
-			media.className = isVideo ? `${cls.player} ${cls.videoPlayer}` : cls.player;
+			media.className = isVideo
+				? `${cls.player} ${cls.videoPlayer}`
+				: cls.player;
 			media.setAttribute("controls", "");
 			media.setAttribute("preload", "metadata");
 			if (isVideo) media.setAttribute("playsinline", "");
@@ -338,7 +340,11 @@ export function createMediaTool(
 			choose.addEventListener("click", () => this.fileInput.click());
 			this.dropzone.append(
 				choose,
-				el("span", cls.hint, `or drag and drop ${isVideo ? "a" : "an"} ${noun} here`),
+				el(
+					"span",
+					cls.hint,
+					`or drag and drop ${isVideo ? "a" : "an"} ${noun} here`,
+				),
 				this.fileInput,
 			);
 			this.dropzone.addEventListener("dragover", (e) => {
@@ -415,7 +421,7 @@ export function createMediaTool(
 		}
 
 		private openPopover(): void {
-			if (!this.popover || !this.popover.hidden) return;
+			if (!this.popover?.hidden) return;
 			this.popover.hidden = false;
 			this.urlInput.value = "";
 			this.setTab("upload");

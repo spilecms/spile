@@ -1,9 +1,15 @@
-import * as React from "react";
-
-import { NavDocuments } from "./nav-documents";
-import { NavMain } from "./nav-main";
-import { NavSecondary } from "./nav-secondary";
-import { NavUser } from "./nav-user";
+import {
+	FileTextIcon,
+	FolderIcon,
+	Gauge,
+	MailIcon,
+	Settings2Icon,
+	SquarePenIcon,
+	TagIcon,
+	UsersIcon,
+} from "lucide-react";
+import type * as React from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
 	Sidebar,
 	SidebarContent,
@@ -13,162 +19,53 @@ import {
 	SidebarMenuButton,
 	SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import {
-	LayoutDashboardIcon,
-	ListIcon,
-	ChartBarIcon,
-	FolderIcon,
-	UsersIcon,
-	CameraIcon,
-	FileTextIcon,
-	Settings2Icon,
-	CircleHelpIcon,
-	SearchIcon,
-	DatabaseIcon,
-	FileChartColumnIcon,
-	FileIcon,
-	CommandIcon,
-} from "lucide-react";
+import { NavMain } from "./nav-main";
+import { NavSecondary } from "./nav-secondary";
+import { NavUser } from "./nav-user";
 
-const data = {
-	user: {
-		name: "shadcn",
-		email: "m@example.com",
-		avatar: "/avatars/shadcn.jpg",
-	},
-	navMain: [
-		{
-			title: "Dashboard",
-			url: "#",
-			icon: <LayoutDashboardIcon />,
-		},
-		{
-			title: "Lifecycle",
-			url: "#",
-			icon: <ListIcon />,
-		},
-		{
-			title: "Analytics",
-			url: "#",
-			icon: <ChartBarIcon />,
-		},
-		{
-			title: "Projects",
-			url: "#",
-			icon: <FolderIcon />,
-		},
-		{
-			title: "Team",
-			url: "#",
-			icon: <UsersIcon />,
-		},
-	],
-	navClouds: [
-		{
-			title: "Capture",
-			icon: <CameraIcon />,
-			isActive: true,
-			url: "#",
-			items: [
-				{
-					title: "Active Proposals",
-					url: "#",
-				},
-				{
-					title: "Archived",
-					url: "#",
-				},
-			],
-		},
-		{
-			title: "Proposal",
-			icon: <FileTextIcon />,
-			url: "#",
-			items: [
-				{
-					title: "Active Proposals",
-					url: "#",
-				},
-				{
-					title: "Archived",
-					url: "#",
-				},
-			],
-		},
-		{
-			title: "Prompts",
-			icon: <FileTextIcon />,
-			url: "#",
-			items: [
-				{
-					title: "Active Proposals",
-					url: "#",
-				},
-				{
-					title: "Archived",
-					url: "#",
-				},
-			],
-		},
-	],
-	navSecondary: [
-		{
-			title: "Settings",
-			url: "#",
-			icon: <Settings2Icon />,
-		},
-		{
-			title: "Get Help",
-			url: "#",
-			icon: <CircleHelpIcon />,
-		},
-		{
-			title: "Search",
-			url: "#",
-			icon: <SearchIcon />,
-		},
-	],
-	documents: [
-		{
-			name: "Data Library",
-			url: "#",
-			icon: <DatabaseIcon />,
-		},
-		{
-			name: "Reports",
-			url: "#",
-			icon: <FileChartColumnIcon />,
-		},
-		{
-			name: "Word Assistant",
-			url: "#",
-			icon: <FileIcon />,
-		},
-	],
-};
+const navMain = [
+	{ title: "Dashboard", url: "/", icon: <Gauge />},
+	{ title: "Posts", url: "/posts", icon: <FileTextIcon /> },
+	{ title: "Tags", url: "/tags", icon: <TagIcon /> },
+	{ title: "Media", url: "/media", icon: <FolderIcon /> },
+	{ title: "Members", url: "/members", icon: <UsersIcon /> },
+	{ title: "Newsletters", url: "/newsletters", icon: <MailIcon /> },
+];
+
+const navSecondary = [
+	{ title: "Settings", url: "/settings", icon: <Settings2Icon /> },
+];
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+	const { pathname } = useLocation();
+
 	return (
 		<Sidebar collapsible="offcanvas" {...props}>
 			<SidebarHeader>
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
-							className="data-[slot=sidebar-menu-button]:p-1.5!"
-							render={<a href="#" />}
+							className="data-[slot=sidebar-menu-button]:p-1.5! flex items-center gap-2 mt-2 mb-2.5"
+							render={<Link to="/" />}
 						>
-							<CommandIcon className="size-5!" />
-							<span className="text-base font-semibold">Acme Inc.</span>
+							<div className="flex size-7 items-center justify-center rounded-md ">
+								<img src="src/assets/logo.png" alt="Spile Logo"  />
+							</div>
+							<span className="text-lg font-semibold">Spile</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>
 			</SidebarHeader>
 			<SidebarContent>
-				<NavMain items={data.navMain} />
-				<NavDocuments items={data.documents} />
-				<NavSecondary items={data.navSecondary} className="mt-auto" />
+				<NavMain items={navMain} currentPath={pathname} />
+				<NavSecondary
+					items={navSecondary}
+					currentPath={pathname}
+					className="mt-auto"
+				/>
 			</SidebarContent>
 			<SidebarFooter>
-				<NavUser user={data.user} />
+				<NavUser />
 			</SidebarFooter>
 		</Sidebar>
 	);

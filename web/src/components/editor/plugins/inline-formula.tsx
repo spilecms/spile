@@ -255,7 +255,7 @@ function setupGlobalListeners(): void {
 		const el = (e.target as Element | null)?.closest?.(
 			SELECTOR,
 		) as HTMLElement | null;
-		if (!el || !el.closest(".codex-editor")) return;
+		if (!el?.closest(".codex-editor")) return;
 		if (!el.parentElement?.isContentEditable) return;
 		getPopover().open(el);
 	});
