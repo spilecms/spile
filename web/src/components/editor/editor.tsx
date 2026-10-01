@@ -1,29 +1,28 @@
-import { useEffect, useRef, useState } from "react";
+import AttachesTool from "@editorjs/attaches";
+import Checklist from "@editorjs/checklist";
+import Delimiter from "@editorjs/delimiter";
 import EditorJS, {
 	type OutputData,
 	type ToolConstructable,
 } from "@editorjs/editorjs";
 import Header from "@editorjs/header";
-import NestedList from "@editorjs/nested-list";
-import Marker from "@editorjs/marker";
-import Table from "@editorjs/table";
 import ImageTool from "@editorjs/image";
 import InlineCode from "@editorjs/inline-code";
+import Marker from "@editorjs/marker";
+import NestedList from "@editorjs/nested-list";
 import Quote from "@editorjs/quote";
-import Delimiter from "@editorjs/delimiter";
-import Warning from "@editorjs/warning";
-import Checklist from "@editorjs/checklist";
+import Table from "@editorjs/table";
 import Underline from "@editorjs/underline";
-import AttachesTool from "@editorjs/attaches";
 import DragDrop from "editorjs-dnd";
 import Undo from "editorjs-undo";
-import InlineFormulaTool from "./plugins/inline-formula";
+import { useEffect, useRef, useState } from "react";
+import { useEditorStore } from "@/lib/store/editor-store";
+import Navbar from "./navbar";
+import CodeHighlightTool from "./plugins/code-highlight";
 import HtmlEmbedTool from "./plugins/html-embed";
+import InlineFormulaTool from "./plugins/inline-formula";
 import { createMediaTool } from "./plugins/media";
 import TocTool from "./plugins/toc";
-import CodeHighlightTool from "./plugins/code-highlight";
-import Navbar from "./navbar";
-import { useEditorStore } from "@/lib/store/editor-store";
 
 const AUTOSAVE_DELAY = 800;
 
@@ -134,10 +133,13 @@ export default function Editor() {
 					if (!cancelled && editor) {
 						undoRef.current = new Undo({ editor });
 						undoRef.current.initialize(blocks);
-						new DragDrop(editor, {
-							dropLineColor: "white",
+						const dragDrop = new DragDrop(editor, {
+							dropLineColor: "oklch(0.926 0.195 104.561)",
 							dropLineStyle: "solid",
 							dropLineSize: 2,
+						});
+						holder.addEventListener("dragend", () => {
+							dragDrop.startBlockIndex = null;
 						});
 					}
 				},
