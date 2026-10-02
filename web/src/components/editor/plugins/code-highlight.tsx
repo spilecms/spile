@@ -139,8 +139,6 @@ export default class CodeHighlightTool implements BlockTool {
 	}
 
 	validate(savedData: CodeData): boolean {
-		return (
-			typeof savedData.code === "string" && savedData.code.trim().length > 0
-		);
+		return typeof savedData.code === "string";
 	}
 }

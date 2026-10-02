@@ -2,7 +2,6 @@ import AttachesTool from "@editorjs/attaches";
 import Checklist from "@editorjs/checklist";
 import Delimiter from "@editorjs/delimiter";
 import EditorJS, {
-	type OutputData,
 	type ToolConstructable,
 } from "@editorjs/editorjs";
 import Header from "@editorjs/header";
@@ -15,7 +14,7 @@ import Table from "@editorjs/table";
 import Underline from "@editorjs/underline";
 import DragDrop from "editorjs-dnd";
 import Undo from "editorjs-undo";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
 import Navbar from "./navbar";
@@ -31,6 +30,8 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const undoRef = useRef<Undo | null>(null);
+	const editorRef = useRef<EditorJS | null>(null);
+	const cancelledRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -39,57 +40,69 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 	const title = useEditorStore((s) => s.title);
 	const setTitle = useEditorStore((s) => s.setTitle);
 
+	const scheduleSave = useCallback(() => {
+		setSaving(true);
+		if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+		autosaveTimer.current = setTimeout(async () => {
+			if (cancelledRef.current) return;
+			const editor = editorRef.current;
+			const { postId } = useEditorStore.getState();
+			if (!postId) {
+				setSaving(false);
+				return;
+			}
+
+			try {
+				let data = useEditorStore.getState().blocks;
+				if (editor && typeof editor.save === "function") {
+					data = await editor.save();
+					setBlocks(data);
+				}
+				const {
+					title: currentTitle,
+					excerpt,
+					slug,
+					status,
+					tagIds,
+					seo,
+					scheduledFor,
+					featuredImage,
+				} = useEditorStore.getState();
+
+				await mockApi.posts.update(postId, {
+					title: currentTitle,
+					content: data,
+					excerpt,
+					slug,
+					status,
+					tagIds,
+					seo,
+					scheduledFor,
+					featuredImage,
+				});
+				if (!cancelledRef.current) {
+					setSavedAt(Date.now());
+				}
+			} catch (err) {
+				console.error("Autosave failed:", err);
+			} finally {
+				if (!cancelledRef.current) setSaving(false);
+			}
+		}, AUTOSAVE_DELAY);
+	}, [setBlocks]);
+
+	const scheduleSaveRef = useRef(scheduleSave);
+	scheduleSaveRef.current = scheduleSave;
+
 	useEffect(() => {
 		const container = containerRef.current;
 		if (!container) return;
 
+		cancelledRef.current = false;
 		const holder = document.createElement("div");
 		container.appendChild(holder);
 
-		let cancelled = false;
 		let editor: EditorJS | null = null;
-
-		const scheduleSave = () => {
-			setSaving(true);
-			if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-			autosaveTimer.current = setTimeout(() => {
-				if (cancelled || !editor) return;
-				editor
-					.save()
-					.then(async (data: OutputData) => {
-						setBlocks(data);
-						const {
-							postId,
-							title: currentTitle,
-							excerpt,
-							slug,
-							status,
-							tagIds,
-							seo,
-							scheduledFor,
-							featuredImage,
-						} = useEditorStore.getState();
-						if (postId) {
-							await mockApi.posts.update(postId, {
-								title: currentTitle,
-								content: data,
-								excerpt,
-								slug,
-								status,
-								tagIds,
-								seo,
-								scheduledFor,
-								featuredImage,
-							});
-						}
-						setSavedAt(Date.now());
-					})
-					.catch((err) => console.error("Autosave failed:", err))
-					.finally(() => {
-						if (!cancelled) setSaving(false);
-					});
-			}, AUTOSAVE_DELAY);
-		};
 
 		try {
 			const { blocks } = useEditorStore.getState();
@@ -107,6 +120,12 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 						},
 					},
 					table: Table,
+					code: CodeHighlightTool,
+					inlineCode: InlineCode,
+					quote: { class: Quote, inlineToolbar: true },
+					delimiter: Delimiter,
+					marker: { class: Marker, shortcut: "CMD+SHIFT+M" },
+					checklist: Checklist,
 					image: {
 						class: ImageTool,
 						config: {
@@ -122,12 +141,6 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 							},
 						},
 					},
-					code: CodeHighlightTool,
-					inlineCode: InlineCode,
-					quote: { class: Quote, inlineToolbar: true },
-					delimiter: Delimiter,
-					marker: { class: Marker, shortcut: "CMD+SHIFT+M" },
-					checklist: Checklist,
 					video: createMediaTool("video"),
 					audio: createMediaTool("audio"),
 					attaches: {
@@ -155,7 +168,8 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 					inlineFormula: { class: InlineFormulaTool },
 				},
 				onReady: () => {
-					if (!cancelled && editor) {
+					if (!cancelledRef.current && editor) {
+						editorRef.current = editor;
 						undoRef.current = new Undo({ editor });
 						undoRef.current.initialize(blocks);
 						const dragDrop = new DragDrop(editor, {
@@ -168,12 +182,12 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 						});
 					}
 				},
-				onChange: () => scheduleSave(),
+				onChange: () => scheduleSaveRef.current(),
 			});
 
 			// Async init failures land here, not in the catch below
 			editor.isReady.catch((err) => {
-				if (!cancelled) {
+				if (!cancelledRef.current) {
 					setError(
 						err instanceof Error ? err.message : "Failed to initialize editor",
 					);
@@ -186,7 +200,8 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 		}
 
 		return () => {
-			cancelled = true;
+			cancelledRef.current = true;
+			editorRef.current = null;
 			if (autosaveTimer.current) {
 				clearTimeout(autosaveTimer.current);
 				autosaveTimer.current = null;
@@ -200,7 +215,7 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 				.catch((err) => console.error("Editor.js cleanup error:", err))
 				.finally(() => holder.remove());
 		};
-	}, [setBlocks]);
+	}, []);
 
 	if (error) {
 		return (
@@ -214,7 +229,10 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 		<div className="flex min-h-screen flex-col">
 			<Navbar
 				title={title}
-				onTitleChange={setTitle}
+				onTitleChange={(newTitle) => {
+					setTitle(newTitle);
+					scheduleSave();
+				}}
 				onUndo={() => undoRef.current?.undo()}
 				onRedo={() => undoRef.current?.redo()}
 				onPublish={onPublish}

@@ -66,9 +66,9 @@ function paint(el: HTMLElement): void {
 }
 
 function hydrateAll(): void {
-	for (const el of document.querySelectorAll<HTMLElement>(
-		`.codex-editor ${SELECTOR}`,
-	)) {
+	const editor = document.querySelector(".codex-editor");
+	if (!editor) return;
+	for (const el of editor.querySelectorAll<HTMLElement>(SELECTOR)) {
 		if (!el.shadowRoot) paint(el);
 	}
 }

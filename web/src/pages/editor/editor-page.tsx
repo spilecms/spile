@@ -12,7 +12,6 @@ export default function EditorPage() {
 	const navigate = useNavigate();
 	const isNew = id === "new";
 	const loadPost = useEditorStore((s) => s.loadPost);
-	const reset = useEditorStore((s) => s.reset);
 	const postId = useEditorStore((s) => s.postId);
 	const [publishOpen, setPublishOpen] = React.useState(false);
 	const creatingRef = React.useRef(false);
@@ -28,16 +27,11 @@ export default function EditorPage() {
 	});
 
 	React.useEffect(() => {
-		if (isNew) {
-			if (postId !== null && !creatingRef.current) {
-				reset();
-			}
-			return;
-		}
+		if (isNew) return;
 		if (post) {
 			loadPost(post);
 		}
-	}, [isNew, post, loadPost, reset, postId]);
+	}, [isNew, post, loadPost]);
 
 	React.useEffect(() => {
 		if (!isNew || creatingRef.current) return;
@@ -53,7 +47,7 @@ export default function EditorPage() {
 			});
 	}, [isNew, loadPost, navigate]);
 
-	if (!isNew && isPending) {
+	if (isNew || isPending || (!isNew && post && postId !== post.id)) {
 		return (
 			<div className="flex min-h-screen flex-col gap-4 p-6">
 				<Skeleton className="h-12 w-full" />
@@ -83,7 +77,7 @@ export default function EditorPage() {
 
 	return (
 		<>
-			<Editor onPublish={() => setPublishOpen(true)} />
+			<Editor key={id} onPublish={() => setPublishOpen(true)} />
 			<PublishPanel open={publishOpen} onOpenChange={setPublishOpen} />
 		</>
 	);

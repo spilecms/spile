@@ -18,7 +18,7 @@ export function SaveStatus({ saving, savedAt }: SaveStatusProps) {
 
 	if (saving) {
 		return (
-			<span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+			<span className="flex items-center gap-1.5 text-xs text-muted-foreground mr-0.5">
 				<LoaderCircle className="size-3.5 animate-spin" aria-hidden />
 				Saving…
 			</span>
@@ -27,7 +27,7 @@ export function SaveStatus({ saving, savedAt }: SaveStatusProps) {
 
 	if (showSaved) {
 		return (
-			<span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+			<span className="flex items-center gap-1.5 text-xs text-muted-foreground mr-0.5">
 				<Check className="size-3.5 text-primary" aria-hidden />
 				Saved
 			</span>

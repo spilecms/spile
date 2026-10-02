@@ -800,6 +800,32 @@
 	background: #000;
 }
 
+/* Media caption */
+.ce-media__caption {
+	margin-top: 0.5rem;
+	padding: 0.375rem 0.75rem;
+	font-size: 0.8125rem;
+	color: var(--ej-muted-fg);
+	text-align: center;
+	border-radius: var(--radius);
+	border: 1px solid transparent;
+	outline: none;
+	transition: border-color 0.15s, background-color 0.15s;
+}
+
+.ce-media__caption:focus,
+.ce-media__caption:hover {
+	border-color: var(--ej-border);
+	background: var(--ej-bg);
+}
+
+.ce-media__caption[contenteditable="true"][data-placeholder]:empty::before {
+	content: attr(data-placeholder);
+	color: var(--ej-muted-fg);
+	opacity: 0.6;
+	cursor: text;
+}
+
 /* Error state */
 .ce-media__error {
 	display: flex;

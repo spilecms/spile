@@ -4,7 +4,6 @@ import {
 	Gauge,
 	MailIcon,
 	Settings2Icon,
-	SquarePenIcon,
 	TagIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -40,12 +39,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const { pathname } = useLocation();
 
 	return (
-		<Sidebar collapsible="offcanvas" {...props}>
+		<Sidebar collapsible="offcanvas" {...props} variant="inset">
 			<SidebarHeader>
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
-							className="data-[slot=sidebar-menu-button]:p-1.5! flex items-center gap-2 mt-2 mb-2.5"
+							className="data-[slot=sidebar-menu-button]:p-1.5! flex items-center gap-2 mb-2.5"
 							render={<Link to="/" />}
 						>
 							<div className="flex size-7 items-center justify-center rounded-md ">

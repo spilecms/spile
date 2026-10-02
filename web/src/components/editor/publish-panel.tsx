@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDownIcon, XIcon } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -40,6 +40,7 @@ export function PublishPanel({
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 }) {
+	const queryClient = useQueryClient();
 	const postId = useEditorStore((s) => s.postId);
 	const status = useEditorStore((s) => s.status);
 	const slug = useEditorStore((s) => s.slug);
@@ -108,6 +109,7 @@ export function PublishPanel({
 							: null,
 					seo: seoPatch,
 				});
+				await queryClient.invalidateQueries({ queryKey: ["posts"] });
 				toast.success(
 					localStatus === "published"
 						? "Post published"
@@ -181,7 +183,14 @@ export function PublishPanel({
 							<Input
 								id="publish-slug"
 								value={localSlug}
-								onChange={(e) => setLocalSlug(slugify(e.target.value))}
+								onChange={(e) => {
+									const val = e.target.value
+										.toLowerCase()
+										.replace(/\s+/g, "-")
+										.replace(/[^a-z0-9-]/g, "");
+									setLocalSlug(val);
+								}}
+								onBlur={() => setLocalSlug(slugify(localSlug))}
 								placeholder="post-url-slug"
 							/>
 						</div>

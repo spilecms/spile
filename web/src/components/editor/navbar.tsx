@@ -69,13 +69,14 @@ export default function Navbar({
 					aria-label="Post title"
 					className="min-w-0 max-w-md flex-1 truncate rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-medium outline-none transition-colors hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
 				/>
-				<SaveStatus saving={saving} savedAt={savedAt} />
+				
 			</div>
 
 			<nav
 				aria-label="Editor actions"
-				className="flex shrink-0 items-center gap-0.5"
+				className="flex shrink-0 items-center gap-0.7"
 			>
+				<SaveStatus saving={saving} savedAt={savedAt} /> 
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger
@@ -110,9 +111,10 @@ export default function Navbar({
 				</TooltipProvider>
 
 				<div className="mx-2 h-5 w-px bg-border" />
+				
 
-				<Button size="sm" onClick={onPublish}>
-					Publish…
+				<Button size="sm" className="font-bold text-[0.775rem] " onClick={onPublish}>
+					Publish
 				</Button>
 
 				<div className="mx-2 h-5 w-px bg-border" />

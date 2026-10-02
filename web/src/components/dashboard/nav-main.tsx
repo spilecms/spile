@@ -1,7 +1,4 @@
-import { PlusCircleIcon } from '@heroicons/react/24/solid'
-import {  SearchIcon } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import {
 	SidebarGroup,
 	SidebarGroupContent,

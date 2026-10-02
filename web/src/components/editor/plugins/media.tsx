@@ -1,5 +1,6 @@
 import type {
 	API,
+	BlockAPI,
 	BlockTool,
 	BlockToolConstructable,
 	BlockToolConstructorOptions,
@@ -12,6 +13,7 @@ import type {
 interface MediaData extends BlockToolData {
 	url: string;
 	name?: string;
+	caption?: string;
 }
 
 interface UploadResult {
@@ -171,7 +173,15 @@ export function createMediaTool(
 		}
 
 		static get sanitize() {
-			return { url: true, name: true };
+			return {
+				url: true,
+				name: true,
+				caption: {
+					b: true,
+					i: true,
+					a: true,
+				},
+			};
 		}
 
 		static get pasteConfig(): PasteConfig {
@@ -202,6 +212,7 @@ export function createMediaTool(
 				import: (content: string) => ({
 					url: String(content ?? "").trim(),
 					name: "",
+					caption: "",
 				}),
 			};
 		}
@@ -210,10 +221,12 @@ export function createMediaTool(
 		private readonly readOnly: boolean;
 		private readonly config: MediaConfig;
 		private readonly api: API;
+		private readonly block: BlockAPI;
 		private readonly placeholderText: string;
 
 		private wrapper!: HTMLElement;
 		private stage!: HTMLElement;
+		private captionEl: HTMLElement | null = null;
 		private popover: HTMLElement | null = null;
 		private tabButtons = new Map<Tab, HTMLButtonElement>();
 		private tabPanels = new Map<Tab, HTMLElement>();
@@ -229,23 +242,47 @@ export function createMediaTool(
 			config,
 			readOnly,
 			api,
+			block,
 		}: BlockToolConstructorOptions<MediaData, MediaConfig>) {
 			this.config = config ?? {};
 			this.readOnly = Boolean(readOnly);
 			this.api = api;
+			this.block = block;
 			this.placeholderText =
 				this.config.placeholder ?? `Add ${isVideo ? "a" : "an"} ${noun}`;
-			this.data = { url: data?.url ?? "", name: data?.name ?? "" };
+			this.data = {
+				url: data?.url ?? "",
+				name: data?.name ?? "",
+				caption: data?.caption ?? "",
+			};
 		}
 
 		render(): HTMLElement {
-			this.wrapper = el("div", cls.wrapper);
+			this.wrapper = el("div", `${cls.wrapper} ${this.api.styles.block}`);
 			this.stage = el("div", "ce-media__stage");
 			this.wrapper.append(this.stage);
 
-			if (!this.readOnly) this.buildPopover();
+			if (!this.readOnly) {
+				this.buildPopover();
+				this.attachHoverListeners();
+			}
 			this.renderStage();
 			return this.wrapper;
+		}
+
+		private attachHoverListeners(): void {
+			const triggerToolbar = () => {
+				if (this.readOnly) return;
+				const blockEl = this.wrapper.closest(".ce-block");
+				if (blockEl) {
+					blockEl.dispatchEvent(
+						new MouseEvent("mousemove", { bubbles: true, cancelable: true }),
+					);
+				}
+			};
+
+			this.wrapper.addEventListener("mouseenter", triggerToolbar);
+			this.wrapper.addEventListener("mousemove", triggerToolbar);
 		}
 
 		/* ------------------------------ stage ------------------------------ */
@@ -259,6 +296,32 @@ export function createMediaTool(
 				return;
 			}
 			this.stage.append(this.buildPlayer());
+			if (!this.readOnly || this.data.caption) {
+				this.stage.append(this.buildCaption());
+			}
+		}
+
+		private buildCaption(): HTMLElement {
+			const caption = el("div", `${this.api.styles.input} ce-media__caption`);
+			caption.contentEditable = (!this.readOnly).toString();
+			caption.dataset.placeholder = "Write a caption…";
+			if (this.data.caption) {
+				caption.innerHTML = this.data.caption;
+			}
+			caption.addEventListener("input", () => {
+				this.data.caption = caption.innerHTML;
+			});
+			caption.addEventListener("keydown", (e) => {
+				if (e.key === "Enter" && !e.shiftKey) {
+					e.preventDefault();
+					const index = this.api.blocks.getBlockIndex(this.block.id);
+					if (typeof index === "number" && index >= 0) {
+						this.api.blocks.insert("paragraph", {}, {}, index + 1, true);
+					}
+				}
+			});
+			this.captionEl = caption;
+			return caption;
 		}
 
 		private buildPlaceholder(): HTMLElement {
@@ -537,14 +600,22 @@ export function createMediaTool(
 		destroy(): void {
 			this.teardownOutside?.();
 			this.teardownOutside = null;
+			this.captionEl = null;
 		}
 
 		save(): MediaData {
-			return { url: this.data.url, name: this.data.name };
+			const rawCaption = this.captionEl?.innerHTML ?? this.data.caption ?? "";
+			const cleanCaption = rawCaption.replace(/<br\s*\/?>/gi, "").trim();
+			const caption = cleanCaption ? rawCaption.trim() : "";
+			return {
+				url: this.data.url,
+				name: this.data.name,
+				...(caption ? { caption } : {}),
+			};
 		}
 
 		validate(savedData: MediaData): boolean {
-			return typeof savedData.url === "string" && savedData.url.length > 0;
+			return typeof savedData.url === "string";
 		}
 
 		onPaste(event: PasteEvent): void {
