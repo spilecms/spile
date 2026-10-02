@@ -27,6 +27,14 @@ export interface PostSeo {
 	metaDescription?: string;
 }
 
+export interface WorkspaceLocale {
+	code: string;
+	name: string;
+	flag: string;
+	direction?: "ltr" | "rtl";
+	isDefault?: boolean;
+}
+
 export interface Post {
 	id: string;
 	type: PostType;
@@ -45,6 +53,10 @@ export interface Post {
 	publishedAt: number | null;
 	scheduledFor: number | null;
 	content: OutputData | null;
+	locale?: string;
+	isDefaultLocale?: boolean;
+	translationGroupId?: string;
+	translationSourceId?: string;
 }
 
 export interface ActivityItem {

@@ -23,7 +23,7 @@ import { NavSecondary } from "./nav-secondary";
 import { NavUser } from "./nav-user";
 
 const navMain = [
-	{ title: "Dashboard", url: "/", icon: <Gauge />},
+	{ title: "Dashboard", url: "/", icon: <Gauge /> },
 	{ title: "Posts", url: "/posts", icon: <FileTextIcon /> },
 	{ title: "Tags", url: "/tags", icon: <TagIcon /> },
 	{ title: "Media", url: "/media", icon: <FolderIcon /> },
@@ -48,7 +48,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 							render={<Link to="/" />}
 						>
 							<div className="flex size-7 items-center justify-center rounded-md ">
-								<img src="src/assets/logo.png" alt="Spile Logo"  />
+								<img src="src/assets/logo.png" alt="Spile Logo" />
 							</div>
 							<span className="text-lg font-semibold">Spile</span>
 						</SidebarMenuButton>

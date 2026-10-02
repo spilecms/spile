@@ -7,6 +7,7 @@ import type {
 	User,
 	ViewsPoint,
 	ViewsRange,
+	WorkspaceLocale,
 } from "@/types/domain";
 import {
 	currentUser,
@@ -16,6 +17,7 @@ import {
 	tags as seedTags,
 	users as seedUsers,
 	viewsSeries,
+	workspaceLocales,
 } from "./db";
 
 const delay = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -60,8 +62,10 @@ export const mockApi = {
 		async create(input: Partial<Post> = {}): Promise<Post> {
 			await delay();
 			const now = Date.now();
+			const id = input.id ?? `p${nextId++}`;
+			const locale = input.locale ?? "en";
 			const post: Post = {
-				id: `p${nextId++}`,
+				id,
 				type: input.type ?? "post",
 				title: input.title ?? "Untitled",
 				excerpt: input.excerpt ?? "",
@@ -78,6 +82,10 @@ export const mockApi = {
 				publishedAt: input.status === "published" ? now : null,
 				scheduledFor: input.scheduledFor ?? null,
 				content: input.content ?? { blocks: [] },
+				locale,
+				isDefaultLocale: input.isDefaultLocale ?? locale === "en",
+				translationGroupId: input.translationGroupId ?? id,
+				translationSourceId: input.translationSourceId,
 			};
 			posts = [post, ...posts];
 			return { ...post };
@@ -110,10 +118,67 @@ export const mockApi = {
 			const source = await mockApi.posts.get(id);
 			return mockApi.posts.create({
 				...source,
+				id: undefined,
 				title: `${source.title} (copy)`,
 				status: "draft",
 				views: 0,
 			});
+		},
+		async getTranslations(translationGroupId: string): Promise<Post[]> {
+			await delay(80);
+			return posts.filter(
+				(p) => (p.translationGroupId || p.id) === translationGroupId,
+			);
+		},
+		async createTranslation(
+			sourcePostId: string,
+			targetLocale: string,
+			copyContent = true,
+		): Promise<Post> {
+			await delay();
+			const source = await mockApi.posts.get(sourcePostId);
+			const translationGroupId = source.translationGroupId || source.id;
+
+			const existing = posts.find(
+				(p) =>
+					(p.translationGroupId || p.id) === translationGroupId &&
+					p.locale === targetLocale,
+			);
+			if (existing) return { ...existing };
+
+			const targetLocaleObj = workspaceLocales.find(
+				(l) => l.code === targetLocale,
+			);
+			const targetName = targetLocaleObj
+				? targetLocaleObj.name
+				: targetLocale.toUpperCase();
+
+			const cleanSlug = source.slug.replace(/^[a-z]{2}\//, "");
+			const newTranslation = await mockApi.posts.create({
+				type: source.type,
+				title: copyContent ? `${source.title} (${targetName})` : "Untitled",
+				excerpt: copyContent ? source.excerpt : "",
+				status: "draft",
+				authorIds: [currentUser.id],
+				tagIds: [...source.tagIds],
+				slug: `${targetLocale}/${cleanSlug}`,
+				featuredImage: source.featuredImage,
+				seo: copyContent ? { ...source.seo } : {},
+				content: copyContent
+					? JSON.parse(JSON.stringify(source.content ?? { blocks: [] }))
+					: { blocks: [] },
+				locale: targetLocale,
+				isDefaultLocale: false,
+				translationGroupId,
+				translationSourceId: source.id,
+			});
+			return newTranslation;
+		},
+	},
+	locales: {
+		async list(): Promise<WorkspaceLocale[]> {
+			await delay(50);
+			return [...workspaceLocales];
 		},
 	},
 	overview: {

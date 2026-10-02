@@ -5,7 +5,53 @@ import type {
 	User,
 	ViewsPoint,
 	ViewsRange,
+	WorkspaceLocale,
 } from "@/types/domain";
+
+export const workspaceLocales: WorkspaceLocale[] = [
+	{
+		code: "en",
+		name: "English",
+		flag: "🇺🇸",
+		isDefault: true,
+		direction: "ltr",
+	},
+	{
+		code: "es",
+		name: "Spanish",
+		flag: "🇪🇸",
+		isDefault: false,
+		direction: "ltr",
+	},
+	{
+		code: "fr",
+		name: "French",
+		flag: "🇫🇷",
+		isDefault: false,
+		direction: "ltr",
+	},
+	{
+		code: "de",
+		name: "German",
+		flag: "🇩🇪",
+		isDefault: false,
+		direction: "ltr",
+	},
+	{
+		code: "ja",
+		name: "Japanese",
+		flag: "🇯🇵",
+		isDefault: false,
+		direction: "ltr",
+	},
+	{
+		code: "am",
+		name: "Amharic",
+		flag: "🇪🇹",
+		isDefault: false,
+		direction: "ltr",
+	},
+];
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -353,8 +399,9 @@ export const posts: Post[] = postSeeds.map((seed, index) => {
 		seed.scheduledInDays !== undefined
 			? now + seed.scheduledInDays * DAY
 			: null;
+	const id = `p${index + 1}`;
 	return {
-		id: `p${index + 1}`,
+		id,
 		type: seed.type ?? "post",
 		title: seed.title,
 		excerpt: seed.excerpt,
@@ -377,7 +424,32 @@ export const posts: Post[] = postSeeds.map((seed, index) => {
 		publishedAt,
 		scheduledFor,
 		content: blocks([seed.excerpt, "This is mock content for the editor."]),
+		locale: "en",
+		isDefaultLocale: true,
+		translationGroupId: id,
 	};
+});
+
+// Sample Spanish translation for the first post to showcase the feature immediately
+posts.push({
+	...posts[0],
+	id: "p1-es",
+	title:
+		"Diseñando el editor de bloques de Spile: lo que aprendimos con Editor.js",
+	excerpt:
+		"Una inmersión profunda en herramientas personalizadas, autoguardado y la experiencia de escritura.",
+	slug: "es/disenando-editor-de-bloques",
+	status: "draft",
+	locale: "es",
+	isDefaultLocale: false,
+	translationGroupId: "p1",
+	translationSourceId: "p1",
+	content: blocks([
+		"Una inmersión profunda en herramientas personalizadas, autoguardado y la experiencia de escritura.",
+		"Este es contenido de prueba en español para el editor de Spile.",
+	]),
+	updatedAt: day(1),
+	publishedAt: null,
 });
 
 export const activity: ActivityItem[] = [

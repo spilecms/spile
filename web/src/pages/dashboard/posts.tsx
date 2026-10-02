@@ -1,5 +1,5 @@
+import { PlusCircleIcon } from "@heroicons/react/24/solid";
 import { useQuery } from "@tanstack/react-query";
-import { PlusCircleIcon } from '@heroicons/react/24/solid'
 import { SearchIcon, SquarePenIcon } from "lucide-react";
 
 import * as React from "react";
@@ -9,7 +9,6 @@ import { HeaderActions } from "@/components/dashboard/header-actions";
 import { PostsTable } from "@/components/dashboard/posts-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
 
 import {
 	Select,
@@ -106,7 +105,11 @@ export default function PostsPage() {
 	return (
 		<div className="flex flex-1 flex-col gap-4 px-4 py-6 lg:px-6">
 			<HeaderActions>
-				<Button size="sm" className="flex items-center gap-2 text-sm font-semibold" onClick={() => navigate("/editor/new")}>
+				<Button
+					size="sm"
+					className="flex items-center gap-2 text-sm font-semibold"
+					onClick={() => navigate("/editor/new")}
+				>
 					<PlusCircleIcon className="size-4" />
 					New post
 				</Button>

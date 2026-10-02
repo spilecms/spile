@@ -1,9 +1,7 @@
 import AttachesTool from "@editorjs/attaches";
 import Checklist from "@editorjs/checklist";
 import Delimiter from "@editorjs/delimiter";
-import EditorJS, {
-	type ToolConstructable,
-} from "@editorjs/editorjs";
+import EditorJS, { type ToolConstructable } from "@editorjs/editorjs";
 import Header from "@editorjs/header";
 import ImageTool from "@editorjs/image";
 import InlineCode from "@editorjs/inline-code";
@@ -17,12 +15,15 @@ import Undo from "editorjs-undo";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
+import { FloatingToc } from "./floating-toc";
 import Navbar from "./navbar";
 import CodeHighlightTool from "./plugins/code-highlight";
 import HtmlEmbedTool from "./plugins/html-embed";
+import ColorInlineTool from "./plugins/inline-color";
 import InlineFormulaTool from "./plugins/inline-formula";
 import { createMediaTool } from "./plugins/media";
 import TocTool from "./plugins/toc";
+import { TranslationContextBanner } from "./translation-context-banner";
 
 const AUTOSAVE_DELAY = 800;
 
@@ -125,6 +126,7 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 					quote: { class: Quote, inlineToolbar: true },
 					delimiter: Delimiter,
 					marker: { class: Marker, shortcut: "CMD+SHIFT+M" },
+					color: { class: ColorInlineTool, shortcut: "CMD+SHIFT+C" },
 					checklist: Checklist,
 					image: {
 						class: ImageTool,
@@ -239,7 +241,9 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 				saving={saving}
 				savedAt={savedAt}
 			/>
+			<TranslationContextBanner />
 			<main className="flex-1 mt-14">
+				<FloatingToc editorContainerRef={containerRef} />
 				<div ref={containerRef} />
 			</main>
 		</div>

@@ -17,6 +17,10 @@ interface EditorState {
 	publishedAt: number | null;
 	scheduledFor: number | null;
 	updatedAt: number | null;
+	locale: string;
+	isDefaultLocale: boolean;
+	translationGroupId: string | null;
+	translationSourceId: string | null;
 	setBlocks: (blocks: OutputData) => void;
 	setTitle: (title: string) => void;
 	loadPost: (post: Post) => void;
@@ -45,6 +49,10 @@ const emptyState = {
 	publishedAt: null,
 	scheduledFor: null,
 	updatedAt: null,
+	locale: "en",
+	isDefaultLocale: true,
+	translationGroupId: null,
+	translationSourceId: null,
 };
 
 export const useEditorStore = create<EditorState>()(
@@ -68,6 +76,11 @@ export const useEditorStore = create<EditorState>()(
 					publishedAt: post.publishedAt,
 					scheduledFor: post.scheduledFor,
 					updatedAt: post.updatedAt,
+					locale: post.locale ?? "en",
+					isDefaultLocale:
+						post.isDefaultLocale ?? (post.locale === "en" || !post.locale),
+					translationGroupId: post.translationGroupId ?? post.id,
+					translationSourceId: post.translationSourceId ?? null,
 				}),
 			patchMeta: (patch) => set({ ...patch, updatedAt: Date.now() }),
 			reset: () => set({ ...emptyState }),
@@ -89,6 +102,10 @@ export const useEditorStore = create<EditorState>()(
 				publishedAt: state.publishedAt,
 				scheduledFor: state.scheduledFor,
 				updatedAt: state.updatedAt,
+				locale: state.locale,
+				isDefaultLocale: state.isDefaultLocale,
+				translationGroupId: state.translationGroupId,
+				translationSourceId: state.translationSourceId,
 			}),
 		},
 	),

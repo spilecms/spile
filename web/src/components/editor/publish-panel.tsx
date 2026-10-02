@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDownIcon, XIcon } from "lucide-react";
-import * as React from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,6 @@ import {
 import {
 	Sheet,
 	SheetContent,
-	SheetDescription,
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
@@ -32,6 +31,7 @@ import { slugify } from "@/lib/format";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
 import type { PostSeo, PostStatus } from "@/types/domain";
+import { TranslationsSection } from "./translations-section";
 
 export function PublishPanel({
 	open,
@@ -56,19 +56,19 @@ export function PublishPanel({
 		enabled: open,
 	});
 
-	const [localStatus, setLocalStatus] = React.useState<PostStatus>(status);
-	const [localSlug, setLocalSlug] = React.useState(slug);
-	const [localExcerpt, setLocalExcerpt] = React.useState(excerpt);
-	const [localTagIds, setLocalTagIds] = React.useState<string[]>(tagIds);
-	const [scheduleAt, setScheduleAt] = React.useState(() =>
+	const [localStatus, setLocalStatus] = useState<PostStatus>(status);
+	const [localSlug, setLocalSlug] = useState(slug);
+	const [localExcerpt, setLocalExcerpt] = useState(excerpt);
+	const [localTagIds, setLocalTagIds] = useState<string[]>(tagIds);
+	const [scheduleAt, setScheduleAt] = useState(() =>
 		scheduledFor ? toDateTimeLocal(scheduledFor) : "",
 	);
-	const [seoTitle, setSeoTitle] = React.useState(seo.metaTitle ?? "");
-	const [seoDescription, setSeoDescription] = React.useState(
+	const [seoTitle, setSeoTitle] = useState(seo.metaTitle ?? "");
+	const [seoDescription, setSeoDescription] = useState(
 		seo.metaDescription ?? "",
 	);
 
-	React.useEffect(() => {
+	useEffect(() => {
 		if (open) {
 			setLocalStatus(status);
 			setLocalSlug(slug);
@@ -135,16 +135,17 @@ export function PublishPanel({
 		<Sheet open={open} onOpenChange={onOpenChange}>
 			<SheetContent
 				side="right"
-				className="flex w-full flex-col gap-0 sm:max-w-md"
+				className="flex w-full flex-col gap-0 sm:max-w-md "
 			>
 				<SheetHeader>
 					<SheetTitle>Post settings</SheetTitle>
-					<SheetDescription>
-						Status, visibility, and metadata for this post.
-					</SheetDescription>
 				</SheetHeader>
 
 				<div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
+					<TranslationsSection onNavigate={() => onOpenChange(false)} />
+
+					<div className="h-px w-full bg-border/60" />
+
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="publish-status">Status</Label>
 						<Select
@@ -295,9 +296,6 @@ export function PublishPanel({
 							: localStatus === "scheduled"
 								? "Schedule"
 								: "Save"}
-					</Button>
-					<Button variant="outline" onClick={() => onOpenChange(false)}>
-						Cancel
 					</Button>
 				</SheetFooter>
 			</SheetContent>

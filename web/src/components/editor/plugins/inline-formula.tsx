@@ -305,8 +305,9 @@ export default class InlineFormulaTool implements InlineTool {
 		this.button.title = "Inline formula (Ctrl/Cmd+Shift+E)";
 		this.button.setAttribute("aria-label", "Inline formula");
 		this.button.classList.add(this.api.styles.inlineToolButton);
+		this.button.classList.add("ce-inline-tool--formula");
 		this.button.innerHTML =
-			'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sigma preview-icon"><path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2"/></svg>';
+			'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sigma"><path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2"/></svg>';
 		return this.button;
 	}
 
