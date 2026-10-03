@@ -1,12 +1,6 @@
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import type { PostStatus } from "@/types/domain";
-
-const STATUS_LABEL: Record<PostStatus, string> = {
-	draft: "Draft",
-	published: "Published",
-	scheduled: "Scheduled",
-	trashed: "Trashed",
-};
 
 const STATUS_STYLE: Record<PostStatus, string> = {
 	draft: "bg-muted text-muted-foreground",
@@ -16,12 +10,13 @@ const STATUS_STYLE: Record<PostStatus, string> = {
 };
 
 export function StatusBadge({ status }: { status: PostStatus }) {
+	const { t } = useTranslation();
 	return (
 		<Badge
 			variant="outline"
 			className={`border-transparent ${STATUS_STYLE[status]}`}
 		>
-			{STATUS_LABEL[status]}
+			{t(`common.status.${status}`)}
 		</Badge>
 	);
 }

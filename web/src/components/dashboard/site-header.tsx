@@ -1,29 +1,23 @@
+import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import { ModeToggle } from "@/components/theme/theme-toggle";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import LanguageSelector from "../i18n/language-selector";
 
-const PAGE_TITLES: Record<string, string> = {
-	"/": "Dashboard",
-	"/posts": "Posts",
-	"/tags": "Tags",
-	"/media": "Media",
-	"/members": "Members",
-	"/newsletters": "Newsletters",
-	"/analytics": "Analytics",
-	"/team": "Team",
-	"/settings": "Settings",
-	"/integrations": "Integrations",
-	"/help": "Get help",
+const PATH_TITLE_KEYS: Record<string, string> = {
+	"/": "dashboard.title",
+	"/posts": "dashboard.posts",
+	"/tags": "dashboard.tags",
+	"/media": "dashboard.media",
+	"/members": "dashboard.members",
+	"/newsletters": "dashboard.newsletters",
+	"/analytics": "dashboard.analytics",
+	"/team": "dashboard.team",
+	"/settings": "dashboard.settings",
+	"/integrations": "dashboard.integrations",
+	"/help": "dashboard.help",
 };
-
-function titleForPath(pathname: string): string {
-	if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
-	const match = Object.keys(PAGE_TITLES)
-		.filter((key) => key !== "/")
-		.find((key) => pathname.startsWith(`${key}/`));
-	return match ? PAGE_TITLES[match] : "Spile";
-}
 
 export function SiteHeader({
 	onActionsRef,
@@ -31,6 +25,19 @@ export function SiteHeader({
 	onActionsRef: (el: HTMLElement | null) => void;
 }) {
 	const { pathname } = useLocation();
+	const { t } = useTranslation();
+
+	function titleForPath(path: string): string {
+		const matchedKey =
+			PATH_TITLE_KEYS[path] ||
+			PATH_TITLE_KEYS[
+				Object.keys(PATH_TITLE_KEYS)
+					.filter((key) => key !== "/")
+					.find((key) => path.startsWith(`${key}/`)) ?? ""
+			];
+
+		return matchedKey ? t(matchedKey) : "Spile";
+	}
 
 	return (
 		<header className="flex h-12 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear">
@@ -42,6 +49,7 @@ export function SiteHeader({
 				/>
 				<h1 className="text-base font-medium">{titleForPath(pathname)}</h1>
 				<div className="ml-auto flex items-center gap-2" ref={onActionsRef} />
+				<LanguageSelector />
 				<ModeToggle />
 			</div>
 		</header>

@@ -3,13 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { SearchIcon, SquarePenIcon } from "lucide-react";
 
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { HeaderActions } from "@/components/dashboard/header-actions";
 import { PostsTable } from "@/components/dashboard/posts-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
 import {
 	Select,
 	SelectContent,
@@ -23,24 +23,32 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { mockApi } from "@/lib/mock/api";
 import type { PostStatus } from "@/types/domain";
 
-const STATUS_TABS = [
-	{ value: "all", label: "All" },
-	{ value: "draft", label: "Drafts" },
-	{ value: "published", label: "Published" },
-	{ value: "scheduled", label: "Scheduled" },
-	{ value: "trashed", label: "Trash" },
+const STATUS_TAB_VALUES = [
+	"all",
+	"draft",
+	"published",
+	"scheduled",
+	"trashed",
 ] as const;
-
-type StatusTab = (typeof STATUS_TABS)[number]["value"];
+type StatusTab = (typeof STATUS_TAB_VALUES)[number];
 
 export default function PostsPage() {
 	const navigate = useNavigate();
+	const { t } = useTranslation();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const status = (searchParams.get("status") ?? "all") as StatusTab;
 	const [query, setQuery] = React.useState("");
 	const [tagId, setTagId] = React.useState("all");
 	const [authorId, setAuthorId] = React.useState("all");
 	const [debouncedQuery, setDebouncedQuery] = React.useState("");
+
+	const statusTabs = [
+		{ value: "all" as const, label: t("posts.tabs.all") },
+		{ value: "draft" as const, label: t("posts.tabs.draft") },
+		{ value: "published" as const, label: t("posts.tabs.published") },
+		{ value: "scheduled" as const, label: t("posts.tabs.scheduled") },
+		{ value: "trashed" as const, label: t("posts.tabs.trashed") },
+	];
 
 	React.useEffect(() => {
 		const timer = setTimeout(() => setDebouncedQuery(query), 250);
@@ -111,7 +119,7 @@ export default function PostsPage() {
 					onClick={() => navigate("/editor/new")}
 				>
 					<PlusCircleIcon className="size-4" />
-					New post
+					{t("posts.postButton")}
 				</Button>
 			</HeaderActions>
 
@@ -121,7 +129,7 @@ export default function PostsPage() {
 			>
 				<div className="flex flex-wrap items-center gap-2">
 					<TabsList>
-						{STATUS_TABS.map((tab) => (
+						{statusTabs.map((tab) => (
 							<TabsTrigger key={tab.value} value={tab.value}>
 								{tab.label}
 								<span className="ml-1 text-xs text-muted-foreground">
@@ -137,9 +145,9 @@ export default function PostsPage() {
 							<Input
 								value={query}
 								onChange={(e) => setQuery(e.target.value)}
-								placeholder="Search posts…"
+								placeholder={t("posts.searchPlaceholder")}
 								className="w-56 pl-8"
-								aria-label="Search posts"
+								aria-label={t("posts.searchAria")}
 							/>
 						</div>
 						<Select
@@ -149,13 +157,13 @@ export default function PostsPage() {
 							<SelectTrigger
 								size="sm"
 								className="w-36"
-								aria-label="Filter by tag"
+								aria-label={t("posts.filterTagAria")}
 							>
-								<SelectValue placeholder="All tags" />
+								<SelectValue placeholder={t("posts.allTags")} />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectGroup>
-									<SelectItem value="all">All tags</SelectItem>
+									<SelectItem value="all">{t("posts.allTags")}</SelectItem>
 									{(tags ?? []).map((tag) => (
 										<SelectItem key={tag.id} value={tag.id}>
 											{tag.name}
@@ -171,13 +179,13 @@ export default function PostsPage() {
 							<SelectTrigger
 								size="sm"
 								className="w-40"
-								aria-label="Filter by author"
+								aria-label={t("posts.filterAuthorAria")}
 							>
-								<SelectValue placeholder="All authors" />
+								<SelectValue placeholder={t("posts.allAuthors")} />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectGroup>
-									<SelectItem value="all">All authors</SelectItem>
+									<SelectItem value="all">{t("posts.allAuthors")}</SelectItem>
 									{(users ?? []).map((user) => (
 										<SelectItem key={user.id} value={user.id}>
 											{user.name}
@@ -201,18 +209,18 @@ export default function PostsPage() {
 					icon={SquarePenIcon}
 					title={
 						query || tagId !== "all" || authorId !== "all"
-							? "No posts match your filters"
-							: "No posts yet"
+							? t("posts.empty.noFilteredTitle")
+							: t("posts.empty.noPostsTitle")
 					}
 					description={
 						query || tagId !== "all" || authorId !== "all"
-							? "Try adjusting your search or filters to find what you're looking for."
-							: "Create your first post to get started with Spile."
+							? t("posts.empty.noFilteredDesc")
+							: t("posts.empty.noPostsDesc")
 					}
 					action={
 						<Button size="sm" onClick={() => navigate("/editor/new")}>
 							<SquarePenIcon />
-							New post
+							{t("posts.empty.newPostAction")}
 						</Button>
 					}
 				/>

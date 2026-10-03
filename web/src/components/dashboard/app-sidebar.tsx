@@ -1,13 +1,18 @@
 import {
-	FileTextIcon,
+	ChartBarIcon,
+	DocumentTextIcon,
+	NewspaperIcon,
+	TagIcon,
+} from "@heroicons/react/24/outline";
+import {
+	BookOpen,
 	FolderIcon,
 	Gauge,
-	MailIcon,
-	Settings2Icon,
-	TagIcon,
+	SettingsIcon,
 	UsersIcon,
 } from "lucide-react";
 import type * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router-dom";
 import {
 	Sidebar,
@@ -22,21 +27,40 @@ import { NavMain } from "./nav-main";
 import { NavSecondary } from "./nav-secondary";
 import { NavUser } from "./nav-user";
 
-const navMain = [
-	{ title: "Dashboard", url: "/", icon: <Gauge /> },
-	{ title: "Posts", url: "/posts", icon: <FileTextIcon /> },
-	{ title: "Tags", url: "/tags", icon: <TagIcon /> },
-	{ title: "Media", url: "/media", icon: <FolderIcon /> },
-	{ title: "Members", url: "/members", icon: <UsersIcon /> },
-	{ title: "Newsletters", url: "/newsletters", icon: <MailIcon /> },
-];
-
-const navSecondary = [
-	{ title: "Settings", url: "/settings", icon: <Settings2Icon /> },
-];
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const { pathname } = useLocation();
+	const { t } = useTranslation();
+	const navMain = [
+		{ title: t("dashboard.overview"), url: "/", icon: <Gauge /> },
+		{ title: t("dashboard.posts"), url: "/posts", icon: <DocumentTextIcon /> },
+		{ title: t("dashboard.tags"), url: "/tags", icon: <TagIcon /> },
+		{ title: t("dashboard.media"), url: "/media", icon: <FolderIcon /> },
+		{
+			title: t("dashboard.analytics"),
+			url: "/analytics",
+			icon: <ChartBarIcon />,
+		},
+		{ title: t("dashboard.members"), url: "/members", icon: <UsersIcon /> },
+		{
+			title: t("dashboard.newsletters"),
+			url: "/newsletters",
+			icon: <NewspaperIcon />,
+		},
+	];
+
+	const navSecondary = [
+		{
+			title: t("dashboard.settings"),
+			url: "/settings",
+			icon: <SettingsIcon />,
+		},
+		{
+			title: t("dashboard.documentation"),
+			url: "https://docs.spile.dev",
+			icon: <BookOpen />,
+			outlink: true,
+		},
+	];
 
 	return (
 		<Sidebar collapsible="offcanvas" {...props} variant="inset">

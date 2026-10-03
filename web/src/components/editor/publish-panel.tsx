@@ -135,13 +135,13 @@ export function PublishPanel({
 		<Sheet open={open} onOpenChange={onOpenChange}>
 			<SheetContent
 				side="right"
-				className="flex w-full flex-col gap-0 sm:max-w-md "
+				className="flex w-full flex-col gap-0 sm:max-w-md sheet-content-scroll"
 			>
 				<SheetHeader>
 					<SheetTitle>Post settings</SheetTitle>
 				</SheetHeader>
 
-				<div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
+				<div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4 sheet-content-scroll">
 					<TranslationsSection onNavigate={() => onOpenChange(false)} />
 
 					<div className="h-px w-full bg-border/60" />

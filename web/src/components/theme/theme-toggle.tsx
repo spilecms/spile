@@ -1,6 +1,7 @@
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
@@ -11,6 +12,7 @@ import {
 
 export function ModeToggle() {
 	const [isDark, setIsDark] = useState(false);
+	const { t } = useTranslation();
 
 	useEffect(() => {
 		setIsDark(document.documentElement.classList.contains("dark"));
@@ -22,7 +24,7 @@ export function ModeToggle() {
 		setIsDark(nextIsDark);
 	}
 
-	const label = isDark ? "Switch to light theme" : "Switch to dark theme";
+	const label = isDark ? t("theme.switchToLight") : t("theme.switchToDark");
 
 	return (
 		<TooltipProvider delay={250}>

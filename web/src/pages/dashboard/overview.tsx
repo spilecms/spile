@@ -6,6 +6,7 @@ import {
 	SendIcon,
 	UserPlusIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ChartAreaInteractive } from "@/components/dashboard/chart-area-interactive";
 import { SectionCards } from "@/components/dashboard/section-cards";
@@ -34,6 +35,7 @@ const ACTIVITY_ICON = {
 };
 
 export default function Overview() {
+	const { t } = useTranslation();
 	const { data: recentPosts, isPending: postsPending } = useQuery({
 		queryKey: ["posts", "recent"],
 		queryFn: () => mockApi.posts.list({ type: "post", status: "all" }),
@@ -55,9 +57,9 @@ export default function Overview() {
 			<div className="grid grid-cols-1 gap-6 px-4 lg:grid-cols-2 lg:px-6">
 				<Card>
 					<CardHeader>
-						<CardTitle>Recent posts</CardTitle>
+						<CardTitle>{t("overview.recentPosts.title")}</CardTitle>
 						<CardDescription>
-							Your latest drafts and publications
+							{t("overview.recentPosts.description")}
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="flex flex-col gap-1 p-0">
@@ -81,7 +83,9 @@ export default function Overview() {
 											</span>
 										</div>
 										<span className="text-xs tabular-nums text-muted-foreground">
-											{formatNumber(post.views)} views
+											{t("overview.recentPosts.views", {
+												count: formatNumber(post.views),
+											})}
 										</span>
 										<StatusBadge status={post.status} />
 									</Link>
@@ -91,8 +95,10 @@ export default function Overview() {
 
 				<Card>
 					<CardHeader>
-						<CardTitle>Recent activity</CardTitle>
-						<CardDescription>What's happening on your site</CardDescription>
+						<CardTitle>{t("overview.recentActivity.title")}</CardTitle>
+						<CardDescription>
+							{t("overview.recentActivity.description")}
+						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						{activityPending ? (

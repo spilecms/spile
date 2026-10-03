@@ -1,3 +1,4 @@
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { Link } from "react-router-dom";
 import {
 	SidebarGroup,
@@ -25,9 +26,15 @@ export function NavSecondary({
 							<SidebarMenuButton
 								isActive={currentPath === item.url}
 								render={<Link to={item.url} />}
+								className="flex items-center gap-2 text-[0.75rem] font-semibold"
 							>
 								{item.icon}
 								<span>{item.title}</span>
+								{item.outlink && (
+									<span className="ml-auto font-bold">
+										<ArrowTopRightOnSquareIcon />
+									</span>
+								)}
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					))}

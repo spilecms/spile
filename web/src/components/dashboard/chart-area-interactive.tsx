@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import {
 	Card,
@@ -29,26 +30,31 @@ import { formatNumber } from "@/lib/format";
 import { mockApi } from "@/lib/mock/api";
 import type { ViewsRange } from "@/types/domain";
 
-const chartConfig = {
-	views: {
-		label: "Views",
-		color: "var(--primary)",
-	},
-	visitors: {
-		label: "Visitors",
-		color: "var(--color-visitors)",
-	},
-} satisfies ChartConfig;
-
-const RANGE_LABEL: Record<ViewsRange, string> = {
-	"7d": "Last 7 days",
-	"30d": "Last 30 days",
-	"90d": "Last 3 months",
-};
-
 export function ChartAreaInteractive() {
+	const { t } = useTranslation();
 	const isMobile = useIsMobile();
 	const [timeRange, setTimeRange] = React.useState<ViewsRange>("30d");
+
+	const chartConfig = React.useMemo(
+		() =>
+			({
+				views: {
+					label: t("overview.chart.views"),
+					color: "var(--primary)",
+				},
+				visitors: {
+					label: t("overview.chart.visitors"),
+					color: "var(--color-visitors)",
+				},
+			}) satisfies ChartConfig,
+		[t],
+	);
+
+	const rangeLabels: Record<ViewsRange, string> = {
+		"7d": t("overview.chart.last7Days"),
+		"30d": t("overview.chart.last30Days"),
+		"90d": t("overview.chart.last3Months"),
+	};
 
 	React.useEffect(() => {
 		if (isMobile) {
@@ -67,14 +73,14 @@ export function ChartAreaInteractive() {
 	return (
 		<Card className="@container/card">
 			<CardHeader>
-				<CardTitle>Total views</CardTitle>
+				<CardTitle>{t("overview.chart.title")}</CardTitle>
 				<CardDescription>
 					<span className="hidden @[540px]/card:block">
 						{points.length > 0
-							? `Total for the last ${points.length} days`
-							: "Loading…"}
+							? t("overview.chart.totalForDays", { count: points.length })
+							: t("overview.chart.loading")}
 					</span>
-					<span className="@[540px]/card:hidden">{RANGE_LABEL[timeRange]}</span>
+					<span className="@[540px]/card:hidden">{rangeLabels[timeRange]}</span>
 				</CardDescription>
 				<CardAction>
 					<ToggleGroup
@@ -86,9 +92,9 @@ export function ChartAreaInteractive() {
 						variant="outline"
 						className="hidden *:data-[slot=toggle-group-item]:px-4! @[767px]/card:flex"
 					>
-						<ToggleGroupItem value="90d">Last 3 months</ToggleGroupItem>
-						<ToggleGroupItem value="30d">Last 30 days</ToggleGroupItem>
-						<ToggleGroupItem value="7d">Last 7 days</ToggleGroupItem>
+						<ToggleGroupItem value="90d">{rangeLabels["90d"]}</ToggleGroupItem>
+						<ToggleGroupItem value="30d">{rangeLabels["30d"]}</ToggleGroupItem>
+						<ToggleGroupItem value="7d">{rangeLabels["7d"]}</ToggleGroupItem>
 					</ToggleGroup>
 					<Select
 						value={timeRange}
@@ -101,19 +107,19 @@ export function ChartAreaInteractive() {
 						<SelectTrigger
 							className="flex w-40 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[767px]/card:hidden"
 							size="sm"
-							aria-label="Select a time range"
+							aria-label={t("overview.chart.selectRangeAria")}
 						>
-							<SelectValue placeholder="Last 30 days" />
+							<SelectValue placeholder={rangeLabels["30d"]} />
 						</SelectTrigger>
 						<SelectContent className="rounded-xl">
 							<SelectItem value="90d" className="rounded-lg">
-								Last 3 months
+								{rangeLabels["90d"]}
 							</SelectItem>
 							<SelectItem value="30d" className="rounded-lg">
-								Last 30 days
+								{rangeLabels["30d"]}
 							</SelectItem>
 							<SelectItem value="7d" className="rounded-lg">
-								Last 7 days
+								{rangeLabels["7d"]}
 							</SelectItem>
 						</SelectContent>
 					</Select>
@@ -121,11 +127,11 @@ export function ChartAreaInteractive() {
 			</CardHeader>
 			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
 				{isPending ? (
-					<Skeleton className="h-[250px] w-full" />
+					<Skeleton className="h-62.5 w-full" />
 				) : (
 					<ChartContainer
 						config={chartConfig}
-						className="aspect-auto h-[250px] w-full"
+						className="aspect-auto h-62.5 w-full"
 					>
 						<AreaChart data={points}>
 							<defs>
@@ -201,7 +207,7 @@ export function ChartAreaInteractive() {
 					</ChartContainer>
 				)}
 				<div className="mt-2 text-xs text-muted-foreground">
-					{formatNumber(totalViews)} views in the selected period
+					{t("overview.chart.viewsPeriod", { count: formatNumber(totalViews) })}
 				</div>
 			</CardContent>
 		</Card>

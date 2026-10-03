@@ -5,6 +5,7 @@ import {
 	LogOutIcon,
 	Settings2Icon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -37,6 +38,7 @@ function initials(name: string): string {
 export function NavUser() {
 	const { isMobile } = useSidebar();
 	const navigate = useNavigate();
+	const { t } = useTranslation();
 	const { data: user } = useQuery({
 		queryKey: ["users", "current"],
 		queryFn: () => mockApi.users.current(),
@@ -54,7 +56,7 @@ export function NavUser() {
 							<SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
 						}
 					>
-						<Avatar className="size-8 rounded-lg flex items-center justify-center ">
+						<Avatar className="size-8  flex items-center justify-center ">
 							<AvatarFallback className="rounded-lg ">
 								{user ? initials(name) : "?"}
 							</AvatarFallback>
@@ -94,17 +96,17 @@ export function NavUser() {
 						<DropdownMenuGroup>
 							<DropdownMenuItem>
 								<CircleUserRoundIcon />
-								Profile
+								{t("userMenu.profile")}
 							</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => navigate("/settings")}>
 								<Settings2Icon />
-								Settings
+								{t("userMenu.settings")}
 							</DropdownMenuItem>
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem>
 							<LogOutIcon />
-							Sign out
+							{t("userMenu.signOut")}
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>

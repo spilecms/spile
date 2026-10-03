@@ -7,6 +7,7 @@ import {
 	TrendingUpIcon,
 	UsersIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import {
 	Card,
@@ -21,6 +22,7 @@ import { formatNumber, formatPercent } from "@/lib/format";
 import { mockApi } from "@/lib/mock/api";
 
 export function SectionCards() {
+	const { t } = useTranslation();
 	const { data: stats, isPending } = useQuery({
 		queryKey: ["overview", "stats"],
 		queryFn: () => mockApi.overview.stats(),
@@ -38,31 +40,35 @@ export function SectionCards() {
 
 	const cards = [
 		{
-			label: "Total views",
+			id: "views",
+			label: t("overview.cards.totalViews"),
 			value: formatNumber(stats.totalViews),
 			trend: stats.viewsTrend,
-			footer: "Views across all published posts",
+			footer: t("overview.cards.totalViewsFooter"),
 			icon: <EyeIcon className="size-4 text-muted-foreground" />,
 		},
 		{
-			label: "Published posts",
+			id: "posts",
+			label: t("overview.cards.publishedPosts"),
 			value: String(stats.published),
 			trend: null,
-			footer: `${stats.drafts} drafts waiting on you`,
+			footer: t("overview.cards.draftsWaiting", { count: stats.drafts }),
 			icon: <FileTextIcon className="size-4 text-muted-foreground" />,
 		},
 		{
-			label: "Members",
+			id: "members",
+			label: t("overview.cards.members"),
 			value: formatNumber(stats.members),
 			trend: stats.membersTrend,
-			footer: "Newsletter subscribers",
+			footer: t("overview.cards.newsletterSubscribers"),
 			icon: <UsersIcon className="size-4 text-muted-foreground" />,
 		},
 		{
-			label: "Avg. read time",
-			value: `${stats.avgReadTime} min`,
+			id: "read-time",
+			label: t("overview.cards.avgReadTime"),
+			value: t("overview.cards.avgReadTimeValue", { count: stats.avgReadTime }),
 			trend: null,
-			footer: "Across published posts",
+			footer: t("overview.cards.acrossPublished"),
 			icon: <ClockIcon className="size-4 text-muted-foreground" />,
 		},
 	];
@@ -70,7 +76,7 @@ export function SectionCards() {
 	return (
 		<div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-linear-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
 			{cards.map((card) => (
-				<Card key={card.label} className="@container/card">
+				<Card key={card.id} className="@container/card">
 					<CardHeader>
 						<CardDescription className="flex items-center gap-1.5">
 							{card.icon}

@@ -14,6 +14,8 @@ import PlaceholderPage from "./pages/dashboard/placeholder";
 import PostsPage from "./pages/dashboard/posts";
 import EditorPage from "./pages/editor/editor-page";
 
+import "./i18n/i18n"; // Import the i18n configuration
+
 const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {

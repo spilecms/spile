@@ -15,6 +15,7 @@ import {
 	tableFeatures,
 	useTable,
 } from "@tanstack/react-table";
+import type { TFunction } from "i18next";
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
@@ -22,6 +23,7 @@ import {
 	FileEditIcon,
 } from "lucide-react";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -70,6 +72,7 @@ function initials(name: string): string {
 }
 
 function buildColumns(
+	t: TFunction,
 	users: User[],
 	onOpen: (post: Post) => void,
 	onDuplicate: (post: Post) => void,
@@ -91,7 +94,7 @@ function buildColumns(
 						onCheckedChange={(value) =>
 							table.toggleAllPageRowsSelected(!!value)
 						}
-						aria-label="Select all"
+						aria-label={t("posts.table.selectAll")}
 					/>
 				</div>
 			),
@@ -100,7 +103,7 @@ function buildColumns(
 					<Checkbox
 						checked={row.getIsSelected()}
 						onCheckedChange={(value) => row.toggleSelected(!!value)}
-						aria-label="Select row"
+						aria-label={t("posts.table.selectRow")}
 					/>
 				</div>
 			),
@@ -108,7 +111,7 @@ function buildColumns(
 			enableHiding: false,
 		}),
 		columnHelper.accessor("title", {
-			header: "Title",
+			header: t("posts.table.title"),
 			enableHiding: false,
 			cell: ({ row }) => (
 				<button
@@ -128,11 +131,11 @@ function buildColumns(
 			),
 		}),
 		columnHelper.accessor("status", {
-			header: "Status",
+			header: t("posts.table.status"),
 			cell: ({ row }) => <StatusBadge status={row.original.status} />,
 		}),
 		columnHelper.accessor("authorIds", {
-			header: "Authors",
+			header: t("posts.table.authors"),
 			cell: ({ row }) => (
 				<div className="flex -space-x-1.5">
 					{row.original.authorIds.map((id) => {
@@ -149,7 +152,7 @@ function buildColumns(
 			),
 		}),
 		columnHelper.accessor("views", {
-			header: () => <div className="text-right">Views</div>,
+			header: () => <div className="text-right">{t("posts.table.views")}</div>,
 			cell: ({ row }) => (
 				<div className="text-right tabular-nums text-muted-foreground">
 					{formatNumber(row.original.views)}
@@ -157,7 +160,7 @@ function buildColumns(
 			),
 		}),
 		columnHelper.accessor("updatedAt", {
-			header: "Updated",
+			header: t("posts.table.updated"),
 			cell: ({ row }) => (
 				<span className="text-muted-foreground">
 					{formatRelativeTime(row.original.updatedAt)}
@@ -178,22 +181,22 @@ function buildColumns(
 						}
 					>
 						<EllipsisVerticalIcon />
-						<span className="sr-only">Open menu</span>
+						<span className="sr-only">{t("posts.table.actionsAria")}</span>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" className="w-36">
 						<DropdownMenuItem onClick={() => onOpen(row.original)}>
 							<FileEditIcon />
-							Edit
+							{t("posts.table.edit")}
 						</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => onDuplicate(row.original)}>
-							Duplicate
+							{t("posts.table.duplicate")}
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem
 							variant="destructive"
 							onClick={() => onDelete(row.original)}
 						>
-							Delete
+							{t("posts.table.delete")}
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -214,6 +217,7 @@ export function PostsTable({
 	onDelete: (post: Post) => void;
 }) {
 	const navigate = useNavigate();
+	const { t } = useTranslation();
 	const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 	const [sorting, setSorting] = React.useState<SortingState>([]);
 	const [pagination, setPagination] = React.useState<PaginationState>({
@@ -224,12 +228,13 @@ export function PostsTable({
 	const columns = React.useMemo(
 		() =>
 			buildColumns(
+				t,
 				users,
 				(post) => navigate(`/editor/${post.id}`),
 				onDuplicate,
 				onDelete,
 			),
-		[users, navigate, onDuplicate, onDelete],
+		[t, users, navigate, onDuplicate, onDelete],
 	);
 
 	const table = useTable({
@@ -254,15 +259,17 @@ export function PostsTable({
 		<div className="flex flex-col gap-4">
 			{selectedCount > 0 && (
 				<div className="flex items-center gap-3 rounded-md border bg-muted/50 px-4 py-2 text-sm">
-					<span className="font-medium">{selectedCount} selected</span>
+					<span className="font-medium">
+						{t("posts.table.selectedCount", { count: selectedCount })}
+					</span>
 					<Button
 						size="sm"
 						variant="outline"
 						onClick={() => {
-							toast.info("Bulk actions are coming soon");
+							toast.info(t("posts.table.bulkComingSoon"));
 						}}
 					>
-						Change status
+						{t("posts.table.changeStatus")}
 					</Button>
 					<Button
 						size="sm"
@@ -274,7 +281,7 @@ export function PostsTable({
 							setRowSelection({});
 						}}
 					>
-						Delete
+						{t("posts.table.delete")}
 					</Button>
 				</div>
 			)}
@@ -314,7 +321,7 @@ export function PostsTable({
 									colSpan={columns.length}
 									className="h-24 text-center"
 								>
-									No results.
+									{t("posts.table.noResults")}
 								</TableCell>
 							</TableRow>
 						)}
@@ -324,12 +331,16 @@ export function PostsTable({
 
 			<div className="flex items-center justify-between px-1">
 				<div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
-					{table.getFilteredRowModel().rows.length} post(s)
+					{t("posts.table.postsCount", {
+						count: table.getFilteredRowModel().rows.length,
+					})}
 				</div>
 				<div className="flex items-center gap-4">
 					<span className="text-sm text-muted-foreground">
-						Page {table.state.pagination.pageIndex + 1} of{" "}
-						{Math.max(table.getPageCount(), 1)}
+						{t("posts.table.pageOf", {
+							current: table.state.pagination.pageIndex + 1,
+							total: Math.max(table.getPageCount(), 1),
+						})}
 					</span>
 					<div className="flex items-center gap-1">
 						<Button
@@ -338,7 +349,7 @@ export function PostsTable({
 							onClick={() => table.previousPage()}
 							disabled={!table.getCanPreviousPage()}
 						>
-							<span className="sr-only">Go to previous page</span>
+							<span className="sr-only">{t("posts.table.prevPage")}</span>
 							<ChevronLeftIcon />
 						</Button>
 						<Button
@@ -347,7 +358,7 @@ export function PostsTable({
 							onClick={() => table.nextPage()}
 							disabled={!table.getCanNextPage()}
 						>
-							<span className="sr-only">Go to next page</span>
+							<span className="sr-only">{t("posts.table.nextPage")}</span>
 							<ChevronRightIcon />
 						</Button>
 					</div>

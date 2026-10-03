@@ -11,6 +11,7 @@ export interface NavItem {
 	title: string;
 	url: string;
 	icon?: React.ReactNode;
+	outlink?: boolean;
 }
 
 export function NavMain({
@@ -30,6 +31,7 @@ export function NavMain({
 								tooltip={item.title}
 								isActive={currentPath === item.url}
 								render={<Link to={item.url} />}
+								className="flex items-center gap-2 text-[0.75rem] font-semibold"
 							>
 								{item.icon}
 								<span>{item.title}</span>
