@@ -8,6 +8,7 @@ import LanguageSelector from "../i18n/language-selector";
 const PATH_TITLE_KEYS: Record<string, string> = {
 	"/": "dashboard.title",
 	"/posts": "dashboard.posts",
+	"/docs": "dashboard.docs",
 	"/tags": "dashboard.tags",
 	"/media": "dashboard.media",
 	"/members": "dashboard.members",

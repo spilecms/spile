@@ -1,8 +1,8 @@
 import {
 	ChartBarIcon,
 	DocumentTextIcon,
-	NewspaperIcon,
 	TagIcon,
+	QuestionMarkCircleIcon,
 } from "@heroicons/react/24/outline";
 import {
 	BookOpen,
@@ -33,6 +33,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const navMain = [
 		{ title: t("dashboard.overview"), url: "/", icon: <Gauge /> },
 		{ title: t("dashboard.posts"), url: "/posts", icon: <DocumentTextIcon /> },
+		{ title: t("dashboard.docs"), url: "/docs", icon: <BookOpen /> },
 		{ title: t("dashboard.tags"), url: "/tags", icon: <TagIcon /> },
 		{ title: t("dashboard.media"), url: "/media", icon: <FolderIcon /> },
 		{
@@ -41,11 +42,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 			icon: <ChartBarIcon />,
 		},
 		{ title: t("dashboard.members"), url: "/members", icon: <UsersIcon /> },
-		{
-			title: t("dashboard.newsletters"),
-			url: "/newsletters",
-			icon: <NewspaperIcon />,
-		},
 	];
 
 	const navSecondary = [
@@ -55,9 +51,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 			icon: <SettingsIcon />,
 		},
 		{
-			title: t("dashboard.documentation"),
+			title: t("dashboard.help"),
 			url: "https://docs.spile.dev",
-			icon: <BookOpen />,
+			icon: <QuestionMarkCircleIcon />,
 			outlink: true,
 		},
 	];

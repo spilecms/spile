@@ -1,7 +1,14 @@
 import type { OutputData } from "@editorjs/editorjs";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { Post, PostSeo, PostStatus, PostType } from "@/types/domain";
+import type {
+	DocPage,
+	Post,
+	PostDistribution,
+	PostSeo,
+	PostStatus,
+	PostType,
+} from "@/types/domain";
 
 interface EditorState {
 	postId: string | null;
@@ -21,9 +28,11 @@ interface EditorState {
 	isDefaultLocale: boolean;
 	translationGroupId: string | null;
 	translationSourceId: string | null;
+	distribution: PostDistribution;
 	setBlocks: (blocks: OutputData) => void;
 	setTitle: (title: string) => void;
 	loadPost: (post: Post) => void;
+	loadDoc: (doc: DocPage) => void;
 	patchMeta: (patch: Partial<Omit<EditorState, keyof EditorActions>>) => void;
 	reset: () => void;
 }
@@ -32,6 +41,7 @@ type EditorActions =
 	| "setBlocks"
 	| "setTitle"
 	| "loadPost"
+	| "loadDoc"
 	| "patchMeta"
 	| "reset";
 
@@ -53,6 +63,11 @@ const emptyState = {
 	isDefaultLocale: true,
 	translationGroupId: null,
 	translationSourceId: null,
+	distribution: {
+		web: true,
+		newsletter: false,
+		newsletterSentAt: null,
+	} as PostDistribution,
 };
 
 export const useEditorStore = create<EditorState>()(
@@ -81,6 +96,36 @@ export const useEditorStore = create<EditorState>()(
 						post.isDefaultLocale ?? (post.locale === "en" || !post.locale),
 					translationGroupId: post.translationGroupId ?? post.id,
 					translationSourceId: post.translationSourceId ?? null,
+					distribution: post.distribution ?? {
+						web: true,
+						newsletter: false,
+						newsletterSentAt: null,
+					},
+				}),
+			loadDoc: (doc) =>
+				set({
+					postId: doc.id,
+					type: "doc",
+					status: doc.status,
+					blocks: doc.content ?? { blocks: [] },
+					title: doc.title,
+					excerpt: "",
+					slug: doc.slug,
+					featuredImage: undefined,
+					tagIds: [],
+					seo: {},
+					publishedAt: doc.status === "published" ? doc.updatedAt : null,
+					scheduledFor: null,
+					updatedAt: doc.updatedAt,
+					locale: doc.locale ?? "en",
+					isDefaultLocale: true,
+					translationGroupId: doc.id,
+					translationSourceId: null,
+					distribution: {
+						web: true,
+						newsletter: false,
+						newsletterSentAt: null,
+					},
 				}),
 			patchMeta: (patch) => set({ ...patch, updatedAt: Date.now() }),
 			reset: () => set({ ...emptyState }),
@@ -106,6 +151,7 @@ export const useEditorStore = create<EditorState>()(
 				isDefaultLocale: state.isDefaultLocale,
 				translationGroupId: state.translationGroupId,
 				translationSourceId: state.translationSourceId,
+				distribution: state.distribution,
 			}),
 		},
 	),

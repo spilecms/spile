@@ -1,4 +1,11 @@
-import { ChevronLeftIcon, CircleUserRound, Redo2, Undo2 } from "lucide-react";
+import {
+	ChevronLeftIcon,
+	CircleUserRound,
+	PanelLeftCloseIcon,
+	PanelLeftIcon,
+	Redo2,
+	Undo2,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ModeToggle } from "@/components/theme/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -28,6 +35,9 @@ interface NavbarProps {
 	onPublish: () => void;
 	saving: boolean;
 	savedAt: number | null;
+	backUrl?: string;
+	onToggleSidebar?: () => void;
+	isSidebarOpen?: boolean;
 }
 
 export default function Navbar({
@@ -38,6 +48,9 @@ export default function Navbar({
 	onPublish,
 	saving,
 	savedAt,
+	backUrl = "/posts",
+	onToggleSidebar,
+	isSidebarOpen,
 }: NavbarProps) {
 	const navigate = useNavigate();
 
@@ -51,15 +64,37 @@ export default function Navbar({
 								<Button
 									size="icon-sm"
 									variant="ghost"
-									aria-label="Back to posts"
-									onClick={() => navigate("/posts")}
+									aria-label="Back"
+									onClick={() => navigate(backUrl)}
 								/>
 							}
 						>
 							<ChevronLeftIcon />
 						</TooltipTrigger>
-						<TooltipContent>Back to posts</TooltipContent>
+						<TooltipContent>Back</TooltipContent>
 					</Tooltip>
+
+					{onToggleSidebar && (
+						<Tooltip>
+							<TooltipTrigger
+								render={
+									<Button
+										size="icon-sm"
+										variant="ghost"
+										aria-label={
+											isSidebarOpen ? "Hide Docs Sidebar" : "Show Docs Sidebar"
+										}
+										onClick={onToggleSidebar}
+									/>
+								}
+							>
+								{isSidebarOpen ? <PanelLeftCloseIcon /> : <PanelLeftIcon />}
+							</TooltipTrigger>
+							<TooltipContent>
+								{isSidebarOpen ? "Hide Docs Sidebar" : "Show Docs Sidebar"}
+							</TooltipContent>
+						</Tooltip>
+					)}
 				</TooltipProvider>
 
 				<input

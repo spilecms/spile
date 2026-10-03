@@ -21,12 +21,14 @@ import {
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
 	FileEditIcon,
+	MailIcon,
 } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -132,7 +134,29 @@ function buildColumns(
 		}),
 		columnHelper.accessor("status", {
 			header: t("posts.table.status"),
-			cell: ({ row }) => <StatusBadge status={row.original.status} />,
+			cell: ({ row }) => (
+				<div className="flex items-center gap-1.5 flex-wrap">
+					<StatusBadge status={row.original.status} />
+					{row.original.distribution?.newsletter && (
+						<Badge
+							variant="outline"
+							className="gap-1 border-muted bg-primary/5 text-primary text-[10px] py-0 px-1.5 font-normal"
+							title={
+								row.original.distribution.newsletterSentAt
+									? t("posts.delivery.newsletterSent", {
+											date: new Date(
+												row.original.distribution.newsletterSentAt,
+											).toLocaleDateString(),
+										})
+									: t("posts.delivery.channelNewsletter")
+							}
+						>
+							<MailIcon className="size-2.5" />
+							{t("posts.delivery.channelNewsletter")}
+						</Badge>
+					)}
+				</div>
+			),
 		}),
 		columnHelper.accessor("authorIds", {
 			header: t("posts.table.authors"),

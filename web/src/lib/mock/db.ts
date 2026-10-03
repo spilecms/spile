@@ -1,5 +1,8 @@
 import type {
 	ActivityItem,
+	DocNavigationManifest,
+	DocPage,
+	DocumentationProject,
 	Post,
 	Tag,
 	User,
@@ -427,6 +430,12 @@ export const posts: Post[] = postSeeds.map((seed, index) => {
 		locale: "en",
 		isDefaultLocale: true,
 		translationGroupId: id,
+		distribution: {
+			web: true,
+			newsletter: index % 2 === 0,
+			newsletterSentAt:
+				index % 2 === 0 && seed.status === "published" ? publishedAt : null,
+		},
 	};
 });
 
@@ -524,3 +533,214 @@ export const stats = {
 	membersTrend: 8.1,
 	avgReadTime: 6.4,
 };
+
+export const docPages: DocPage[] = [
+	{
+		id: "doc-1",
+		title: "Introduction to Spile",
+		slug: "introduction",
+		status: "published",
+		locale: "en",
+		createdAt: day(30),
+		updatedAt: day(2),
+		content: {
+			time: day(2),
+			blocks: [
+				{
+					id: "blk-intro-1",
+					type: "header",
+					data: {
+						text: "Introduction to Spile",
+						level: 1,
+					},
+				},
+				{
+					id: "blk-intro-2",
+					type: "paragraph",
+					data: {
+						text: "Spile is a modern, headless developer-first content management platform designed for documentation, technical publications, and newsletters.",
+					},
+				},
+				{
+					id: "blk-intro-3",
+					type: "paragraph",
+					data: {
+						text: "With a high-performance Go backend and a responsive React frontend, Spile delivers instantaneous content delivery with native multi-channel distribution.",
+					},
+				},
+			],
+			version: "2.31.7",
+		},
+	},
+	{
+		id: "doc-2",
+		title: "Installation & Quickstart",
+		slug: "installation",
+		status: "published",
+		locale: "en",
+		createdAt: day(28),
+		updatedAt: day(5),
+		content: {
+			time: day(5),
+			blocks: [
+				{
+					id: "blk-inst-1",
+					type: "header",
+					data: {
+						text: "Installation & Quickstart",
+						level: 1,
+					},
+				},
+				{
+					id: "blk-inst-2",
+					type: "paragraph",
+					data: {
+						text: "Get up and running with Spile in less than 3 minutes using Docker or direct binary execution.",
+					},
+				},
+				{
+					id: "blk-inst-3",
+					type: "code",
+					data: {
+						code: "# Clone the repository\ngit clone https://github.com/spilecms/spile.git\ncd spile\n\n# Run with Docker Compose\ndocker compose up -d",
+					},
+				},
+			],
+			version: "2.31.7",
+		},
+	},
+	{
+		id: "doc-3",
+		title: "Architecture & Data Model",
+		slug: "architecture",
+		status: "published",
+		locale: "en",
+		createdAt: day(20),
+		updatedAt: day(4),
+		content: {
+			time: day(4),
+			blocks: [
+				{
+					id: "blk-arch-1",
+					type: "header",
+					data: {
+						text: "Architecture & Data Model",
+						level: 1,
+					},
+				},
+				{
+					id: "blk-arch-2",
+					type: "paragraph",
+					data: {
+						text: "Spile separates documentation content from hierarchical navigation manifests to guarantee zero-sync penalty during drag-and-drop tree reordering.",
+					},
+				},
+			],
+			version: "2.31.7",
+		},
+	},
+	{
+		id: "doc-4",
+		title: "API Authentication",
+		slug: "api-authentication",
+		status: "draft",
+		locale: "en",
+		createdAt: day(10),
+		updatedAt: day(1),
+		content: {
+			time: day(1),
+			blocks: [
+				{
+					id: "blk-auth-1",
+					type: "header",
+					data: {
+						text: "API Authentication",
+						level: 1,
+					},
+				},
+				{
+					id: "blk-auth-2",
+					type: "paragraph",
+					data: {
+						text: "Authenticate requests to the Spile Headless REST API using Bearer tokens generated from the Settings panel.",
+					},
+				},
+			],
+			version: "2.31.7",
+		},
+	},
+];
+
+export const docNavigation: DocNavigationManifest = {
+	id: "nav-en",
+	locale: "en",
+	updatedAt: day(1),
+	sections: [
+		{
+			id: "sec-getting-started",
+			title: "Getting Started",
+			items: [
+				{
+					id: "doc-1",
+				},
+				{
+					id: "doc-2",
+				},
+			],
+		},
+		{
+			id: "sec-core-concepts",
+			title: "Core Concepts",
+			items: [
+				{
+					id: "doc-3",
+				},
+				{
+					id: "doc-4",
+				},
+			],
+		},
+	],
+};
+
+export const docProjects: DocumentationProject[] = [
+	{
+		id: "doc-proj-developer-docs",
+		title: "Developer Platform & API",
+		description:
+			"Guides, architecture overviews, and headless REST endpoints for Spile developers.",
+		slug: "developer-docs",
+		status: "published",
+		pagesCount: 4,
+		createdAt: day(30),
+		updatedAt: day(1),
+		navigation: docNavigation,
+	},
+	{
+		id: "doc-proj-user-handbook",
+		title: "Editorial Handbook & Style Guide",
+		description:
+			"Writing workflows, publishing standards, and newsletter best practices.",
+		slug: "editorial-handbook",
+		status: "draft",
+		pagesCount: 1,
+		createdAt: day(14),
+		updatedAt: day(3),
+		navigation: {
+			id: "nav-editorial",
+			locale: "en",
+			updatedAt: day(3),
+			sections: [
+				{
+					id: "sec-handbook-intro",
+					title: "Guidelines",
+					items: [
+						{
+							id: "doc-1",
+						},
+					],
+				},
+			],
+		},
+	},
+];

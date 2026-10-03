@@ -27,7 +27,19 @@ import { TranslationContextBanner } from "./translation-context-banner";
 
 const AUTOSAVE_DELAY = 800;
 
-export default function Editor({ onPublish }: { onPublish: () => void }) {
+export default function Editor({
+	onPublish,
+	backUrl = "/posts",
+	sidebar,
+	isSidebarOpen,
+	onToggleSidebar,
+}: {
+	onPublish: () => void;
+	backUrl?: string;
+	sidebar?: React.ReactNode;
+	isSidebarOpen?: boolean;
+	onToggleSidebar?: () => void;
+}) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const undoRef = useRef<Undo | null>(null);
@@ -60,6 +72,7 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 					setBlocks(data);
 				}
 				const {
+					type: itemType,
 					title: currentTitle,
 					excerpt,
 					slug,
@@ -70,17 +83,26 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 					featuredImage,
 				} = useEditorStore.getState();
 
-				await mockApi.posts.update(postId, {
-					title: currentTitle,
-					content: data,
-					excerpt,
-					slug,
-					status,
-					tagIds,
-					seo,
-					scheduledFor,
-					featuredImage,
-				});
+				if (itemType === "doc") {
+					await mockApi.docs.updatePage(postId, {
+						title: currentTitle,
+						content: data,
+						slug,
+						status: status === "published" ? "published" : "draft",
+					});
+				} else {
+					await mockApi.posts.update(postId, {
+						title: currentTitle,
+						content: data,
+						excerpt,
+						slug,
+						status,
+						tagIds,
+						seo,
+						scheduledFor,
+						featuredImage,
+					});
+				}
 				if (!cancelledRef.current) {
 					setSavedAt(Date.now());
 				}
@@ -240,12 +262,22 @@ export default function Editor({ onPublish }: { onPublish: () => void }) {
 				onPublish={onPublish}
 				saving={saving}
 				savedAt={savedAt}
+				backUrl={backUrl}
+				isSidebarOpen={isSidebarOpen}
+				onToggleSidebar={onToggleSidebar}
 			/>
 			<TranslationContextBanner />
-			<main className="flex-1 mt-14">
-				<FloatingToc editorContainerRef={containerRef} />
-				<div ref={containerRef} />
-			</main>
+			<div className="flex flex-1 overflow-hidden">
+				{sidebar && isSidebarOpen && (
+					<aside className="w-72 shrink-0 border-r md:w-80 h-[calc(100vh-3.25rem)] sticky top-13 overflow-y-auto z-20 bg-background/95">
+						{sidebar}
+					</aside>
+				)}
+				<main className="flex-1 mt-14 overflow-y-auto min-w-0">
+					<FloatingToc editorContainerRef={containerRef} />
+					<div ref={containerRef} />
+				</main>
+			</div>
 		</div>
 	);
 }

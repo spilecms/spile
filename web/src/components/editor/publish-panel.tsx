@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDownIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, GlobeIcon, MailIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,11 +27,12 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { slugify } from "@/lib/format";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
-import type { PostSeo, PostStatus } from "@/types/domain";
+import type { PostDistribution, PostSeo, PostStatus } from "@/types/domain";
 import { TranslationsSection } from "./translations-section";
 
 export function PublishPanel({
@@ -48,7 +50,9 @@ export function PublishPanel({
 	const tagIds = useEditorStore((s) => s.tagIds);
 	const seo = useEditorStore((s) => s.seo);
 	const scheduledFor = useEditorStore((s) => s.scheduledFor);
+	const distribution = useEditorStore((s) => s.distribution);
 	const patchMeta = useEditorStore((s) => s.patchMeta);
+	const { t } = useTranslation();
 
 	const { data: tags } = useQuery({
 		queryKey: ["tags", "list"],
@@ -60,6 +64,10 @@ export function PublishPanel({
 	const [localSlug, setLocalSlug] = useState(slug);
 	const [localExcerpt, setLocalExcerpt] = useState(excerpt);
 	const [localTagIds, setLocalTagIds] = useState<string[]>(tagIds);
+	const [localWeb, setLocalWeb] = useState(distribution?.web ?? true);
+	const [localNewsletter, setLocalNewsletter] = useState(
+		distribution?.newsletter ?? false,
+	);
 	const [scheduleAt, setScheduleAt] = useState(() =>
 		scheduledFor ? toDateTimeLocal(scheduledFor) : "",
 	);
@@ -74,16 +82,23 @@ export function PublishPanel({
 			setLocalSlug(slug);
 			setLocalExcerpt(excerpt);
 			setLocalTagIds(tagIds);
+			setLocalWeb(distribution?.web ?? true);
+			setLocalNewsletter(distribution?.newsletter ?? false);
 			setScheduleAt(scheduledFor ? toDateTimeLocal(scheduledFor) : "");
 			setSeoTitle(seo.metaTitle ?? "");
 			setSeoDescription(seo.metaDescription ?? "");
 		}
-	}, [open, status, slug, excerpt, tagIds, scheduledFor, seo]);
+	}, [open, status, slug, excerpt, tagIds, scheduledFor, seo, distribution]);
 
 	const handleSave = async () => {
 		const seoPatch: PostSeo = {
 			metaTitle: seoTitle || undefined,
 			metaDescription: seoDescription || undefined,
+		};
+		const nextDistribution: PostDistribution = {
+			web: localWeb,
+			newsletter: localNewsletter,
+			newsletterSentAt: distribution?.newsletterSentAt ?? null,
 		};
 		patchMeta({
 			status: localStatus,
@@ -95,6 +110,7 @@ export function PublishPanel({
 					? new Date(scheduleAt).getTime()
 					: null,
 			seo: seoPatch,
+			distribution: nextDistribution,
 		});
 		if (postId) {
 			try {
@@ -108,11 +124,16 @@ export function PublishPanel({
 							? new Date(scheduleAt).getTime()
 							: null,
 					seo: seoPatch,
+					distribution: nextDistribution,
 				});
 				await queryClient.invalidateQueries({ queryKey: ["posts"] });
 				toast.success(
 					localStatus === "published"
-						? "Post published"
+						? localWeb && localNewsletter && !distribution?.newsletterSentAt
+							? "Published to web and sent newsletter"
+							: localNewsletter && !distribution?.newsletterSentAt
+								? "Newsletter sent"
+								: "Post published"
 						: localStatus === "scheduled"
 							? "Post scheduled"
 							: "Post updated",
@@ -145,6 +166,57 @@ export function PublishPanel({
 					<TranslationsSection onNavigate={() => onOpenChange(false)} />
 
 					<div className="h-px w-full bg-border/60" />
+
+					<div className="flex flex-col gap-3 rounded-lg border bg-card p-3 shadow-xs">
+						<span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							{t("posts.delivery.title")}
+						</span>
+
+						{/* Web Channel */}
+						<div className="flex items-center justify-between gap-3">
+							<div className="flex flex-col gap-0.5">
+								<div className="flex items-center gap-1.5 text-sm font-medium">
+									<GlobeIcon className="size-4 text-primary" />
+									<span>{t("posts.delivery.webTitle")}</span>
+								</div>
+								<span className="text-xs text-muted-foreground">
+									{t("posts.delivery.webDesc")}
+								</span>
+							</div>
+							<Switch
+								checked={localWeb}
+								onCheckedChange={setLocalWeb}
+								aria-label={t("posts.delivery.webTitle")}
+							/>
+						</div>
+
+						<div className="h-px w-full bg-border/40" />
+
+						{/* Newsletter Channel */}
+						<div className="flex items-center justify-between gap-3">
+							<div className="flex flex-col gap-0.5">
+								<div className="flex items-center gap-1.5 text-sm font-medium">
+									<MailIcon className="size-4 text-primary" />
+									<span>{t("posts.delivery.newsletterTitle")}</span>
+								</div>
+								<span className="text-xs text-muted-foreground">
+									{distribution?.newsletterSentAt
+										? t("posts.delivery.newsletterSent", {
+												date: new Date(
+													distribution.newsletterSentAt,
+												).toLocaleDateString(),
+											})
+										: t("posts.delivery.newsletterDesc")}
+								</span>
+							</div>
+							<Switch
+								checked={localNewsletter}
+								onCheckedChange={setLocalNewsletter}
+								disabled={Boolean(distribution?.newsletterSentAt)}
+								aria-label={t("posts.delivery.newsletterTitle")}
+							/>
+						</div>
+					</div>
 
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="publish-status">Status</Label>
@@ -292,10 +364,18 @@ export function PublishPanel({
 				<SheetFooter>
 					<Button onClick={handleSave}>
 						{localStatus === "published"
-							? "Publish"
+							? localWeb && localNewsletter && !distribution?.newsletterSentAt
+								? t("posts.delivery.publishBoth")
+								: localNewsletter &&
+										!distribution?.newsletterSentAt &&
+										!localWeb
+									? t("posts.delivery.publishNewsletter")
+									: status === "published"
+										? t("posts.delivery.saveChanges")
+										: t("posts.delivery.publishWeb")
 							: localStatus === "scheduled"
 								? "Schedule"
-								: "Save"}
+								: "Save draft"}
 					</Button>
 				</SheetFooter>
 			</SheetContent>

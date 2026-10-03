@@ -2,7 +2,7 @@ import type { OutputData } from "@editorjs/editorjs";
 
 export type PostStatus = "draft" | "published" | "scheduled" | "trashed";
 
-export type PostType = "post" | "page";
+export type PostType = "post" | "page" | "doc";
 
 export type UserRole = "owner" | "admin" | "editor" | "author";
 
@@ -35,6 +35,12 @@ export interface WorkspaceLocale {
 	isDefault?: boolean;
 }
 
+export interface PostDistribution {
+	web: boolean;
+	newsletter: boolean;
+	newsletterSentAt?: number | null;
+}
+
 export interface Post {
 	id: string;
 	type: PostType;
@@ -57,6 +63,7 @@ export interface Post {
 	isDefaultLocale?: boolean;
 	translationGroupId?: string;
 	translationSourceId?: string;
+	distribution?: PostDistribution;
 }
 
 export interface ActivityItem {
@@ -90,6 +97,61 @@ export type PostListParams = {
 	tagId?: string;
 	authorId?: string;
 	type?: PostType;
+	channel?: "all" | "web" | "newsletter";
 };
 
 export type PostPatch = Partial<Omit<Post, "id" | "createdAt" | "updatedAt">>;
+
+export type DocPageStatus = "draft" | "published";
+
+export interface DocPage {
+	id: string;
+	title: string;
+	slug: string;
+	status: DocPageStatus;
+	content: OutputData | null;
+	locale: string;
+	createdAt: number;
+	updatedAt: number;
+}
+
+export type DocPagePatch = Partial<
+	Omit<DocPage, "id" | "createdAt" | "updatedAt">
+>;
+
+export interface DocTreeItem {
+	id: string;
+	title?: string;
+	slug?: string;
+	status?: DocPageStatus;
+	children?: DocTreeItem[];
+}
+
+export interface DocSection {
+	id: string;
+	title: string;
+	items: DocTreeItem[];
+}
+
+export interface DocNavigationManifest {
+	id: string;
+	locale: string;
+	sections: DocSection[];
+	updatedAt: number;
+}
+
+export interface DocumentationProject {
+	id: string;
+	title: string;
+	description?: string;
+	slug: string;
+	status: DocPageStatus;
+	pagesCount: number;
+	createdAt: number;
+	updatedAt: number;
+	navigation: DocNavigationManifest;
+}
+
+export type DocumentationProjectPatch = Partial<
+	Omit<DocumentationProject, "id" | "createdAt" | "updatedAt">
+>;
