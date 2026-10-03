@@ -25,7 +25,7 @@ import {
 	LayersIcon,
 	Trash2Icon,
 } from "lucide-react";
-import * as React from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -103,8 +103,7 @@ function buildProjectColumns(
 		columnHelper.accessor("title", {
 			header: "Documentation",
 			cell: ({ row }) => {
-				const firstDocId =
-					row.original.navigation.sections[0]?.items[0]?.id || "new";
+				const firstDocId = row.original.navigation.items[0]?.id || "new";
 				return (
 					<button
 						type="button"
@@ -169,8 +168,7 @@ function buildProjectColumns(
 		columnHelper.display({
 			id: "actions",
 			cell: ({ row }) => {
-				const firstDocId =
-					row.original.navigation.sections[0]?.items[0]?.id || "new";
+				const firstDocId = row.original.navigation.items[0]?.id || "new";
 				return (
 					<div className="flex justify-end">
 						<DropdownMenu>
@@ -230,16 +228,16 @@ export function DocsTable({
 }) {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
-	const [sorting, setSorting] = React.useState<SortingState>([
+	const [sorting, setSorting] = useState<SortingState>([
 		{ id: "updatedAt", desc: true },
 	]);
-	const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
-	const [pagination, setPagination] = React.useState<PaginationState>({
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
 		pageSize: 10,
 	});
 
-	const columns = React.useMemo(
+	const columns = useMemo(
 		() => buildProjectColumns(navigate, onDelete, t),
 		[navigate, onDelete, t],
 	);

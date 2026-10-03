@@ -16,17 +16,18 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
+	FilePlusIcon,
+	FilesIcon,
 	FileTextIcon,
-	FolderIcon,
-	FolderPlusIcon,
 	GripVerticalIcon,
+	PencilIcon,
 	PlusIcon,
 	Trash2Icon,
 } from "lucide-react";
 import * as React from "react";
-import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,20 +38,58 @@ interface DocsTreeProps {
 	selectedDocId: string | null;
 	onSelectDoc: (id: string) => void;
 	onUpdateManifest: (updated: DocNavigationManifest) => void;
-	onAddPage: (sectionId: string) => void;
-	onAddSection: () => void;
-	onDeleteSection: (sectionId: string) => void;
+	onAddDoc: (parentId?: string) => void;
+	onDeleteDoc: (id: string) => void;
+	onRenameDoc?: (id: string, newTitle: string) => void;
 }
 
-function SortableDocItem({
-	item,
-	isSelected,
-	onSelect,
-}: {
+interface RecursiveTreeItemProps {
 	item: DocTreeItem;
-	isSelected: boolean;
-	onSelect: () => void;
-}) {
+	selectedDocId: string | null;
+	depth?: number;
+	onSelectDoc: (id: string) => void;
+	onAddChild: (parentId: string) => void;
+	onDeleteDoc: (id: string) => void;
+	onRenameDoc?: (id: string, newTitle: string) => void;
+}
+
+function RecursiveTreeItem({
+	item,
+	selectedDocId,
+	depth = 0,
+	onSelectDoc,
+	onAddChild,
+	onDeleteDoc,
+	onRenameDoc,
+}: RecursiveTreeItemProps) {
+	const [collapsed, setCollapsed] = React.useState(false);
+	const [isEditing, setIsEditing] = React.useState(false);
+	const [editTitle, setEditTitle] = React.useState(item.title || "Untitled");
+	const inputRef = React.useRef<HTMLInputElement>(null);
+
+	const hasChildren = Boolean(item.children && item.children.length > 0);
+	const isSelected = selectedDocId === item.id;
+
+	React.useEffect(() => {
+		setEditTitle(item.title || "Untitled");
+	}, [item.title]);
+
+	React.useEffect(() => {
+		if (isEditing) {
+			inputRef.current?.focus();
+			inputRef.current?.select();
+		}
+	}, [isEditing]);
+
+	const handleCommitRename = () => {
+		const trimmed = editTitle.trim();
+		const finalTitle = trimmed || "Untitled";
+		if (finalTitle !== item.title && onRenameDoc) {
+			onRenameDoc(item.id, finalTitle);
+		}
+		setIsEditing(false);
+	};
+
 	const {
 		attributes,
 		listeners,
@@ -63,49 +102,171 @@ function SortableDocItem({
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
+		paddingLeft: `${Math.max(depth * 14 + 6, 6)}px`,
 	};
 
 	return (
-		<div
-			ref={setNodeRef}
-			style={style}
-			className={cn(
-				"group flex items-center justify-between gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-				isSelected
-					? "bg-accent text-accent-foreground font-semibold"
-					: "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-				isDragging && "opacity-50 z-50 bg-accent/50 shadow-md",
-			)}
-		>
-			<button
-				type="button"
-				aria-label="Reorder document"
-				{...attributes}
-				{...listeners}
-				className="text-muted-foreground/40 hover:text-foreground cursor-grab active:cursor-grabbing p-0.5 rounded"
+		<div ref={setNodeRef} style={style} className="space-y-0.5">
+			<div
+				className={cn(
+					"group flex items-center justify-between gap-1 rounded-md pr-1.5 py-1 text-xs font-medium transition-colors",
+					isSelected
+						? "bg-accent text-accent-foreground font-semibold"
+						: "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+					isDragging && "opacity-50 z-50 bg-accent/50 shadow-md",
+				)}
 			>
-				<GripVerticalIcon className="h-3 w-3" />
-			</button>
+				{/* Reorder grip */}
+				<button
+					type="button"
+					aria-label="Reorder document"
+					{...attributes}
+					{...listeners}
+					className="text-muted-foreground/30 hover:text-foreground cursor-grab active:cursor-grabbing p-0.5 rounded shrink-0"
+				>
+					<GripVerticalIcon className="h-3 w-3" />
+				</button>
 
-			<button
-				type="button"
-				onClick={onSelect}
-				className="flex items-center gap-1.5 min-w-0 flex-1 text-left"
-			>
-				<FileTextIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-				<span className="truncate">{item.title || "Untitled"}</span>
-			</button>
-
-			<div className="flex items-center gap-1">
-				{item.status === "draft" && (
-					<Badge
-						variant="secondary"
-						className="px-1.5 py-0 text-[10px] uppercase font-mono tracking-wider"
+				{/* Expand/Collapse Chevron (if has children) or File Icon */}
+				{hasChildren ? (
+					<button
+						type="button"
+						onClick={() => setCollapsed((v) => !v)}
+						className="p-0.5 text-muted-foreground hover:text-foreground shrink-0"
 					>
-						Draft
-					</Badge>
+						{collapsed ? (
+							<ChevronRightIcon className="h-3 w-3" />
+						) : (
+							<ChevronDownIcon className="h-3 w-3" />
+						)}
+					</button>
+				) : (
+					<FileTextIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+				)}
+
+				{/* Document Title or Inline Edit Input */}
+				{isEditing ? (
+					<form
+						onSubmit={(e) => {
+							e.preventDefault();
+							handleCommitRename();
+						}}
+						className="flex items-center gap-1 flex-1 min-w-0 pr-1"
+					>
+						<input
+							ref={inputRef}
+							type="text"
+							value={editTitle}
+							onChange={(e) => setEditTitle(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Escape") {
+									setEditTitle(item.title || "Untitled");
+									setIsEditing(false);
+								}
+							}}
+							onBlur={handleCommitRename}
+							className="flex-1 bg-background border border-primary/50 rounded px-1.5 py-0.5 text-xs text-foreground outline-none font-medium"
+						/>
+						<button
+							type="submit"
+							className="text-primary hover:text-primary/80 p-0.5"
+							title="Save title"
+							aria-label="Save title"
+						>
+							<CheckIcon className="h-3 w-3" />
+						</button>
+					</form>
+				) : (
+					<button
+						type="button"
+						onClick={() => onSelectDoc(item.id)}
+						onDoubleClick={(e) => {
+							e.stopPropagation();
+							setIsEditing(true);
+						}}
+						className="flex-1 truncate text-left select-none"
+					>
+						<span className="truncate">{item.title || "Untitled"}</span>
+					</button>
+				)}
+
+				{/* Status & Actions */}
+				{!isEditing && (
+					<div className="flex items-center gap-0.5 shrink-0">
+						{item.status === "draft" && (
+							<Badge
+								variant="secondary"
+								className="px-1 py-0 text-[9px] uppercase font-mono tracking-wider"
+							>
+								Draft
+							</Badge>
+						)}
+
+						<div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity">
+							{/* Inline Rename trigger */}
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-5 w-5 text-muted-foreground hover:text-foreground"
+								onClick={(e) => {
+									e.stopPropagation();
+									setIsEditing(true);
+								}}
+								title="Rename document"
+							>
+								<PencilIcon className="size-3" />
+							</Button>
+
+							{/* Add Child Page */}
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-5 w-5 text-muted-foreground hover:text-foreground"
+								onClick={(e) => {
+									e.stopPropagation();
+									onAddChild(item.id);
+									setCollapsed(false);
+								}}
+								title="Add child page"
+							>
+								<PlusIcon className="h-3 w-3" />
+							</Button>
+
+							{/* Delete Page */}
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-5 w-5 text-muted-foreground hover:text-destructive"
+								onClick={(e) => {
+									e.stopPropagation();
+									onDeleteDoc(item.id);
+								}}
+								title="Delete document"
+							>
+								<Trash2Icon className="h-3 w-3" />
+							</Button>
+						</div>
+					</div>
 				)}
 			</div>
+
+			{/* Sub-pages / Nested children */}
+			{hasChildren && !collapsed && (
+				<div className="space-y-0.5 border-l border-border/40 ml-2">
+					{item.children?.map((child) => (
+						<RecursiveTreeItem
+							key={child.id}
+							item={child}
+							selectedDocId={selectedDocId}
+							depth={depth + 1}
+							onSelectDoc={onSelectDoc}
+							onAddChild={onAddChild}
+							onDeleteDoc={onDeleteDoc}
+							onRenameDoc={onRenameDoc}
+						/>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -115,22 +276,10 @@ export function DocsTree({
 	selectedDocId,
 	onSelectDoc,
 	onUpdateManifest,
-	onAddPage,
-	onAddSection,
-	onDeleteSection,
+	onAddDoc,
+	onDeleteDoc,
+	onRenameDoc,
 }: DocsTreeProps) {
-	const { t } = useTranslation();
-	const [collapsedSections, setCollapsedSections] = React.useState<
-		Record<string, boolean>
-	>({});
-
-	const toggleCollapse = (sectionId: string) => {
-		setCollapsedSections((prev) => ({
-			...prev,
-			[sectionId]: !prev[sectionId],
-		}));
-	};
-
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: {
@@ -142,129 +291,82 @@ export function DocsTree({
 		}),
 	);
 
-	const handleDragEnd = (event: DragEndEvent, sectionId: string) => {
+	const handleDragEnd = (event: DragEndEvent) => {
 		const { active, over } = event;
 		if (!over || active.id === over.id) return;
 
-		const targetSection = manifest.sections.find((s) => s.id === sectionId);
-		if (!targetSection) return;
-
-		const oldIndex = targetSection.items.findIndex((i) => i.id === active.id);
-		const newIndex = targetSection.items.findIndex((i) => i.id === over.id);
+		const oldIndex = manifest.items.findIndex((i) => i.id === active.id);
+		const newIndex = manifest.items.findIndex((i) => i.id === over.id);
 
 		if (oldIndex !== -1 && newIndex !== -1) {
-			const newItems = arrayMove(targetSection.items, oldIndex, newIndex);
-			const updatedSections = manifest.sections.map((s) =>
-				s.id === sectionId ? { ...s, items: newItems } : s,
-			);
-			onUpdateManifest({ ...manifest, sections: updatedSections });
+			const reordered = arrayMove(manifest.items, oldIndex, newIndex);
+			onUpdateManifest({ ...manifest, items: reordered });
 		}
 	};
+
+	const itemIds = manifest.items.map((i) => i.id);
 
 	return (
 		<div className="flex flex-col h-full bg-sidebar/50 border-r border-border/60">
 			{/* Tree Header Actions */}
 			<div className="flex items-center justify-between p-3 border-b border-border/50">
 				<div className="flex items-center gap-2">
-					<FolderIcon className="h-4 w-4 text-primary" />
+					<FilesIcon className="h-4 w-4 text-primary" />
 					<span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
-						Navigation Tree
+						Documents
 					</span>
 				</div>
-				<div className="flex items-center gap-1">
-					<Button
-						variant="ghost"
-						size="sm"
-						className="h-7 px-2 text-xs gap-1"
-						onClick={onAddSection}
-						title={t("docs.addSection")}
-					>
-						<FolderPlusIcon className="h-3.5 w-3.5" />
-						<span>Section</span>
-					</Button>
-				</div>
+				<Button
+					variant="ghost"
+					size="sm"
+					className="h-7 px-2 text-xs gap-1"
+					onClick={() => onAddDoc()}
+					title="Add root document"
+				>
+					<FilePlusIcon className="h-3.5 w-3.5" />
+					<span>New Page</span>
+				</Button>
 			</div>
 
 			{/* Tree List */}
-			<div className="flex-1 overflow-y-auto p-2 space-y-4">
-				{manifest.sections.map((section) => {
-					const isCollapsed = Boolean(collapsedSections[section.id]);
-					const itemIds = section.items.map((i) => i.id);
-
-					return (
-						<div key={section.id} className="space-y-1">
-							{/* Section Header */}
-							<div className="group flex items-center justify-between px-2 py-1 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors">
-								<button
-									type="button"
-									onClick={() => toggleCollapse(section.id)}
-									className="flex items-center gap-1.5 flex-1 text-left truncate"
-								>
-									{isCollapsed ? (
-										<ChevronRightIcon className="h-3.5 w-3.5 shrink-0" />
-									) : (
-										<ChevronDownIcon className="h-3.5 w-3.5 shrink-0" />
-									)}
-									<span className="truncate">{section.title}</span>
-								</button>
-
-								<div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-6 w-6 text-muted-foreground hover:text-foreground"
-										onClick={() => onAddPage(section.id)}
-										title={t("docs.addPage")}
-									>
-										<PlusIcon className="h-3.5 w-3.5" />
-									</Button>
-									{manifest.sections.length > 1 && (
-										<Button
-											variant="ghost"
-											size="icon"
-											className="h-6 w-6 text-muted-foreground hover:text-destructive"
-											onClick={() => onDeleteSection(section.id)}
-											title={t("docs.deleteSection")}
-										>
-											<Trash2Icon className="h-3 w-3" />
-										</Button>
-									)}
-								</div>
-							</div>
-
-							{/* Sortable Pages inside Section */}
-							{!isCollapsed && (
-								<div className="pl-3 space-y-0.5">
-									{section.items.length === 0 ? (
-										<div className="px-2 py-2 text-[11px] text-muted-foreground/60 italic">
-											{t("docs.emptySection")}
-										</div>
-									) : (
-										<DndContext
-											sensors={sensors}
-											collisionDetection={closestCenter}
-											onDragEnd={(e) => handleDragEnd(e, section.id)}
-										>
-											<SortableContext
-												items={itemIds}
-												strategy={verticalListSortingStrategy}
-											>
-												{section.items.map((item) => (
-													<SortableDocItem
-														key={item.id}
-														item={item}
-														isSelected={selectedDocId === item.id}
-														onSelect={() => onSelectDoc(item.id)}
-													/>
-												))}
-											</SortableContext>
-										</DndContext>
-									)}
-								</div>
-							)}
-						</div>
-					);
-				})}
+			<div className="flex-1 overflow-y-auto p-2 space-y-1">
+				{manifest.items.length === 0 ? (
+					<div className="flex flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
+						<p className="mb-2">No documents yet.</p>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => onAddDoc()}
+							className="text-xs h-7 gap-1"
+						>
+							<PlusIcon className="h-3 w-3" />
+							Create Root Page
+						</Button>
+					</div>
+				) : (
+					<DndContext
+						sensors={sensors}
+						collisionDetection={closestCenter}
+						onDragEnd={handleDragEnd}
+					>
+						<SortableContext
+							items={itemIds}
+							strategy={verticalListSortingStrategy}
+						>
+							{manifest.items.map((item) => (
+								<RecursiveTreeItem
+									key={item.id}
+									item={item}
+									selectedDocId={selectedDocId}
+									onSelectDoc={onSelectDoc}
+									onAddChild={(parentId) => onAddDoc(parentId)}
+									onDeleteDoc={onDeleteDoc}
+									onRenameDoc={onRenameDoc}
+								/>
+							))}
+						</SortableContext>
+					</DndContext>
+				)}
 			</div>
 		</div>
 	);

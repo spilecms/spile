@@ -5,7 +5,7 @@ import NestedList from "@editorjs/nested-list";
 import Quote from "@editorjs/quote";
 import Table from "@editorjs/table";
 import { CheckIcon, ExternalLinkIcon, Loader2, Trash2Icon } from "lucide-react";
-import * as React from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,20 +26,20 @@ export function DocEditorPane({
 	onDocDeleted,
 }: DocEditorPaneProps) {
 	const { t } = useTranslation();
-	const [page, setPage] = React.useState<DocPage | null>(null);
-	const [title, setTitle] = React.useState("");
-	const [slug, setSlug] = React.useState("");
-	const [status, setStatus] = React.useState<DocPageStatus>("draft");
-	const [loading, setLoading] = React.useState(false);
-	const [saving, setSaving] = React.useState(false);
-	const [savedState, setSavedState] = React.useState(false);
+	const [page, setPage] = useState<DocPage | null>(null);
+	const [title, setTitle] = useState("");
+	const [slug, setSlug] = useState("");
+	const [status, setStatus] = useState<DocPageStatus>("draft");
+	const [loading, setLoading] = useState(false);
+	const [saving, setSaving] = useState(false);
+	const [savedState, setSavedState] = useState(false);
 
-	const editorContainerRef = React.useRef<HTMLDivElement>(null);
-	const editorInstanceRef = React.useRef<EditorJS | null>(null);
-	const initialDataRef = React.useRef<OutputData | null>(null);
+	const editorContainerRef = useRef<HTMLDivElement>(null);
+	const editorInstanceRef = useRef<EditorJS | null>(null);
+	const initialDataRef = useRef<OutputData | null>(null);
 
 	// Load document when docId changes
-	React.useEffect(() => {
+	useEffect(() => {
 		if (!docId) {
 			setPage(null);
 			setTitle("");
@@ -70,7 +70,7 @@ export function DocEditorPane({
 	}, [docId]);
 
 	// Initialize / re-initialize EditorJS when page is loaded
-	React.useEffect(() => {
+	useEffect(() => {
 		if (!page || loading || !editorContainerRef.current) return;
 
 		if (editorInstanceRef.current) {
@@ -198,7 +198,7 @@ export function DocEditorPane({
 		<div className="flex flex-col h-full overflow-hidden bg-background">
 			{/* Top Bar / Meta controls */}
 			<header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-3.5 bg-card/40 backdrop-blur-sm">
-				<div className="flex items-center gap-3 flex-1 min-w-[260px]">
+				<div className="flex items-center gap-3 flex-1 min-w-65">
 					<Badge
 						variant={status === "published" ? "default" : "secondary"}
 						className="capitalize cursor-pointer select-none"
@@ -280,7 +280,7 @@ export function DocEditorPane({
 					{/* Editor container */}
 					<div
 						ref={editorContainerRef}
-						className="prose prose-invert max-w-none min-h-[400px]"
+						className="prose prose-invert max-w-none min-h-100"
 					/>
 				</div>
 			</div>

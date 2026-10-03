@@ -1,8 +1,8 @@
 import {
 	ChartBarIcon,
 	DocumentTextIcon,
-	TagIcon,
 	QuestionMarkCircleIcon,
+	TagIcon,
 } from "@heroicons/react/24/outline";
 import {
 	BookOpen,

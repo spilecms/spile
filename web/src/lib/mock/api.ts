@@ -3,7 +3,6 @@ import type {
 	DocNavigationManifest,
 	DocPage,
 	DocPagePatch,
-	DocSection,
 	DocTreeItem,
 	DocumentationProject,
 	DocumentationProjectPatch,
@@ -55,15 +54,12 @@ function hydrateTreeItem(
 	};
 }
 
-function hydrateSections(
-	sections: DocSection[],
+function hydrateTreeItems(
+	items: DocTreeItem[],
 	pages: DocPage[],
-): DocSection[] {
+): DocTreeItem[] {
 	const pageMap = new Map(pages.map((p) => [p.id, p]));
-	return sections.map((sec) => ({
-		...sec,
-		items: sec.items.map((it) => hydrateTreeItem(it, pageMap)),
-	}));
+	return items.map((it) => hydrateTreeItem(it, pageMap));
 }
 
 function matches(post: Post, params: PostListParams): boolean {
@@ -280,12 +276,17 @@ export const mockApi = {
 	docs: {
 		async listProjects(): Promise<DocumentationProject[]> {
 			await delay(100);
+			function countItems(items: DocTreeItem[]): number {
+				let count = 0;
+				for (const item of items) {
+					count += 1;
+					if (item.children) count += countItems(item.children);
+				}
+				return count;
+			}
 			return docProjectsList.map((p) => ({
 				...p,
-				pagesCount: p.navigation.sections.reduce(
-					(acc, s) => acc + s.items.length,
-					0,
-				),
+				pagesCount: countItems(p.navigation.items),
 			}));
 		},
 		async getProject(projectId: string): Promise<DocumentationProject | null> {
@@ -296,7 +297,7 @@ export const mockApi = {
 				...proj,
 				navigation: {
 					...proj.navigation,
-					sections: hydrateSections(proj.navigation.sections, docPagesList),
+					items: hydrateTreeItems(proj.navigation.items, docPagesList),
 				},
 			};
 		},
@@ -350,13 +351,7 @@ export const mockApi = {
 				id: `nav-${projId}`,
 				locale: "en",
 				updatedAt: Date.now(),
-				sections: [
-					{
-						id: `sec-${Date.now()}`,
-						title: "Getting Started",
-						items: [{ id: rootDocId }],
-					},
-				],
+				items: [{ id: rootDocId }],
 			};
 
 			const newProject: DocumentationProject = {
@@ -378,7 +373,7 @@ export const mockApi = {
 					...newProject,
 					navigation: {
 						...newNav,
-						sections: hydrateSections(newNav.sections, docPagesList),
+						items: hydrateTreeItems(newNav.items, docPagesList),
 					},
 				},
 				initialPage,
@@ -411,49 +406,43 @@ export const mockApi = {
 				: docProjectsList[0];
 			const nav = proj
 				? proj.navigation
-				: { id: "empty", locale: "en", sections: [], updatedAt: Date.now() };
+				: { id: "empty", locale: "en", items: [], updatedAt: Date.now() };
 			return {
 				...nav,
-				sections: hydrateSections(nav.sections, docPagesList),
+				items: hydrateTreeItems(nav.items, docPagesList),
 			};
 		},
 		async updateNavigation(
-			sections: DocSection[],
+			items: DocTreeItem[],
 			projectId?: string,
 		): Promise<DocNavigationManifest> {
 			await delay(150);
-			const cleanSections = sections.map((sec) => ({
-				id: sec.id,
-				title: sec.title,
-				items: sec.items.map(function cleanItem(item): DocTreeItem {
-					return {
-						id: item.id,
-						children: item.children?.map(cleanItem),
-					};
-				}),
-			}));
+			function cleanTreeItem(item: DocTreeItem): DocTreeItem {
+				return {
+					id: item.id,
+					children: item.children?.map(cleanTreeItem),
+				};
+			}
+			const cleanItems = items.map(cleanTreeItem);
 
 			const targetProj = projectId
 				? docProjectsList.find((p) => p.id === projectId)
 				: docProjectsList[0];
 
 			if (targetProj) {
-				targetProj.navigation.sections = cleanSections;
+				targetProj.navigation.items = cleanItems;
 				targetProj.navigation.updatedAt = Date.now();
 				targetProj.updatedAt = Date.now();
 				return {
 					...targetProj.navigation,
-					sections: hydrateSections(
-						targetProj.navigation.sections,
-						docPagesList,
-					),
+					items: hydrateTreeItems(targetProj.navigation.items, docPagesList),
 				};
 			}
 
 			return {
 				id: "empty",
 				locale: "en",
-				sections: [],
+				items: [],
 				updatedAt: Date.now(),
 			};
 		},
@@ -467,21 +456,23 @@ export const mockApi = {
 			return page ? { ...page } : null;
 		},
 		async createPage(data: {
-			title: string;
-			sectionId?: string;
+			title?: string;
+			parentId?: string;
 			projectId?: string;
 		}): Promise<{ page: DocPage; navigation: DocNavigationManifest }> {
-			await delay(150);
+			await delay(120);
 			const newId = `doc-${nextDocId++}`;
-			const slug = data.title
-				.toLowerCase()
-				.replace(/[^a-z0-9]+/g, "-")
-				.replace(/(^-|-$)/g, "");
+			const pageTitle = data.title || "Untitled";
+			const slug =
+				pageTitle
+					.toLowerCase()
+					.replace(/[^a-z0-9]+/g, "-")
+					.replace(/(^-|-$)/g, "") || newId;
 
 			const newPage: DocPage = {
 				id: newId,
-				title: data.title || "Untitled Document",
-				slug: slug || newId,
+				title: pageTitle,
+				slug,
 				status: "draft",
 				locale: "en",
 				createdAt: Date.now(),
@@ -493,7 +484,7 @@ export const mockApi = {
 							id: `blk-${Date.now()}`,
 							type: "header",
 							data: {
-								text: data.title || "Untitled Document",
+								text: pageTitle,
 								level: 1,
 							},
 						},
@@ -520,36 +511,34 @@ export const mockApi = {
 					id: `nav-${Date.now()}`,
 					locale: "en",
 					updatedAt: Date.now(),
-					sections: [
-						{
-							id: `sec-${Date.now()}`,
-							title: "General",
-							items: [{ id: newId }],
-						},
-					],
+					items: [{ id: newId }],
 				};
-				return {
-					page: { ...newPage },
-					navigation: fallbackNav,
-				};
+				return { page: { ...newPage }, navigation: fallbackNav };
 			}
 
-			const activeNav = targetProj.navigation;
-			const targetSectionId = data.sectionId || activeNav.sections[0]?.id;
+			const newItemNode: DocTreeItem = { id: newId };
 
-			if (targetSectionId) {
-				const section = activeNav.sections.find(
-					(s) => s.id === targetSectionId,
-				);
-				if (section) {
-					section.items.push({ id: newId });
+			if (data.parentId) {
+				// Recursively locate parent and append child
+				function appendToParent(list: DocTreeItem[]): boolean {
+					for (const node of list) {
+						if (node.id === data.parentId) {
+							node.children = node.children || [];
+							node.children.push(newItemNode);
+							return true;
+						}
+						if (node.children && appendToParent(node.children)) {
+							return true;
+						}
+					}
+					return false;
+				}
+				const appended = appendToParent(targetProj.navigation.items);
+				if (!appended) {
+					targetProj.navigation.items.push(newItemNode);
 				}
 			} else {
-				activeNav.sections.push({
-					id: `sec-${Date.now()}`,
-					title: "General",
-					items: [{ id: newId }],
-				});
+				targetProj.navigation.items.push(newItemNode);
 			}
 
 			targetProj.updatedAt = Date.now();
@@ -557,8 +546,8 @@ export const mockApi = {
 			return {
 				page: { ...newPage },
 				navigation: {
-					...activeNav,
-					sections: hydrateSections(activeNav.sections, docPagesList),
+					...targetProj.navigation,
+					items: hydrateTreeItems(targetProj.navigation.items, docPagesList),
 				},
 			};
 		},
@@ -577,78 +566,6 @@ export const mockApi = {
 			docPagesList[index] = updated;
 			return { ...updated };
 		},
-		async createSection(
-			title: string,
-			projectId?: string,
-		): Promise<DocNavigationManifest> {
-			await delay(100);
-			const newSection: DocSection = {
-				id: `sec-${Date.now()}`,
-				title: title || "New Section",
-				items: [],
-			};
-			const targetProj = projectId
-				? docProjectsList.find((p) => p.id === projectId)
-				: docProjectsList[0];
-			if (targetProj) {
-				targetProj.navigation.sections.push(newSection);
-				targetProj.navigation.updatedAt = Date.now();
-				return {
-					...targetProj.navigation,
-					sections: hydrateSections(
-						targetProj.navigation.sections,
-						docPagesList,
-					),
-				};
-			}
-			return { id: "empty", locale: "en", sections: [], updatedAt: Date.now() };
-		},
-		async updateSection(
-			sectionId: string,
-			title: string,
-			projectId?: string,
-		): Promise<DocNavigationManifest> {
-			await delay(80);
-			const targetProj = projectId
-				? docProjectsList.find((p) => p.id === projectId)
-				: docProjectsList[0];
-			if (targetProj) {
-				const sec = targetProj.navigation.sections.find(
-					(s) => s.id === sectionId,
-				);
-				if (sec) sec.title = title;
-				return {
-					...targetProj.navigation,
-					sections: hydrateSections(
-						targetProj.navigation.sections,
-						docPagesList,
-					),
-				};
-			}
-			return { id: "empty", locale: "en", sections: [], updatedAt: Date.now() };
-		},
-		async deleteSection(
-			sectionId: string,
-			projectId?: string,
-		): Promise<DocNavigationManifest> {
-			await delay(100);
-			const targetProj = projectId
-				? docProjectsList.find((p) => p.id === projectId)
-				: docProjectsList[0];
-			if (targetProj) {
-				targetProj.navigation.sections = targetProj.navigation.sections.filter(
-					(s) => s.id !== sectionId,
-				);
-				return {
-					...targetProj.navigation,
-					sections: hydrateSections(
-						targetProj.navigation.sections,
-						docPagesList,
-					),
-				};
-			}
-			return { id: "empty", locale: "en", sections: [], updatedAt: Date.now() };
-		},
 		async deletePage(
 			id: string,
 			projectId?: string,
@@ -656,7 +573,7 @@ export const mockApi = {
 			await delay(120);
 			docPagesList = docPagesList.filter((p) => p.id !== id);
 
-			// Remove from navigation tree
+			// Recursively remove from navigation tree
 			function removeFromItems(items: DocTreeItem[]): DocTreeItem[] {
 				return items
 					.filter((item) => item.id !== id)
@@ -672,21 +589,16 @@ export const mockApi = {
 				? docProjectsList.find((p) => p.id === projectId)
 				: docProjectsList[0];
 			if (targetProj) {
-				targetProj.navigation.sections = targetProj.navigation.sections.map(
-					(sec) => ({
-						...sec,
-						items: removeFromItems(sec.items),
-					}),
+				targetProj.navigation.items = removeFromItems(
+					targetProj.navigation.items,
 				);
+				targetProj.updatedAt = Date.now();
 				return {
 					...targetProj.navigation,
-					sections: hydrateSections(
-						targetProj.navigation.sections,
-						docPagesList,
-					),
+					items: hydrateTreeItems(targetProj.navigation.items, docPagesList),
 				};
 			}
-			return { id: "empty", locale: "en", sections: [], updatedAt: Date.now() };
+			return { id: "empty", locale: "en", items: [], updatedAt: Date.now() };
 		},
 	},
 };

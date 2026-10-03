@@ -675,26 +675,18 @@ export const docNavigation: DocNavigationManifest = {
 	id: "nav-en",
 	locale: "en",
 	updatedAt: day(1),
-	sections: [
+	items: [
 		{
-			id: "sec-getting-started",
-			title: "Getting Started",
-			items: [
-				{
-					id: "doc-1",
-				},
+			id: "doc-1",
+			children: [
 				{
 					id: "doc-2",
 				},
 			],
 		},
 		{
-			id: "sec-core-concepts",
-			title: "Core Concepts",
-			items: [
-				{
-					id: "doc-3",
-				},
+			id: "doc-3",
+			children: [
 				{
 					id: "doc-4",
 				},
@@ -730,15 +722,9 @@ export const docProjects: DocumentationProject[] = [
 			id: "nav-editorial",
 			locale: "en",
 			updatedAt: day(3),
-			sections: [
+			items: [
 				{
-					id: "sec-handbook-intro",
-					title: "Guidelines",
-					items: [
-						{
-							id: "doc-1",
-						},
-					],
+					id: "doc-1",
 				},
 			],
 		},

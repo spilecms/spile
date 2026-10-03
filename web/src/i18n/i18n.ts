@@ -76,8 +76,7 @@ i18n
 							all: "All",
 							draft: "Drafts",
 							published: "Published",
-						}
-						
+						},
 					},
 					userMenu: {
 						profile: "Profile",
@@ -300,12 +299,11 @@ i18n
 							"¿Estás seguro de que deseas eliminar este documento?",
 						confirmDeleteSection:
 							"¿Estás seguro de que deseas eliminar esta sección?",
-						tabs:{
+						tabs: {
 							all: "Todas",
 							draft: "Borradores",
 							published: "Publicadas",
-						}
-						
+						},
 					},
 					userMenu: {
 						profile: "Perfil",

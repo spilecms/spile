@@ -10,6 +10,7 @@ import NestedList from "@editorjs/nested-list";
 import Quote from "@editorjs/quote";
 import Table from "@editorjs/table";
 import Underline from "@editorjs/underline";
+import Warning from "@editorjs/warning";
 import DragDrop from "editorjs-dnd";
 import Undo from "editorjs-undo";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -150,6 +151,7 @@ export default function Editor({
 					marker: { class: Marker, shortcut: "CMD+SHIFT+M" },
 					color: { class: ColorInlineTool, shortcut: "CMD+SHIFT+C" },
 					checklist: Checklist,
+					warning: Warning,
 					image: {
 						class: ImageTool,
 						config: {

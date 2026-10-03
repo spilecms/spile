@@ -127,16 +127,10 @@ export interface DocTreeItem {
 	children?: DocTreeItem[];
 }
 
-export interface DocSection {
-	id: string;
-	title: string;
-	items: DocTreeItem[];
-}
-
 export interface DocNavigationManifest {
 	id: string;
 	locale: string;
-	sections: DocSection[];
+	items: DocTreeItem[];
 	updatedAt: number;
 }
 

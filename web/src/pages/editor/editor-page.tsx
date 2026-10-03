@@ -7,7 +7,7 @@ import { PublishPanel } from "@/components/editor/publish-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
-import type { DocNavigationManifest } from "@/types/domain";
+import type { DocNavigationManifest, DocTreeItem } from "@/types/domain";
 
 export default function EditorPage() {
 	const { id } = useParams<{ id: string }>();
@@ -20,6 +20,7 @@ export default function EditorPage() {
 	const loadPost = useEditorStore((s) => s.loadPost);
 	const loadDoc = useEditorStore((s) => s.loadDoc);
 	const postId = useEditorStore((s) => s.postId);
+	const activeTitle = useEditorStore((s) => s.title);
 	const [publishOpen, setPublishOpen] = React.useState(false);
 	const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
 	const creatingRef = React.useRef(false);
@@ -60,6 +61,25 @@ export default function EditorPage() {
 	React.useEffect(() => {
 		if (navData) setManifest(navData);
 	}, [navData]);
+
+	// Live sync active editing title to sidebar tree
+	React.useEffect(() => {
+		if (!isDoc || !id) return;
+		function updateTitleRecursive(items: DocTreeItem[]): DocTreeItem[] {
+			return items.map((item) => {
+				if (item.id === id) {
+					return { ...item, title: activeTitle || "Untitled" };
+				}
+				if (item.children) {
+					return { ...item, children: updateTitleRecursive(item.children) };
+				}
+				return item;
+			});
+		}
+		setManifest((prev) =>
+			prev ? { ...prev, items: updateTitleRecursive(prev.items) } : null,
+		);
+	}, [activeTitle, id, isDoc]);
 
 	// Load post or doc into editor store
 	React.useEffect(() => {
@@ -135,31 +155,53 @@ export default function EditorPage() {
 		);
 	}
 
-	const handleAddSection = async () => {
-		const title = window.prompt("New section title", "New Section");
-		if (!title) return;
-		const updated = await mockApi.docs.createSection(title);
-		setManifest(updated);
-	};
-
-	const handleDeleteSection = async (sectionId: string) => {
-		if (!window.confirm("Are you sure you want to delete this section?"))
-			return;
-		const updated = await mockApi.docs.deleteSection(sectionId);
-		setManifest(updated);
-	};
-
-	const handleAddDocPage = async (sectionId: string) => {
-		const title = window.prompt("New page title", "Untitled Doc");
-		if (!title) return;
+	const handleAddDoc = async (parentId?: string) => {
 		const { page, navigation } = await mockApi.docs.createPage({
-			title,
-			sectionId,
+			title: "Untitled",
+			parentId,
 			projectId,
 		});
 		setManifest(navigation);
 		navigate(
 			`/editor/doc/${page.id}${projectId ? `?project=${projectId}` : ""}`,
+		);
+	};
+
+	const handleDeleteDoc = async (docId: string) => {
+		if (window.confirm("Delete this document and all sub-pages?")) {
+			const updated = await mockApi.docs.deletePage(docId, projectId);
+			setManifest(updated);
+			if (docId === id) {
+				const nextDoc = updated.items[0]?.id;
+				if (nextDoc) {
+					navigate(
+						`/editor/doc/${nextDoc}${projectId ? `?project=${projectId}` : ""}`,
+					);
+				} else {
+					navigate("/docs");
+				}
+			}
+		}
+	};
+
+	const handleRenameDoc = async (docId: string, newTitle: string) => {
+		if (docId === id) {
+			useEditorStore.getState().setTitle(newTitle);
+		}
+		await mockApi.docs.updatePage(docId, { title: newTitle });
+		function updateTitleRecursive(items: DocTreeItem[]): DocTreeItem[] {
+			return items.map((item) => {
+				if (item.id === docId) {
+					return { ...item, title: newTitle };
+				}
+				if (item.children) {
+					return { ...item, children: updateTitleRecursive(item.children) };
+				}
+				return item;
+			});
+		}
+		setManifest((prev) =>
+			prev ? { ...prev, items: updateTitleRecursive(prev.items) } : null,
 		);
 	};
 
@@ -175,11 +217,11 @@ export default function EditorPage() {
 				}
 				onUpdateManifest={async (upd) => {
 					setManifest(upd);
-					await mockApi.docs.updateNavigation(upd.sections, projectId);
+					await mockApi.docs.updateNavigation(upd.items, projectId);
 				}}
-				onAddPage={handleAddDocPage}
-				onAddSection={handleAddSection}
-				onDeleteSection={handleDeleteSection}
+				onAddDoc={handleAddDoc}
+				onDeleteDoc={handleDeleteDoc}
+				onRenameDoc={handleRenameDoc}
 			/>
 		) : undefined;
 

@@ -2,6 +2,7 @@ import { PlusCircleIcon } from "@heroicons/react/24/solid";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, SearchIcon } from "lucide-react";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { HeaderActions } from "@/components/dashboard/header-actions";
 import { DocsTable } from "@/components/docs/docs-table";
@@ -10,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { mockApi } from "@/lib/mock/api";
-import { useTranslation } from "react-i18next";
 
 const STATUS_TABS = ["all", "draft", "published"] as const;
 type StatusTab = (typeof STATUS_TABS)[number];
