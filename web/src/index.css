@@ -1491,3 +1491,33 @@ mark.cdx-marker {
 .dark .cdx-highlight-pink {
 	background-color: rgba(236, 72, 153, 0.22);
 }
+
+/* Editor.js Toolbox Group Headers and Dividers */
+.spile-toolbox-header {
+	display: block !important;
+	padding: 8px 10px 4px 10px !important;
+	font-size: 10px !important;
+	font-weight: 700 !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.05em !important;
+	color: var(--muted-foreground, #71717a) !important;
+	user-select: none !important;
+	pointer-events: none !important;
+	line-height: 1.2 !important;
+}
+
+.spile-toolbox-divider {
+	display: block !important;
+	height: 1px !important;
+	margin: 6px 8px 4px 8px !important;
+	background-color: var(--border, rgba(0, 0, 0, 0.12)) !important;
+	user-select: none !important;
+	pointer-events: none !important;
+}
+
+/* Editor.js Popover Sizing */
+.ce-toolbox .ce-popover,
+.ce-popover {
+	--width: 260px;
+	--max-height: 360px;
+}

@@ -24,6 +24,7 @@ import ColorInlineTool from "./plugins/inline-color";
 import InlineFormulaTool from "./plugins/inline-formula";
 import { createMediaTool } from "./plugins/media";
 import TocTool from "./plugins/toc";
+import { setupToolboxOrganizer } from "./plugins/toolbox-organizer";
 import { TranslationContextBanner } from "./translation-context-banner";
 
 const AUTOSAVE_DELAY = 800;
@@ -127,6 +128,7 @@ export default function Editor({
 		container.appendChild(holder);
 
 		let editor: EditorJS | null = null;
+		let cleanupOrganizer: (() => void) | null = null;
 
 		try {
 			const { blocks } = useEditorStore.getState();
@@ -135,6 +137,7 @@ export default function Editor({
 				...(blocks.blocks.length > 0 ? { data: blocks } : {}),
 				placeholder: "Start writing…",
 				tools: {
+					// 1. Basic Blocks
 					header: Header,
 					list: {
 						class: NestedList as unknown as ToolConstructable,
@@ -143,15 +146,11 @@ export default function Editor({
 							defaultStyle: "unordered",
 						},
 					},
-					table: Table,
-					code: CodeHighlightTool,
-					inlineCode: InlineCode,
+					checklist: Checklist,
 					quote: { class: Quote, inlineToolbar: true },
 					delimiter: Delimiter,
-					marker: { class: Marker, shortcut: "CMD+SHIFT+M" },
-					color: { class: ColorInlineTool, shortcut: "CMD+SHIFT+C" },
-					checklist: Checklist,
-					warning: Warning,
+
+					// 2. Media
 					image: {
 						class: ImageTool,
 						config: {
@@ -188,14 +187,25 @@ export default function Editor({
 							},
 						},
 					},
+
+					// 3. Advanced Blocks
+					table: Table,
+					code: CodeHighlightTool,
+					warning: Warning,
 					toc: TocTool,
 					htmlEmbed: HtmlEmbedTool,
+
+					// 4. Inline Tools (not displayed in Toolbox)
+					inlineCode: InlineCode,
+					marker: { class: Marker, shortcut: "CMD+SHIFT+M" },
+					color: { class: ColorInlineTool, shortcut: "CMD+SHIFT+C" },
 					underline: Underline,
 					inlineFormula: { class: InlineFormulaTool },
 				},
 				onReady: () => {
 					if (!cancelledRef.current && editor) {
 						editorRef.current = editor;
+						cleanupOrganizer = setupToolboxOrganizer(holder);
 						undoRef.current = new Undo({ editor });
 						undoRef.current.initialize(blocks);
 						const dragDrop = new DragDrop(editor, {
@@ -227,6 +237,10 @@ export default function Editor({
 
 		return () => {
 			cancelledRef.current = true;
+			if (cleanupOrganizer) {
+				cleanupOrganizer();
+				cleanupOrganizer = null;
+			}
 			editorRef.current = null;
 			if (autosaveTimer.current) {
 				clearTimeout(autosaveTimer.current);
