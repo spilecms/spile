@@ -2,7 +2,6 @@ import {
 	ChartBarIcon,
 	DocumentTextIcon,
 	QuestionMarkCircleIcon,
-	TagIcon,
 } from "@heroicons/react/24/outline";
 import {
 	BookOpen,
@@ -41,7 +40,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 		},
 		{ title: t("dashboard.members"), url: "/members", icon: <UsersIcon /> },
 		{ title: t("dashboard.docs"), url: "/docs", icon: <BookOpen /> },
-		{ title: t("dashboard.tags"), url: "/tags", icon: <TagIcon /> },
 		{ title: t("dashboard.media"), url: "/media", icon: <FolderIcon /> },
 		{
 			title: t("dashboard.analytics"),

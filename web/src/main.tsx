@@ -15,6 +15,7 @@ import NewslettersPage from "./pages/dashboard/newsletters";
 import Overview from "./pages/dashboard/overview";
 import PlaceholderPage from "./pages/dashboard/placeholder";
 import PostsPage from "./pages/dashboard/posts";
+import SettingsPage from "./pages/dashboard/settings";
 import EditorPage from "./pages/editor/editor-page";
 
 import "./i18n/i18n"; // Import the i18n configuration
@@ -37,12 +38,15 @@ const router = createBrowserRouter([
 			{ path: "newsletters", element: <NewslettersPage /> },
 			{ path: "members", element: <MembersPage /> },
 			{ path: "docs", element: <DocsPage /> },
-			{ path: "tags", element: <PlaceholderPage /> },
+			{ path: "tags", element: <Navigate to="/settings?tab=tags" replace /> },
 			{ path: "media", element: <PlaceholderPage /> },
 			{ path: "analytics", element: <PlaceholderPage /> },
-			{ path: "team", element: <PlaceholderPage /> },
-			{ path: "settings", element: <PlaceholderPage /> },
-			{ path: "integrations", element: <PlaceholderPage /> },
+			{ path: "team", element: <Navigate to="/settings?tab=team" replace /> },
+			{ path: "settings", element: <SettingsPage /> },
+			{
+				path: "integrations",
+				element: <Navigate to="/settings?tab=integrations" replace />,
+			},
 			{ path: "help", element: <PlaceholderPage /> },
 		],
 	},

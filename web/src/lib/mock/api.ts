@@ -1,11 +1,14 @@
 import type {
 	ActivityItem,
+	AiSettings,
+	ApiKey,
 	DocNavigationManifest,
 	DocPage,
 	DocPagePatch,
 	DocTreeItem,
 	DocumentationProject,
 	DocumentationProjectPatch,
+	EmailSettings,
 	Member,
 	MemberListParams,
 	MemberPatch,
@@ -16,9 +19,12 @@ import type {
 	Post,
 	PostListParams,
 	PostPatch,
+	StorageSettings,
+	Tag,
 	User,
 	ViewsPoint,
 	ViewsRange,
+	Webhook,
 	WorkspaceLocale,
 } from "@/types/domain";
 import {
@@ -53,6 +59,66 @@ let docProjectsList: DocumentationProject[] = JSON.parse(
 );
 let nextDocId = docPagesList.length + 1;
 let nextProjectId = docProjectsList.length + 1;
+
+let tagsList: Tag[] = [...seedTags];
+const usersList: User[] = [...seedUsers];
+let workspaceLocalesList: WorkspaceLocale[] = [...workspaceLocales];
+
+let storageSettingsData: StorageSettings = {
+	provider: "r2",
+	bucket: "spile-media-assets",
+	endpoint: "https://<account-id>.r2.cloudflarestorage.com",
+	accessKey: "cf_acc_9831720184",
+	secretKey: "••••••••••••••••••••••••••••••••",
+	publicUrl: "https://media.spile.io",
+};
+
+let emailSettingsData: EmailSettings = {
+	fromName: "Spile Editorial Team",
+	fromEmail: "newsletter@spile.io",
+	replyTo: "team@spile.io",
+	provider: "resend",
+	apiKey: "re_spile_test_key_849182379",
+};
+
+let aiSettingsData: AiSettings = {
+	provider: "gemini",
+	apiKey: "AIzaSyD-spile-mock-gemini-key",
+	model: "gemini-1.5-flash",
+	enableTranslations: true,
+	enableSummaries: true,
+	enableWritingAssistant: true,
+};
+
+let apiKeysList: ApiKey[] = [
+	{
+		id: "key-1",
+		name: "Next.js Frontend Website",
+		prefix: "pk_live_839a1...",
+		type: "public_read",
+		createdAt: Date.now() - 86400000 * 20,
+		lastUsedAt: Date.now() - 3600000,
+	},
+	{
+		id: "key-2",
+		name: "CI/CD Auto Publisher Token",
+		prefix: "sk_live_199d0...",
+		type: "admin_secret",
+		createdAt: Date.now() - 86400000 * 10,
+		lastUsedAt: Date.now() - 7200000,
+	},
+];
+
+let webhooksList: Webhook[] = [
+	{
+		id: "wh-1",
+		name: "Vercel On-Demand Revalidation",
+		url: "https://my-site.com/api/revalidate",
+		events: ["post.published", "doc.updated"],
+		active: true,
+		createdAt: Date.now() - 86400000 * 14,
+	},
+];
 
 function hydrateTreeItem(
 	item: DocTreeItem,
@@ -249,7 +315,20 @@ export const mockApi = {
 	locales: {
 		async list(): Promise<WorkspaceLocale[]> {
 			await delay(50);
-			return [...workspaceLocales];
+			return [...workspaceLocalesList];
+		},
+		async add(loc: WorkspaceLocale): Promise<WorkspaceLocale> {
+			await delay(80);
+			const exists = workspaceLocalesList.find((l) => l.code === loc.code);
+			if (exists) return exists;
+			workspaceLocalesList.push(loc);
+			return { ...loc };
+		},
+		async remove(code: string): Promise<void> {
+			await delay(80);
+			workspaceLocalesList = workspaceLocalesList.filter(
+				(l) => l.code !== code,
+			);
 		},
 	},
 	overview: {
@@ -273,13 +352,138 @@ export const mockApi = {
 		},
 		async list(): Promise<User[]> {
 			await delay(50);
-			return seedUsers.map((user) => ({ ...user }));
+			return usersList.map((user) => ({ ...user }));
+		},
+		async invite(email: string, role: string): Promise<User> {
+			await delay(100);
+			const newUser: User = {
+				id: `user-${Date.now()}`,
+				name: email.split("@")[0],
+				email,
+				role: role as User["role"],
+				avatar: `https://images.unsplash.com/photo-${1534528741775 + usersList.length}?w=100&h=100&fit=crop&crop=faces`,
+			};
+			usersList.push(newUser);
+			return newUser;
 		},
 	},
 	tags: {
 		async list() {
 			await delay(50);
-			return seedTags.map((tag) => ({ ...tag }));
+			return tagsList.map((tag) => ({ ...tag }));
+		},
+		async create(data: { name: string; slug?: string; color: string }) {
+			await delay(80);
+			const slug =
+				data.slug ||
+				data.name
+					.toLowerCase()
+					.replace(/[^a-z0-9]+/g, "-")
+					.replace(/(^-|-$)/g, "");
+			const newTag = {
+				id: `t${Date.now()}`,
+				name: data.name,
+				slug,
+				color: data.color,
+				postCount: 0,
+			};
+			tagsList.push(newTag);
+			return { ...newTag };
+		},
+		async update(
+			id: string,
+			patch: Partial<{ name: string; slug: string; color: string }>,
+		) {
+			await delay(80);
+			const idx = tagsList.findIndex((t) => t.id === id);
+			if (idx === -1) throw new Error("Tag not found");
+			tagsList[idx] = { ...tagsList[idx], ...patch };
+			return { ...tagsList[idx] };
+		},
+		async delete(id: string) {
+			await delay(80);
+			tagsList = tagsList.filter((t) => t.id !== id);
+		},
+	},
+	settings: {
+		async getStorage(): Promise<StorageSettings> {
+			await delay(50);
+			return { ...storageSettingsData };
+		},
+		async updateStorage(
+			patch: Partial<StorageSettings>,
+		): Promise<StorageSettings> {
+			await delay(100);
+			storageSettingsData = { ...storageSettingsData, ...patch };
+			return { ...storageSettingsData };
+		},
+		async getEmail(): Promise<EmailSettings> {
+			await delay(50);
+			return { ...emailSettingsData };
+		},
+		async updateEmail(patch: Partial<EmailSettings>): Promise<EmailSettings> {
+			await delay(100);
+			emailSettingsData = { ...emailSettingsData, ...patch };
+			return { ...emailSettingsData };
+		},
+		async getAi(): Promise<AiSettings> {
+			await delay(50);
+			return { ...aiSettingsData };
+		},
+		async updateAi(patch: Partial<AiSettings>): Promise<AiSettings> {
+			await delay(100);
+			aiSettingsData = { ...aiSettingsData, ...patch };
+			return { ...aiSettingsData };
+		},
+		async listApiKeys(): Promise<ApiKey[]> {
+			await delay(50);
+			return [...apiKeysList];
+		},
+		async createApiKey(
+			name: string,
+			type: "public_read" | "admin_secret",
+		): Promise<ApiKey> {
+			await delay(80);
+			const prefix = type === "public_read" ? "pk_live_" : "sk_live_";
+			const newKey: ApiKey = {
+				id: `key-${Date.now()}`,
+				name,
+				prefix: `${prefix}${Math.random().toString(36).substring(2, 8)}...`,
+				type,
+				createdAt: Date.now(),
+				lastUsedAt: null,
+			};
+			apiKeysList.unshift(newKey);
+			return newKey;
+		},
+		async deleteApiKey(id: string): Promise<void> {
+			await delay(80);
+			apiKeysList = apiKeysList.filter((k) => k.id !== id);
+		},
+		async listWebhooks(): Promise<Webhook[]> {
+			await delay(50);
+			return [...webhooksList];
+		},
+		async createWebhook(data: {
+			name: string;
+			url: string;
+			events: string[];
+		}): Promise<Webhook> {
+			await delay(80);
+			const newWebhook: Webhook = {
+				id: `wh-${Date.now()}`,
+				name: data.name,
+				url: data.url,
+				events: data.events,
+				active: true,
+				createdAt: Date.now(),
+			};
+			webhooksList.push(newWebhook);
+			return newWebhook;
+		},
+		async deleteWebhook(id: string): Promise<void> {
+			await delay(80);
+			webhooksList = webhooksList.filter((w) => w.id !== id);
 		},
 	},
 	members: {

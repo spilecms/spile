@@ -207,3 +207,61 @@ export interface DocumentationProject {
 export type DocumentationProjectPatch = Partial<
 	Omit<DocumentationProject, "id" | "createdAt" | "updatedAt">
 >;
+
+// --- Settings & Integrations ---
+export type StorageProviderType = "r2" | "s3" | "minio" | "local";
+
+export interface StorageSettings {
+	provider: StorageProviderType;
+	bucket: string;
+	endpoint?: string;
+	region?: string;
+	accessKey?: string;
+	secretKey?: string;
+	publicUrl: string;
+}
+
+export type EmailProviderType = "resend" | "ses" | "postmark" | "smtp";
+
+export interface EmailSettings {
+	fromName: string;
+	fromEmail: string;
+	replyTo: string;
+	provider: EmailProviderType;
+	apiKey?: string;
+	region?: string;
+	smtpHost?: string;
+	smtpPort?: number;
+	smtpUser?: string;
+	smtpPassword?: string;
+	smtpSecure?: boolean;
+}
+
+export type AiProviderType = "gemini" | "openai";
+
+export interface AiSettings {
+	provider: AiProviderType;
+	apiKey: string;
+	model: string;
+	enableTranslations: boolean;
+	enableSummaries: boolean;
+	enableWritingAssistant: boolean;
+}
+
+export interface ApiKey {
+	id: string;
+	name: string;
+	prefix: string;
+	type: "public_read" | "admin_secret";
+	createdAt: number;
+	lastUsedAt: number | null;
+}
+
+export interface Webhook {
+	id: string;
+	name: string;
+	url: string;
+	events: string[];
+	active: boolean;
+	createdAt: number;
+}
