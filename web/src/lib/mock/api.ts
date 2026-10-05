@@ -6,6 +6,12 @@ import type {
 	DocTreeItem,
 	DocumentationProject,
 	DocumentationProjectPatch,
+	Member,
+	MemberListParams,
+	MemberPatch,
+	Newsletter,
+	NewsletterListParams,
+	NewsletterPatch,
 	OverviewStats,
 	Post,
 	PostListParams,
@@ -20,6 +26,8 @@ import {
 	activity as seedActivity,
 	docPages as seedDocPages,
 	docProjects as seedDocProjects,
+	members as seedMembers,
+	newsletters as seedNewsletters,
 	posts as seedPosts,
 	stats as seedStats,
 	tags as seedTags,
@@ -33,6 +41,12 @@ const delay = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms));
 let posts: Post[] = [...seedPosts];
 let nextId = posts.length + 1;
 
+let membersList: Member[] = [...seedMembers];
+let nextMemberId = membersList.length + 1;
+
+let newslettersList: Newsletter[] = [...seedNewsletters];
+let nextNewsletterId = newslettersList.length + 1;
+
 let docPagesList: DocPage[] = [...seedDocPages];
 let docProjectsList: DocumentationProject[] = JSON.parse(
 	JSON.stringify(seedDocProjects),
@@ -43,27 +57,46 @@ let nextProjectId = docProjectsList.length + 1;
 function hydrateTreeItem(
 	item: DocTreeItem,
 	pageMap: Map<string, DocPage>,
+	locale: string = "en",
+	allPages: DocPage[] = [],
 ): DocTreeItem {
-	const page = pageMap.get(item.id);
+	const directPage = pageMap.get(item.id);
+	// If a specific locale is requested, check if a translation exists for this group
+	let page = directPage;
+	if (directPage) {
+		const groupId = directPage.translationGroupId || directPage.id;
+		const localized = allPages.find(
+			(p) => (p.translationGroupId || p.id) === groupId && p.locale === locale,
+		);
+		if (localized) {
+			page = localized;
+		}
+	}
+
 	return {
-		id: item.id,
+		id: page?.id ?? item.id,
+		translationGroupId:
+			page?.translationGroupId ?? directPage?.translationGroupId,
+		locale: page?.locale ?? directPage?.locale ?? locale,
 		title: page?.title ?? "Untitled Document",
 		slug: page?.slug ?? item.id,
 		status: page?.status ?? "draft",
-		children: item.children?.map((child) => hydrateTreeItem(child, pageMap)),
+		children: item.children?.map((child) =>
+			hydrateTreeItem(child, pageMap, locale, allPages),
+		),
 	};
 }
 
 function hydrateTreeItems(
 	items: DocTreeItem[],
 	pages: DocPage[],
+	locale: string = "en",
 ): DocTreeItem[] {
 	const pageMap = new Map(pages.map((p) => [p.id, p]));
-	return items.map((it) => hydrateTreeItem(it, pageMap));
+	return items.map((it) => hydrateTreeItem(it, pageMap, locale, pages));
 }
 
 function matches(post: Post, params: PostListParams): boolean {
-	if (params.type && post.type !== params.type) return false;
 	if (
 		params.status &&
 		params.status !== "all" &&
@@ -74,11 +107,6 @@ function matches(post: Post, params: PostListParams): boolean {
 	if (params.tagId && !post.tagIds.includes(params.tagId)) return false;
 	if (params.authorId && !post.authorIds.includes(params.authorId))
 		return false;
-	if (params.channel && params.channel !== "all") {
-		if (params.channel === "web" && !post.distribution?.web) return false;
-		if (params.channel === "newsletter" && !post.distribution?.newsletter)
-			return false;
-	}
 	if (params.query) {
 		const q = params.query.toLowerCase();
 		const haystack = `${post.title} ${post.excerpt}`.toLowerCase();
@@ -108,7 +136,7 @@ export const mockApi = {
 			const locale = input.locale ?? "en";
 			const post: Post = {
 				id,
-				type: input.type ?? "post",
+				type: "post",
 				title: input.title ?? "Untitled",
 				excerpt: input.excerpt ?? "",
 				status: input.status ?? "draft",
@@ -128,11 +156,6 @@ export const mockApi = {
 				isDefaultLocale: input.isDefaultLocale ?? locale === "en",
 				translationGroupId: input.translationGroupId ?? id,
 				translationSourceId: input.translationSourceId,
-				distribution: input.distribution ?? {
-					web: true,
-					newsletter: false,
-					newsletterSentAt: null,
-				},
 			};
 			posts = [post, ...posts];
 			return { ...post };
@@ -144,23 +167,9 @@ export const mockApi = {
 			const current = posts[index];
 			const nextStatus = patch.status ?? current.status;
 
-			const distribution = patch.distribution ?? current.distribution;
-			let newsletterSentAt = distribution?.newsletterSentAt ?? null;
-			if (
-				nextStatus === "published" &&
-				distribution?.newsletter &&
-				!newsletterSentAt
-			) {
-				newsletterSentAt = Date.now();
-			}
-			const nextDistribution = distribution
-				? { ...distribution, newsletterSentAt }
-				: undefined;
-
 			const next: Post = {
 				...current,
 				...patch,
-				distribution: nextDistribution,
 				id: current.id,
 				createdAt: current.createdAt,
 				updatedAt: Date.now(),
@@ -271,6 +280,178 @@ export const mockApi = {
 		async list() {
 			await delay(50);
 			return seedTags.map((tag) => ({ ...tag }));
+		},
+	},
+	members: {
+		async list(params: MemberListParams = {}): Promise<Member[]> {
+			await delay(80);
+			let list = [...membersList];
+			if (params.status && params.status !== "all") {
+				list = list.filter((m) => m.status === params.status);
+			}
+			if (params.query) {
+				const q = params.query.toLowerCase();
+				list = list.filter(
+					(m) =>
+						m.email.toLowerCase().includes(q) ||
+						Boolean(m.name?.toLowerCase().includes(q)),
+				);
+			}
+			return list.sort((a, b) => b.subscribedAt - a.subscribedAt);
+		},
+		async get(id: string): Promise<Member> {
+			await delay(50);
+			const member = membersList.find((m) => m.id === id);
+			if (!member) throw new Error(`Member ${id} not found`);
+			return { ...member };
+		},
+		async create(data: Partial<Member>): Promise<Member> {
+			await delay(100);
+			const newMember: Member = {
+				id: `m${nextMemberId++}`,
+				email: data.email ?? "",
+				name: data.name,
+				status: data.status ?? "active",
+				subscribedAt: Date.now(),
+				openRate: 0,
+				locale: data.locale ?? "en",
+			};
+			membersList = [newMember, ...membersList];
+			return { ...newMember };
+		},
+		async update(id: string, patch: MemberPatch): Promise<Member> {
+			await delay(80);
+			const idx = membersList.findIndex((m) => m.id === id);
+			if (idx === -1) throw new Error(`Member ${id} not found`);
+			const updated: Member = {
+				...membersList[idx],
+				...patch,
+			};
+			membersList[idx] = updated;
+			return { ...updated };
+		},
+		async remove(id: string): Promise<void> {
+			await delay(80);
+			membersList = membersList.filter((m) => m.id !== id);
+		},
+	},
+	newsletters: {
+		async list(params: NewsletterListParams = {}): Promise<Newsletter[]> {
+			await delay(100);
+			let list = [...newslettersList];
+			if (params.status && params.status !== "all") {
+				list = list.filter((n) => n.status === params.status);
+			}
+			if (params.query) {
+				const q = params.query.toLowerCase();
+				list = list.filter(
+					(n) =>
+						n.title.toLowerCase().includes(q) ||
+						n.subject.toLowerCase().includes(q),
+				);
+			}
+			return list.sort((a, b) => b.updatedAt - a.updatedAt);
+		},
+		async get(id: string): Promise<Newsletter> {
+			await delay(80);
+			const nl = newslettersList.find((n) => n.id === id);
+			if (!nl) throw new Error(`Newsletter ${id} not found`);
+			return { ...nl };
+		},
+		async create(input: Partial<Newsletter> = {}): Promise<Newsletter> {
+			await delay(120);
+			const now = Date.now();
+			const id = `nl-${nextNewsletterId++}`;
+			const newNl: Newsletter = {
+				id,
+				title: input.title ?? "Untitled Newsletter",
+				subject: input.subject ?? "New Update from Spile",
+				previewText: input.previewText ?? "",
+				content: input.content ?? {
+					time: now,
+					blocks: [
+						{
+							id: `nl-init-${now}`,
+							type: "paragraph",
+							data: { text: "Write your newsletter issue here..." },
+						},
+					],
+					version: "2.31.7",
+				},
+				status: input.status ?? "draft",
+				senderName: input.senderName ?? "Spile Editorial",
+				senderEmail: input.senderEmail ?? "newsletter@spile.dev",
+				recipientsCount: input.recipientsCount ?? 0,
+				deliveredCount: 0,
+				openedCount: 0,
+				clickedCount: 0,
+				scheduledFor: input.scheduledFor ?? null,
+				sentAt: input.status === "sent" ? now : null,
+				createdAt: now,
+				updatedAt: now,
+			};
+			newslettersList = [newNl, ...newslettersList];
+			return { ...newNl };
+		},
+		async update(id: string, patch: NewsletterPatch): Promise<Newsletter> {
+			await delay(100);
+			const idx = newslettersList.findIndex((n) => n.id === id);
+			if (idx === -1) throw new Error(`Newsletter ${id} not found`);
+			const current = newslettersList[idx];
+			const nextStatus = patch.status ?? current.status;
+			const updated: Newsletter = {
+				...current,
+				...patch,
+				sentAt:
+					nextStatus === "sent"
+						? (current.sentAt ?? Date.now())
+						: current.sentAt,
+				updatedAt: Date.now(),
+			};
+			newslettersList[idx] = updated;
+			return { ...updated };
+		},
+		async remove(id: string): Promise<void> {
+			await delay(100);
+			newslettersList = newslettersList.filter((n) => n.id !== id);
+		},
+		async duplicate(id: string): Promise<Newsletter> {
+			const source = await mockApi.newsletters.get(id);
+			return mockApi.newsletters.create({
+				...source,
+				id: undefined,
+				title: `${source.title} (copy)`,
+				status: "draft",
+				recipientsCount: 0,
+				deliveredCount: 0,
+				openedCount: 0,
+				clickedCount: 0,
+				sentAt: null,
+				scheduledFor: null,
+			});
+		},
+		async sendTest(
+			id: string,
+			email: string,
+		): Promise<{ success: boolean; message: string }> {
+			await delay(300);
+			const nl = await mockApi.newsletters.get(id);
+			return {
+				success: true,
+				message: `Test email for "${nl.subject}" sent to ${email}`,
+			};
+		},
+		async send(id: string): Promise<Newsletter> {
+			await delay(400);
+			const activeCount = membersList.filter(
+				(m) => m.status === "active",
+			).length;
+			return mockApi.newsletters.update(id, {
+				status: "sent",
+				recipientsCount: activeCount,
+				deliveredCount: activeCount,
+				sentAt: Date.now(),
+			});
 		},
 	},
 	docs: {
@@ -399,17 +580,21 @@ export const mockApi = {
 			await delay(120);
 			docProjectsList = docProjectsList.filter((p) => p.id !== projectId);
 		},
-		async getNavigation(projectId?: string): Promise<DocNavigationManifest> {
+		async getNavigation(
+			projectId?: string,
+			locale: string = "en",
+		): Promise<DocNavigationManifest> {
 			await delay(100);
 			const proj = projectId
 				? docProjectsList.find((p) => p.id === projectId)
 				: docProjectsList[0];
 			const nav = proj
 				? proj.navigation
-				: { id: "empty", locale: "en", items: [], updatedAt: Date.now() };
+				: { id: "empty", locale, items: [], updatedAt: Date.now() };
 			return {
 				...nav,
-				items: hydrateTreeItems(nav.items, docPagesList),
+				locale,
+				items: hydrateTreeItems(nav.items, docPagesList, locale),
 			};
 		},
 		async updateNavigation(
@@ -550,6 +735,88 @@ export const mockApi = {
 					items: hydrateTreeItems(targetProj.navigation.items, docPagesList),
 				},
 			};
+		},
+		async getTranslations(translationGroupId: string): Promise<DocPage[]> {
+			await delay(80);
+			return docPagesList.filter(
+				(d) => (d.translationGroupId || d.id) === translationGroupId,
+			);
+		},
+		async createTranslation(
+			sourceDocId: string,
+			targetLocale: string,
+			options?: {
+				title?: string;
+				slug?: string;
+				copyContent?: boolean;
+				projectId?: string;
+			},
+		): Promise<DocPage> {
+			await delay(120);
+			const source = await mockApi.docs.getPage(sourceDocId);
+			if (!source) throw new Error("Source document not found");
+			const translationGroupId = source.translationGroupId || source.id;
+
+			const existing = docPagesList.find(
+				(d) =>
+					(d.translationGroupId || d.id) === translationGroupId &&
+					d.locale === targetLocale,
+			);
+			if (existing) return { ...existing };
+
+			const targetLocaleObj = workspaceLocales.find(
+				(l) => l.code === targetLocale,
+			);
+			const targetName = targetLocaleObj
+				? targetLocaleObj.name
+				: targetLocale.toUpperCase();
+
+			const copyContent = options?.copyContent ?? true;
+			const newId = `doc-${nextDocId++}`;
+			const finalTitle =
+				options?.title?.trim() ||
+				(copyContent ? `${source.title} (${targetName})` : "Untitled");
+			const cleanSlug =
+				options?.slug?.trim() ||
+				source.slug
+					.toLowerCase()
+					.replace(/[^a-z0-9]+/g, "-")
+					.replace(/(^-|-$)/g, "");
+			const finalSlug = `${cleanSlug}-${targetLocale}`;
+
+			const newDocPage: DocPage = {
+				id: newId,
+				projectId: source.projectId || options?.projectId,
+				parentId: source.parentId,
+				translationGroupId,
+				translationSourceId: source.id,
+				locale: targetLocale,
+				isDefaultLocale: false,
+				title: finalTitle,
+				slug: finalSlug,
+				status: "draft",
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				content: copyContent
+					? JSON.parse(JSON.stringify(source.content ?? { blocks: [] }))
+					: { blocks: [] },
+			};
+
+			docPagesList.push(newDocPage);
+
+			// Also link into the project's navigation if available
+			const proj =
+				source.projectId || options?.projectId
+					? docProjectsList.find(
+							(p) => p.id === (source.projectId || options?.projectId),
+						)
+					: docProjectsList[0];
+			if (proj) {
+				proj.navigation.items.push({ id: newId });
+				proj.updatedAt = Date.now();
+			}
+
+			return { ...newDocPage };
 		},
 		async updatePage(id: string, patch: DocPagePatch): Promise<DocPage> {
 			await delay(120);

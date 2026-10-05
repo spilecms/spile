@@ -3,6 +3,8 @@ import type {
 	DocNavigationManifest,
 	DocPage,
 	DocumentationProject,
+	Member,
+	Newsletter,
 	Post,
 	Tag,
 	User,
@@ -357,41 +359,6 @@ const postSeeds: PostSeed[] = [
 		readingTime: 3,
 		updatedDaysAgo: 10,
 	},
-	{
-		title: "About",
-		excerpt: "What Spile is, who builds it, and why it exists.",
-		status: "published",
-		authorIds: ["u1"],
-		tagIds: [],
-		views: 15200,
-		readingTime: 2,
-		updatedDaysAgo: 30,
-		publishedDaysAgo: 30,
-		type: "page",
-	},
-	{
-		title: "Contact",
-		excerpt: "Get in touch with the team for support, partnerships, or press.",
-		status: "published",
-		authorIds: ["u1"],
-		tagIds: [],
-		views: 4300,
-		readingTime: 1,
-		updatedDaysAgo: 30,
-		publishedDaysAgo: 30,
-		type: "page",
-	},
-	{
-		title: "Careers",
-		excerpt: "Open roles and what it's like to work on Spile.",
-		status: "draft",
-		authorIds: ["u3"],
-		tagIds: [],
-		views: 0,
-		readingTime: 2,
-		updatedDaysAgo: 6,
-		type: "page",
-	},
 ];
 
 export const posts: Post[] = postSeeds.map((seed, index) => {
@@ -405,7 +372,7 @@ export const posts: Post[] = postSeeds.map((seed, index) => {
 	const id = `p${index + 1}`;
 	return {
 		id,
-		type: seed.type ?? "post",
+		type: "post",
 		title: seed.title,
 		excerpt: seed.excerpt,
 		status: seed.status,
@@ -430,12 +397,6 @@ export const posts: Post[] = postSeeds.map((seed, index) => {
 		locale: "en",
 		isDefaultLocale: true,
 		translationGroupId: id,
-		distribution: {
-			web: true,
-			newsletter: index % 2 === 0,
-			newsletterSentAt:
-				index % 2 === 0 && seed.status === "published" ? publishedAt : null,
-		},
 	};
 });
 
@@ -526,9 +487,8 @@ export const viewsSeries: Record<ViewsRange, ViewsPoint[]> = (() => {
 export const stats = {
 	totalViews: 82160,
 	viewsTrend: 12.4,
-	published: posts.filter((p) => p.type === "post" && p.status === "published")
-		.length,
-	drafts: posts.filter((p) => p.type === "post" && p.status === "draft").length,
+	published: posts.filter((p) => p.status === "published").length,
+	drafts: posts.filter((p) => p.status === "draft").length,
 	members: 4832,
 	membersTrend: 8.1,
 	avgReadTime: 6.4,
@@ -537,10 +497,13 @@ export const stats = {
 export const docPages: DocPage[] = [
 	{
 		id: "doc-1",
+		projectId: "doc-proj-developer-docs",
+		translationGroupId: "doc-1",
+		isDefaultLocale: true,
+		locale: "en",
 		title: "Introduction to Spile",
 		slug: "introduction",
 		status: "published",
-		locale: "en",
 		createdAt: day(30),
 		updatedAt: day(2),
 		content: {
@@ -573,11 +536,49 @@ export const docPages: DocPage[] = [
 		},
 	},
 	{
+		id: "doc-1-es",
+		projectId: "doc-proj-developer-docs",
+		translationGroupId: "doc-1",
+		translationSourceId: "doc-1",
+		isDefaultLocale: false,
+		locale: "es",
+		title: "Introducción a Spile",
+		slug: "introduccion",
+		status: "published",
+		createdAt: day(29),
+		updatedAt: day(2),
+		content: {
+			time: day(2),
+			blocks: [
+				{
+					id: "blk-intro-1-es",
+					type: "header",
+					data: {
+						text: "Introducción a Spile",
+						level: 1,
+					},
+				},
+				{
+					id: "blk-intro-2-es",
+					type: "paragraph",
+					data: {
+						text: "Spile es una plataforma moderna de gestión de contenidos diseñada para documentación, publicaciones técnicas y boletines informativos.",
+					},
+				},
+			],
+			version: "2.31.7",
+		},
+	},
+	{
 		id: "doc-2",
+		projectId: "doc-proj-developer-docs",
+		parentId: "doc-1",
+		translationGroupId: "doc-2",
+		isDefaultLocale: true,
+		locale: "en",
 		title: "Installation & Quickstart",
 		slug: "installation",
 		status: "published",
-		locale: "en",
 		createdAt: day(28),
 		updatedAt: day(5),
 		content: {
@@ -611,10 +612,13 @@ export const docPages: DocPage[] = [
 	},
 	{
 		id: "doc-3",
+		projectId: "doc-proj-developer-docs",
+		translationGroupId: "doc-3",
+		isDefaultLocale: true,
+		locale: "en",
 		title: "Architecture & Data Model",
 		slug: "architecture",
 		status: "published",
-		locale: "en",
 		createdAt: day(20),
 		updatedAt: day(4),
 		content: {
@@ -641,10 +645,14 @@ export const docPages: DocPage[] = [
 	},
 	{
 		id: "doc-4",
+		projectId: "doc-proj-developer-docs",
+		parentId: "doc-3",
+		translationGroupId: "doc-4",
+		isDefaultLocale: true,
+		locale: "en",
 		title: "API Authentication",
 		slug: "api-authentication",
 		status: "draft",
-		locale: "en",
 		createdAt: day(10),
 		updatedAt: day(1),
 		content: {
@@ -727,6 +735,193 @@ export const docProjects: DocumentationProject[] = [
 					id: "doc-1",
 				},
 			],
+		},
+	},
+];
+
+export const members: Member[] = [
+	{
+		id: "m1",
+		email: "sophia.chen@example.com",
+		name: "Sophia Chen",
+		status: "active",
+		subscribedAt: day(90),
+		openRate: 85,
+		locale: "en",
+	},
+	{
+		id: "m2",
+		email: "alex.kumar@example.com",
+		name: "Alex Kumar",
+		status: "active",
+		subscribedAt: day(60),
+		openRate: 92,
+		locale: "en",
+	},
+	{
+		id: "m3",
+		email: "elena.rostova@example.com",
+		name: "Elena Rostova",
+		status: "active",
+		subscribedAt: day(45),
+		openRate: 70,
+		locale: "en",
+	},
+	{
+		id: "m4",
+		email: "marcus.vance@example.com",
+		name: "Marcus Vance",
+		status: "active",
+		subscribedAt: day(30),
+		openRate: 64,
+		locale: "en",
+	},
+	{
+		id: "m5",
+		email: "liam.o'connor@example.com",
+		name: "Liam O'Connor",
+		status: "unconfirmed",
+		subscribedAt: day(5),
+		openRate: 0,
+		locale: "en",
+	},
+	{
+		id: "m6",
+		email: "clara.dupont@example.com",
+		name: "Clara Dupont",
+		status: "unsubscribed",
+		subscribedAt: day(120),
+		openRate: 40,
+		locale: "fr",
+	},
+	{
+		id: "m7",
+		email: "daniel.kim@example.com",
+		name: "Daniel Kim",
+		status: "active",
+		subscribedAt: day(15),
+		openRate: 100,
+		locale: "en",
+	},
+	{
+		id: "m8",
+		email: "amara.bekele@example.com",
+		name: "Amara Bekele",
+		status: "active",
+		subscribedAt: day(2),
+		openRate: 100,
+		locale: "am",
+	},
+];
+
+export const newsletters: Newsletter[] = [
+	{
+		id: "nl-1",
+		title: "Spile v2.0 Architecture & Roadmap",
+		subject: "🚀 Spile v2.0 is here: A new chapter in headless publishing",
+		previewText:
+			"Explore our overhauled block editor, i18n workflows, and developer API.",
+		status: "sent",
+		senderName: "Spile Team",
+		senderEmail: "newsletter@spile.dev",
+		recipientsCount: 4832,
+		deliveredCount: 4812,
+		openedCount: 2320,
+		clickedCount: 685,
+		scheduledFor: null,
+		sentAt: day(4),
+		createdAt: day(6),
+		updatedAt: day(4),
+		content: {
+			time: day(4),
+			blocks: [
+				{
+					id: "nl-blk-1",
+					type: "header",
+					data: {
+						text: "Welcome to Spile v2.0",
+						level: 2,
+					},
+				},
+				{
+					id: "nl-blk-2",
+					type: "paragraph",
+					data: {
+						text: "We're thrilled to introduce our major release focusing on modern publishing, multi-language sync, and developer-first documentation.",
+					},
+				},
+			],
+			version: "2.31.7",
+		},
+	},
+	{
+		id: "nl-2",
+		title: "Weekly Engineering Digest #42",
+		subject: "Weekly Tech Digest: High-performance Go services and Web Vitals",
+		previewText:
+			"Tips for optimizing block editor performance and structuring recursive content.",
+		status: "scheduled",
+		senderName: "Spile Editorial",
+		senderEmail: "editorial@spile.dev",
+		recipientsCount: 4832,
+		deliveredCount: 0,
+		openedCount: 0,
+		clickedCount: 0,
+		scheduledFor: now + 2 * DAY,
+		sentAt: null,
+		createdAt: day(1),
+		updatedAt: day(1),
+		content: {
+			time: day(1),
+			blocks: [
+				{
+					id: "nl-blk-3",
+					type: "header",
+					data: {
+						text: "Engineering Insights this Week",
+						level: 2,
+					},
+				},
+				{
+					id: "nl-blk-4",
+					type: "paragraph",
+					data: {
+						text: "In this issue, we examine backend architecture choices, database models, and editor performance.",
+					},
+				},
+			],
+			version: "2.31.7",
+		},
+	},
+	{
+		id: "nl-3",
+		title: "Behind the Scenes: Editor.js Custom Plugins",
+		subject: "Draft: Building custom rich block plugins with Editor.js",
+		previewText:
+			"How we engineered code highlighting, math formulas, and embed blocks.",
+		status: "draft",
+		senderName: "Spile Engineering",
+		senderEmail: "newsletter@spile.dev",
+		recipientsCount: 0,
+		deliveredCount: 0,
+		openedCount: 0,
+		clickedCount: 0,
+		scheduledFor: null,
+		sentAt: null,
+		createdAt: day(2),
+		updatedAt: day(2),
+		content: {
+			time: day(2),
+			blocks: [
+				{
+					id: "nl-blk-5",
+					type: "paragraph",
+					data: {
+						text: "Drafting our deep-dive tutorial for the developer community...",
+					},
+				},
+			],
+			version: "2.31.7",
 		},
 	},
 ];

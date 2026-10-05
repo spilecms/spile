@@ -71,6 +71,7 @@ export default function Editor({
 				let data = useEditorStore.getState().blocks;
 				if (editor && typeof editor.save === "function") {
 					data = await editor.save();
+					console.log("Autosaving data:", data);
 					setBlocks(data);
 				}
 				const {
@@ -91,6 +92,12 @@ export default function Editor({
 						content: data,
 						slug,
 						status: status === "published" ? "published" : "draft",
+					});
+				} else if (itemType === "newsletter") {
+					await mockApi.newsletters.update(postId, {
+						subject: currentTitle,
+						previewText: excerpt,
+						content: data,
 					});
 				} else {
 					await mockApi.posts.update(postId, {
@@ -202,6 +209,7 @@ export default function Editor({
 					underline: Underline,
 					inlineFormula: { class: InlineFormulaTool },
 				},
+				autofocus: true,
 				onReady: () => {
 					if (!cancelledRef.current && editor) {
 						editorRef.current = editor;
@@ -266,7 +274,7 @@ export default function Editor({
 	}
 
 	return (
-		<div className="flex min-h-screen flex-col">
+		<div className="flex h-screen flex-col overflow-hidden bg-background">
 			<Navbar
 				title={title}
 				onTitleChange={(newTitle) => {
@@ -283,13 +291,13 @@ export default function Editor({
 				onToggleSidebar={onToggleSidebar}
 			/>
 			<TranslationContextBanner />
-			<div className="flex flex-1 overflow-hidden">
+			<div className="flex flex-1 min-h-0 overflow-hidden">
 				{sidebar && isSidebarOpen && (
-					<aside className="w-72 shrink-0 border-r md:w-80 h-[calc(100vh-3.25rem)] sticky top-13 overflow-y-auto z-20 bg-background/95">
+					<aside className="w-72 shrink-0 border-r md:w-80 h-full overflow-y-auto bg-background/95 editor-scroll">
 						{sidebar}
 					</aside>
 				)}
-				<main className="flex-1 mt-14 overflow-y-auto min-w-0">
+				<main className="flex-1 h-full overflow-y-auto min-w-0 pt-6 editor-scroll">
 					<FloatingToc editorContainerRef={containerRef} />
 					<div ref={containerRef} />
 				</main>

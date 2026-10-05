@@ -12,6 +12,9 @@ export function TranslationContextBanner() {
 	const translationGroupId = useEditorStore((s) => s.translationGroupId);
 	const translationSourceId = useEditorStore((s) => s.translationSourceId);
 
+	const itemType = useEditorStore((s) => s.type);
+	const isDoc = itemType === "doc";
+
 	const { data: locales } = useQuery({
 		queryKey: ["workspace", "locales"],
 		queryFn: () => mockApi.locales.list(),
@@ -27,7 +30,11 @@ export function TranslationContextBanner() {
 
 	const handleSwitchToOriginal = () => {
 		if (targetOriginalId) {
-			navigate(`/editor/${targetOriginalId}`);
+			if (isDoc) {
+				navigate(`/editor/doc/${targetOriginalId}`);
+			} else {
+				navigate(`/editor/${targetOriginalId}`);
+			}
 		}
 	};
 

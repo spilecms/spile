@@ -38,7 +38,7 @@ export default function Overview() {
 	const { t } = useTranslation();
 	const { data: recentPosts, isPending: postsPending } = useQuery({
 		queryKey: ["posts", "recent"],
-		queryFn: () => mockApi.posts.list({ type: "post", status: "all" }),
+		queryFn: () => mockApi.posts.list({ status: "all" }),
 	});
 
 	const { data: activity, isPending: activityPending } = useQuery({

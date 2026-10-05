@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDownIcon, GlobeIcon, MailIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -27,12 +27,11 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { slugify } from "@/lib/format";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
-import type { PostDistribution, PostSeo, PostStatus } from "@/types/domain";
+import type { PostSeo, PostStatus } from "@/types/domain";
 import { TranslationsSection } from "./translations-section";
 
 export function PublishPanel({
@@ -44,30 +43,27 @@ export function PublishPanel({
 }) {
 	const queryClient = useQueryClient();
 	const postId = useEditorStore((s) => s.postId);
+	const itemType = useEditorStore((s) => s.type);
+	const isDoc = itemType === "doc";
 	const status = useEditorStore((s) => s.status);
 	const slug = useEditorStore((s) => s.slug);
 	const excerpt = useEditorStore((s) => s.excerpt);
 	const tagIds = useEditorStore((s) => s.tagIds);
 	const seo = useEditorStore((s) => s.seo);
 	const scheduledFor = useEditorStore((s) => s.scheduledFor);
-	const distribution = useEditorStore((s) => s.distribution);
 	const patchMeta = useEditorStore((s) => s.patchMeta);
 	const { t } = useTranslation();
 
 	const { data: tags } = useQuery({
 		queryKey: ["tags", "list"],
 		queryFn: () => mockApi.tags.list(),
-		enabled: open,
+		enabled: open && !isDoc,
 	});
 
 	const [localStatus, setLocalStatus] = useState<PostStatus>(status);
 	const [localSlug, setLocalSlug] = useState(slug);
 	const [localExcerpt, setLocalExcerpt] = useState(excerpt);
 	const [localTagIds, setLocalTagIds] = useState<string[]>(tagIds);
-	const [localWeb, setLocalWeb] = useState(distribution?.web ?? true);
-	const [localNewsletter, setLocalNewsletter] = useState(
-		distribution?.newsletter ?? false,
-	);
 	const [scheduleAt, setScheduleAt] = useState(() =>
 		scheduledFor ? toDateTimeLocal(scheduledFor) : "",
 	);
@@ -82,23 +78,16 @@ export function PublishPanel({
 			setLocalSlug(slug);
 			setLocalExcerpt(excerpt);
 			setLocalTagIds(tagIds);
-			setLocalWeb(distribution?.web ?? true);
-			setLocalNewsletter(distribution?.newsletter ?? false);
 			setScheduleAt(scheduledFor ? toDateTimeLocal(scheduledFor) : "");
 			setSeoTitle(seo.metaTitle ?? "");
 			setSeoDescription(seo.metaDescription ?? "");
 		}
-	}, [open, status, slug, excerpt, tagIds, scheduledFor, seo, distribution]);
+	}, [open, status, slug, excerpt, tagIds, scheduledFor, seo]);
 
 	const handleSave = async () => {
 		const seoPatch: PostSeo = {
 			metaTitle: seoTitle || undefined,
 			metaDescription: seoDescription || undefined,
-		};
-		const nextDistribution: PostDistribution = {
-			web: localWeb,
-			newsletter: localNewsletter,
-			newsletterSentAt: distribution?.newsletterSentAt ?? null,
 		};
 		patchMeta({
 			status: localStatus,
@@ -110,36 +99,46 @@ export function PublishPanel({
 					? new Date(scheduleAt).getTime()
 					: null,
 			seo: seoPatch,
-			distribution: nextDistribution,
 		});
 		if (postId) {
 			try {
-				await mockApi.posts.update(postId, {
-					status: localStatus,
-					slug: localSlug,
-					excerpt: localExcerpt,
-					tagIds: localTagIds,
-					scheduledFor:
-						localStatus === "scheduled" && scheduleAt
-							? new Date(scheduleAt).getTime()
-							: null,
-					seo: seoPatch,
-					distribution: nextDistribution,
-				});
-				await queryClient.invalidateQueries({ queryKey: ["posts"] });
-				toast.success(
-					localStatus === "published"
-						? localWeb && localNewsletter && !distribution?.newsletterSentAt
-							? "Published to web and sent newsletter"
-							: localNewsletter && !distribution?.newsletterSentAt
-								? "Newsletter sent"
-								: "Post published"
-						: localStatus === "scheduled"
-							? "Post scheduled"
-							: "Post updated",
-				);
+				if (isDoc) {
+					await mockApi.docs.updatePage(postId, {
+						status: localStatus === "published" ? "published" : "draft",
+						slug: localSlug,
+					});
+					await queryClient.invalidateQueries({ queryKey: ["docs"] });
+					await queryClient.invalidateQueries({
+						queryKey: ["docs-navigation"],
+					});
+					toast.success(
+						localStatus === "published"
+							? "Document published"
+							: "Document saved",
+					);
+				} else {
+					await mockApi.posts.update(postId, {
+						status: localStatus,
+						slug: localSlug,
+						excerpt: localExcerpt,
+						tagIds: localTagIds,
+						scheduledFor:
+							localStatus === "scheduled" && scheduleAt
+								? new Date(scheduleAt).getTime()
+								: null,
+						seo: seoPatch,
+					});
+					await queryClient.invalidateQueries({ queryKey: ["posts"] });
+					toast.success(
+						localStatus === "published"
+							? "Post published"
+							: localStatus === "scheduled"
+								? "Post scheduled"
+								: "Post updated",
+					);
+				}
 			} catch {
-				toast.error("Couldn't save post settings");
+				toast.error("Couldn't save settings");
 				return;
 			}
 		}
@@ -159,64 +158,15 @@ export function PublishPanel({
 				className="flex w-full flex-col gap-0 sm:max-w-md sheet-content-scroll"
 			>
 				<SheetHeader>
-					<SheetTitle>Post settings</SheetTitle>
+					<SheetTitle>
+						{isDoc ? "Document Settings" : "Post settings"}
+					</SheetTitle>
 				</SheetHeader>
 
 				<div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4 sheet-content-scroll">
 					<TranslationsSection onNavigate={() => onOpenChange(false)} />
 
 					<div className="h-px w-full bg-border/60" />
-
-					<div className="flex flex-col gap-3 rounded-lg border bg-card p-3 shadow-xs">
-						<span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							{t("posts.delivery.title")}
-						</span>
-
-						{/* Web Channel */}
-						<div className="flex items-center justify-between gap-3">
-							<div className="flex flex-col gap-0.5">
-								<div className="flex items-center gap-1.5 text-sm font-medium">
-									<GlobeIcon className="size-4 text-primary" />
-									<span>{t("posts.delivery.webTitle")}</span>
-								</div>
-								<span className="text-xs text-muted-foreground">
-									{t("posts.delivery.webDesc")}
-								</span>
-							</div>
-							<Switch
-								checked={localWeb}
-								onCheckedChange={setLocalWeb}
-								aria-label={t("posts.delivery.webTitle")}
-							/>
-						</div>
-
-						<div className="h-px w-full bg-border/40" />
-
-						{/* Newsletter Channel */}
-						<div className="flex items-center justify-between gap-3">
-							<div className="flex flex-col gap-0.5">
-								<div className="flex items-center gap-1.5 text-sm font-medium">
-									<MailIcon className="size-4 text-primary" />
-									<span>{t("posts.delivery.newsletterTitle")}</span>
-								</div>
-								<span className="text-xs text-muted-foreground">
-									{distribution?.newsletterSentAt
-										? t("posts.delivery.newsletterSent", {
-												date: new Date(
-													distribution.newsletterSentAt,
-												).toLocaleDateString(),
-											})
-										: t("posts.delivery.newsletterDesc")}
-								</span>
-							</div>
-							<Switch
-								checked={localNewsletter}
-								onCheckedChange={setLocalNewsletter}
-								disabled={Boolean(distribution?.newsletterSentAt)}
-								aria-label={t("posts.delivery.newsletterTitle")}
-							/>
-						</div>
-					</div>
 
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="publish-status">Status</Label>
@@ -237,7 +187,7 @@ export function PublishPanel({
 						</Select>
 					</div>
 
-					{localStatus === "scheduled" && (
+					{!isDoc && localStatus === "scheduled" && (
 						<div className="flex flex-col gap-2">
 							<Label htmlFor="publish-schedule">Publish at</Label>
 							<Input
@@ -252,7 +202,9 @@ export function PublishPanel({
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="publish-slug">Slug</Label>
 						<div className="flex items-center gap-1">
-							<span className="text-xs text-muted-foreground">/</span>
+							<span className="text-xs text-muted-foreground">
+								{isDoc ? "/docs/" : "/"}
+							</span>
 							<Input
 								id="publish-slug"
 								value={localSlug}
@@ -264,7 +216,7 @@ export function PublishPanel({
 									setLocalSlug(val);
 								}}
 								onBlur={() => setLocalSlug(slugify(localSlug))}
-								placeholder="post-url-slug"
+								placeholder={isDoc ? "doc-slug" : "post-url-slug"}
 							/>
 						</div>
 						{!localSlug && (
@@ -274,49 +226,55 @@ export function PublishPanel({
 						)}
 					</div>
 
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="publish-excerpt">Excerpt</Label>
-						<Textarea
-							id="publish-excerpt"
-							value={localExcerpt}
-							onChange={(e) => setLocalExcerpt(e.target.value)}
-							placeholder="A short summary shown in post lists and search results…"
-							className="min-h-20"
-						/>
-					</div>
+					{!isDoc && (
+						<>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="publish-excerpt">Excerpt</Label>
+								<Textarea
+									id="publish-excerpt"
+									value={localExcerpt}
+									onChange={(e) => setLocalExcerpt(e.target.value)}
+									placeholder="A short summary shown in post lists and search results…"
+									className="min-h-20"
+								/>
+							</div>
 
-					<div className="flex flex-col gap-2">
-						<Label>Tags</Label>
-						<div className="flex flex-wrap gap-1.5">
-							{(tags ?? []).map((tag) => {
-								const selected = localTagIds.includes(tag.id);
-								return (
-									<button
-										key={tag.id}
-										type="button"
-										onClick={() => toggleTag(tag.id)}
-										className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-									>
-										<Badge
-											variant={selected ? "default" : "outline"}
-											className="cursor-pointer gap-1"
-										>
-											<span
-												className="size-2 rounded-full"
-												style={{ backgroundColor: tag.color }}
-												aria-hidden
-											/>
-											{tag.name}
-											{selected && <XIcon className="size-3!" />}
-										</Badge>
-									</button>
-								);
-							})}
-							{(tags ?? []).length === 0 && (
-								<p className="text-xs text-muted-foreground">No tags yet.</p>
-							)}
-						</div>
-					</div>
+							<div className="flex flex-col gap-2">
+								<Label>Tags</Label>
+								<div className="flex flex-wrap gap-1.5">
+									{(tags ?? []).map((tag) => {
+										const selected = localTagIds.includes(tag.id);
+										return (
+											<button
+												key={tag.id}
+												type="button"
+												onClick={() => toggleTag(tag.id)}
+												className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+											>
+												<Badge
+													variant={selected ? "default" : "outline"}
+													className="cursor-pointer gap-1"
+												>
+													<span
+														className="size-2 rounded-full"
+														style={{ backgroundColor: tag.color }}
+														aria-hidden
+													/>
+													{tag.name}
+													{selected && <XIcon className="size-3!" />}
+												</Badge>
+											</button>
+										);
+									})}
+									{(tags ?? []).length === 0 && (
+										<p className="text-xs text-muted-foreground">
+											No tags yet.
+										</p>
+									)}
+								</div>
+							</div>
+						</>
+					)}
 
 					<Collapsible>
 						<CollapsibleTrigger
@@ -363,19 +321,19 @@ export function PublishPanel({
 
 				<SheetFooter>
 					<Button onClick={handleSave}>
-						{localStatus === "published"
-							? localWeb && localNewsletter && !distribution?.newsletterSentAt
-								? t("posts.delivery.publishBoth")
-								: localNewsletter &&
-										!distribution?.newsletterSentAt &&
-										!localWeb
-									? t("posts.delivery.publishNewsletter")
-									: status === "published"
-										? t("posts.delivery.saveChanges")
-										: t("posts.delivery.publishWeb")
-							: localStatus === "scheduled"
-								? "Schedule"
-								: "Save draft"}
+						{isDoc
+							? localStatus === "published"
+								? status === "published"
+									? "Save document"
+									: "Publish document"
+								: "Save draft"
+							: localStatus === "published"
+								? status === "published"
+									? t("posts.delivery.saveChanges")
+									: "Publish post"
+								: localStatus === "scheduled"
+									? "Schedule"
+									: "Save draft"}
 					</Button>
 				</SheetFooter>
 			</SheetContent>

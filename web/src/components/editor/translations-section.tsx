@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Check, Globe, Plus } from "lucide-react";
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +13,7 @@ import {
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
 import { cn } from "@/lib/utils";
-import type { Post, WorkspaceLocale } from "@/types/domain";
+import type { DocPage, Post, WorkspaceLocale } from "@/types/domain";
 import { AddTranslationDialog } from "./add-translation-dialog";
 
 export function TranslationsSection({
@@ -22,7 +22,11 @@ export function TranslationsSection({
 	onNavigate?: () => void;
 }) {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const projectId = searchParams.get("project") ?? undefined;
 	const currentPostId = useEditorStore((s) => s.postId);
+	const itemType = useEditorStore((s) => s.type);
+	const isDoc = itemType === "doc";
 	const translationGroupId = useEditorStore(
 		(s) => s.translationGroupId || s.postId || "",
 	);
@@ -34,9 +38,14 @@ export function TranslationsSection({
 		queryFn: () => mockApi.locales.list(),
 	});
 
-	const { data: translations, isLoading } = useQuery({
-		queryKey: ["posts", "translations", translationGroupId],
-		queryFn: () => mockApi.posts.getTranslations(translationGroupId),
+	const { data: translations, isLoading } = useQuery<Array<Post | DocPage>>({
+		queryKey: [isDoc ? "docs" : "posts", "translations", translationGroupId],
+		queryFn: async () => {
+			if (isDoc) {
+				return mockApi.docs.getTranslations(translationGroupId);
+			}
+			return mockApi.posts.getTranslations(translationGroupId);
+		},
 		enabled: Boolean(translationGroupId),
 	});
 
@@ -48,10 +57,16 @@ export function TranslationsSection({
 		(l) => !existingLocales.includes(l.code),
 	).length;
 
-	const handleSwitch = (post: Post) => {
-		if (post.id === currentPostId) return;
+	const handleSwitch = (item: Post | DocPage) => {
+		if (item.id === currentPostId) return;
 		onNavigate?.();
-		navigate(`/editor/${post.id}`);
+		if (isDoc) {
+			navigate(
+				`/editor/doc/${item.id}${projectId ? `?project=${projectId}` : ""}`,
+			);
+		} else {
+			navigate(`/editor/${item.id}`);
+		}
 	};
 
 	const getLocaleInfo = (code: string): WorkspaceLocale => {
@@ -199,6 +214,7 @@ export function TranslationsSection({
 					sourcePostId={currentPostId}
 					translationGroupId={translationGroupId}
 					existingLocales={existingLocales}
+					contentType={isDoc ? "doc" : "post"}
 					onSuccess={() => onNavigate?.()}
 				/>
 			)}

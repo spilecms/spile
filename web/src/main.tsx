@@ -10,6 +10,8 @@ import {
 import { DashboardShell } from "@/components/dashboard/shell";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import DocsPage from "./pages/dashboard/docs";
+import MembersPage from "./pages/dashboard/members";
+import NewslettersPage from "./pages/dashboard/newsletters";
 import Overview from "./pages/dashboard/overview";
 import PlaceholderPage from "./pages/dashboard/placeholder";
 import PostsPage from "./pages/dashboard/posts";
@@ -32,11 +34,11 @@ const router = createBrowserRouter([
 		children: [
 			{ index: true, element: <Overview /> },
 			{ path: "posts", element: <PostsPage /> },
+			{ path: "newsletters", element: <NewslettersPage /> },
+			{ path: "members", element: <MembersPage /> },
 			{ path: "docs", element: <DocsPage /> },
 			{ path: "tags", element: <PlaceholderPage /> },
 			{ path: "media", element: <PlaceholderPage /> },
-			{ path: "members", element: <PlaceholderPage /> },
-			{ path: "newsletters", element: <PlaceholderPage /> },
 			{ path: "analytics", element: <PlaceholderPage /> },
 			{ path: "team", element: <PlaceholderPage /> },
 			{ path: "settings", element: <PlaceholderPage /> },
@@ -47,6 +49,7 @@ const router = createBrowserRouter([
 	{ path: "/editor/new", element: <EditorPage /> },
 	{ path: "/editor/:id", element: <EditorPage /> },
 	{ path: "/editor/doc/:id", element: <EditorPage /> },
+	{ path: "/editor/newsletter/:id", element: <EditorPage /> },
 	{ path: "*", element: <Navigate to="/" replace /> },
 ]);
 

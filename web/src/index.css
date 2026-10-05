@@ -1805,3 +1805,34 @@ mark.cdx-marker {
 	--width: 260px;
 	--max-height: 360px;
 }
+
+/* Custom Sleek Scrollbar */
+.sheet-content-scroll::-webkit-scrollbar,
+.editor-scroll::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+.sheet-content-scroll::-webkit-scrollbar-track,
+.editor-scroll::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.sheet-content-scroll::-webkit-scrollbar-thumb,
+.editor-scroll::-webkit-scrollbar-thumb {
+	background: var(--muted-foreground);
+	opacity: 0.4;
+	border-radius: 999px;
+}
+
+.sheet-content-scroll::-webkit-scrollbar-thumb:hover,
+.editor-scroll::-webkit-scrollbar-thumb:hover {
+	background: var(--foreground);
+}
+
+/* Firefox standard scrollbar support */
+.sheet-content-scroll,
+.editor-scroll {
+	scrollbar-width: thin;
+	scrollbar-color: var(--muted-foreground) transparent;
+}

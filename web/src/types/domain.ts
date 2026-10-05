@@ -2,7 +2,7 @@ import type { OutputData } from "@editorjs/editorjs";
 
 export type PostStatus = "draft" | "published" | "scheduled" | "trashed";
 
-export type PostType = "post" | "page" | "doc";
+export type PostType = "post";
 
 export type UserRole = "owner" | "admin" | "editor" | "author";
 
@@ -35,15 +35,9 @@ export interface WorkspaceLocale {
 	isDefault?: boolean;
 }
 
-export interface PostDistribution {
-	web: boolean;
-	newsletter: boolean;
-	newsletterSentAt?: number | null;
-}
-
 export interface Post {
 	id: string;
-	type: PostType;
+	type?: PostType;
 	title: string;
 	excerpt: string;
 	status: PostStatus;
@@ -63,9 +57,73 @@ export interface Post {
 	isDefaultLocale?: boolean;
 	translationGroupId?: string;
 	translationSourceId?: string;
-	distribution?: PostDistribution;
 }
 
+export type PostPatch = Partial<Omit<Post, "id" | "createdAt" | "updatedAt">>;
+
+export type PostListParams = {
+	status?: PostStatus | "all";
+	query?: string;
+	tagId?: string;
+	authorId?: string;
+};
+
+// --- Members (Subscribers) ---
+export type MemberStatus =
+	| "active"
+	| "unconfirmed"
+	| "unsubscribed"
+	| "bounced";
+
+export interface Member {
+	id: string;
+	email: string;
+	name?: string;
+	status: MemberStatus;
+	subscribedAt: number;
+	openRate?: number;
+	locale?: string;
+}
+
+export type MemberPatch = Partial<Omit<Member, "id" | "subscribedAt">>;
+
+export type MemberListParams = {
+	status?: MemberStatus | "all";
+	query?: string;
+};
+
+// --- Newsletters (Broadcasts) ---
+export type NewsletterStatus = "draft" | "scheduled" | "sending" | "sent";
+
+export interface Newsletter {
+	id: string;
+	title: string; // Internal campaign name
+	subject: string; // Email inbox subject
+	previewText?: string; // Preheader snippet
+	content: OutputData | null; // Editor.js blocks
+	status: NewsletterStatus;
+	senderName?: string;
+	senderEmail?: string;
+	recipientsCount: number;
+	deliveredCount: number;
+	openedCount: number;
+	clickedCount: number;
+	scheduledFor: number | null;
+	sentAt: number | null;
+	createdAt: number;
+	updatedAt: number;
+}
+
+export type NewsletterPatch = Partial<
+	Omit<Newsletter, "id" | "createdAt" | "updatedAt">
+>;
+
+export type NewsletterListParams = {
+	status?: NewsletterStatus | "all";
+	query?: string;
+};
+
+// --- Analytics & Activity ---
 export interface ActivityItem {
 	id: string;
 	type: "published" | "created" | "updated" | "scheduled" | "member";
@@ -91,26 +149,22 @@ export interface ViewsPoint {
 
 export type ViewsRange = "7d" | "30d" | "90d";
 
-export type PostListParams = {
-	status?: PostStatus | "all";
-	query?: string;
-	tagId?: string;
-	authorId?: string;
-	type?: PostType;
-	channel?: "all" | "web" | "newsletter";
-};
-
-export type PostPatch = Partial<Omit<Post, "id" | "createdAt" | "updatedAt">>;
-
+// --- Documentation System (Notion-Style Recursive Docs) ---
 export type DocPageStatus = "draft" | "published";
 
 export interface DocPage {
 	id: string;
+	projectId?: string;
+	parentId?: string | null;
+	translationGroupId?: string;
+	translationSourceId?: string | null;
+	locale: string;
+	isDefaultLocale?: boolean;
 	title: string;
 	slug: string;
+	icon?: string;
 	status: DocPageStatus;
 	content: OutputData | null;
-	locale: string;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -121,8 +175,12 @@ export type DocPagePatch = Partial<
 
 export interface DocTreeItem {
 	id: string;
+	parentId?: string | null;
+	translationGroupId?: string;
+	locale?: string;
 	title?: string;
 	slug?: string;
+	icon?: string;
 	status?: DocPageStatus;
 	children?: DocTreeItem[];
 }

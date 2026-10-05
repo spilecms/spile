@@ -40,9 +40,6 @@ export default function PostsPage() {
 	const [query, setQuery] = React.useState("");
 	const [tagId, setTagId] = React.useState("all");
 	const [authorId, setAuthorId] = React.useState("all");
-	const [channel, setChannel] = React.useState<"all" | "web" | "newsletter">(
-		"all",
-	);
 	const [debouncedQuery, setDebouncedQuery] = React.useState("");
 
 	const statusTabs = [
@@ -59,12 +56,10 @@ export default function PostsPage() {
 	}, [query]);
 
 	const listParams = {
-		type: "post" as const,
 		status: status as PostStatus | "all",
 		query: debouncedQuery || undefined,
 		tagId: tagId === "all" ? undefined : tagId,
 		authorId: authorId === "all" ? undefined : authorId,
-		channel: channel === "all" ? undefined : channel,
 	};
 
 	const { data: posts, isPending } = useQuery({
@@ -74,7 +69,7 @@ export default function PostsPage() {
 
 	const { data: allPosts } = useQuery({
 		queryKey: ["posts", "counts"],
-		queryFn: () => mockApi.posts.list({ type: "post", status: "all" }),
+		queryFn: () => mockApi.posts.list({ status: "all" }),
 	});
 
 	const { data: users } = useQuery({
@@ -195,31 +190,6 @@ export default function PostsPage() {
 											{user.name}
 										</SelectItem>
 									))}
-								</SelectGroup>
-							</SelectContent>
-						</Select>
-						<Select
-							value={channel}
-							onValueChange={(value) =>
-								setChannel((value ?? "all") as "all" | "web" | "newsletter")
-							}
-						>
-							<SelectTrigger size="sm" className="w-36">
-								<SelectValue
-									placeholder={t("posts.delivery.filterAllChannels")}
-								/>
-							</SelectTrigger>
-							<SelectContent>
-								<SelectGroup>
-									<SelectItem value="all">
-										{t("posts.delivery.filterAllChannels")}
-									</SelectItem>
-									<SelectItem value="web">
-										{t("posts.delivery.filterWeb")}
-									</SelectItem>
-									<SelectItem value="newsletter">
-										{t("posts.delivery.filterNewsletter")}
-									</SelectItem>
 								</SelectGroup>
 							</SelectContent>
 						</Select>

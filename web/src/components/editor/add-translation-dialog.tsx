@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Globe } from "lucide-react";
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +12,10 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { mockApi } from "@/lib/mock/api";
+import { useEditorStore } from "@/lib/store/editor-store";
 import { cn } from "@/lib/utils";
 import type { WorkspaceLocale } from "@/types/domain";
 
@@ -23,6 +25,7 @@ interface AddTranslationDialogProps {
 	sourcePostId: string;
 	translationGroupId: string;
 	existingLocales: string[];
+	contentType?: "post" | "doc";
 	onSuccess?: () => void;
 }
 
@@ -32,10 +35,14 @@ export function AddTranslationDialog({
 	sourcePostId,
 	translationGroupId,
 	existingLocales,
+	contentType = "post",
 	onSuccess,
 }: AddTranslationDialogProps) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const projectId = searchParams.get("project") ?? undefined;
+	const currentTitle = useEditorStore((s) => s.title);
 
 	const { data: locales } = useQuery({
 		queryKey: ["workspace", "locales"],
@@ -48,43 +55,87 @@ export function AddTranslationDialog({
 	}, [locales, existingLocales]);
 
 	const [selectedLocale, setSelectedLocale] = React.useState<string>("");
+	const [customTitle, setCustomTitle] = React.useState("");
 	const [copyContent, setCopyContent] = React.useState(true);
 	const [creating, setCreating] = React.useState(false);
 
 	React.useEffect(() => {
 		if (open) {
-			setSelectedLocale((current) => {
-				if (current && availableLocales.some((l) => l.code === current)) {
-					return current;
-				}
-				return availableLocales[0]?.code ?? "";
-			});
+			const fallbackLocale = availableLocales[0]?.code ?? "";
+			const targetLocale =
+				selectedLocale &&
+				availableLocales.some((l) => l.code === selectedLocale)
+					? selectedLocale
+					: fallbackLocale;
+
+			setSelectedLocale(targetLocale);
+			const locObj = locales?.find((l) => l.code === targetLocale);
+			setCustomTitle(
+				currentTitle
+					? `${currentTitle} (${locObj?.name ?? "Translation"})`
+					: "",
+			);
 			setCopyContent(true);
 			setCreating(false);
 		}
-	}, [open, availableLocales]);
+	}, [open, availableLocales, currentTitle, locales, selectedLocale]);
+
+	const handleLocaleChange = (code: string) => {
+		setSelectedLocale(code);
+		const locObj = locales?.find((l) => l.code === code);
+		if (currentTitle) {
+			setCustomTitle(`${currentTitle} (${locObj?.name ?? code.toUpperCase()})`);
+		}
+	};
 
 	const handleCreate = async () => {
 		if (!selectedLocale) return;
 		setCreating(true);
 		try {
-			const newPost = await mockApi.posts.createTranslation(
-				sourcePostId,
-				selectedLocale,
-				copyContent,
-			);
-			await queryClient.invalidateQueries({ queryKey: ["posts"] });
-			await queryClient.invalidateQueries({
-				queryKey: ["posts", "translations", translationGroupId],
-			});
+			if (contentType === "doc") {
+				const newDoc = await mockApi.docs.createTranslation(
+					sourcePostId,
+					selectedLocale,
+					{
+						title: customTitle.trim() || undefined,
+						copyContent,
+						projectId,
+					},
+				);
+				await queryClient.invalidateQueries({ queryKey: ["docs"] });
+				await queryClient.invalidateQueries({
+					queryKey: ["docs", "translations", translationGroupId],
+				});
+				await queryClient.invalidateQueries({ queryKey: ["docs-navigation"] });
 
-			const localeObj = locales?.find((l) => l.code === selectedLocale);
-			toast.success(
-				`Created ${localeObj ? `${localeObj.flag} ${localeObj.name}` : selectedLocale} translation!`,
-			);
-			onOpenChange(false);
-			onSuccess?.();
-			navigate(`/editor/${newPost.id}`);
+				const localeObj = locales?.find((l) => l.code === selectedLocale);
+				toast.success(
+					`Created ${localeObj ? `${localeObj.flag} ${localeObj.name}` : selectedLocale} document translation!`,
+				);
+				onOpenChange(false);
+				onSuccess?.();
+				navigate(
+					`/editor/doc/${newDoc.id}${projectId ? `?project=${projectId}` : ""}`,
+				);
+			} else {
+				const newPost = await mockApi.posts.createTranslation(
+					sourcePostId,
+					selectedLocale,
+					copyContent,
+				);
+				await queryClient.invalidateQueries({ queryKey: ["posts"] });
+				await queryClient.invalidateQueries({
+					queryKey: ["posts", "translations", translationGroupId],
+				});
+
+				const localeObj = locales?.find((l) => l.code === selectedLocale);
+				toast.success(
+					`Created ${localeObj ? `${localeObj.flag} ${localeObj.name}` : selectedLocale} translation!`,
+				);
+				onOpenChange(false);
+				onSuccess?.();
+				navigate(`/editor/${newPost.id}`);
+			}
 		} catch (err) {
 			toast.error(
 				err instanceof Error ? err.message : "Failed to create translation",
@@ -127,7 +178,7 @@ export function AddTranslationDialog({
 										<button
 											key={loc.code}
 											type="button"
-											onClick={() => setSelectedLocale(loc.code)}
+											onClick={() => handleLocaleChange(loc.code)}
 											className={cn(
 												"flex items-center justify-between rounded-lg border p-2.5 text-left text-sm transition-all",
 												isSelected
@@ -154,6 +205,28 @@ export function AddTranslationDialog({
 								})}
 							</div>
 						</div>
+
+						{contentType === "doc" && (
+							<div className="flex flex-col gap-1.5">
+								<Label
+									htmlFor="trans-doc-title"
+									className="text-xs font-medium"
+								>
+									Translated Document Title / File Name
+								</Label>
+								<Input
+									id="trans-doc-title"
+									value={customTitle}
+									onChange={(e) => setCustomTitle(e.target.value)}
+									placeholder="e.g. Instalación Rápida"
+									className="h-8 text-xs"
+								/>
+								<p className="text-[11px] text-muted-foreground">
+									This title will be displayed in the sidebar tree and
+									navigation.
+								</p>
+							</div>
+						)}
 
 						<div className="rounded-lg border bg-muted/30 p-3">
 							<button

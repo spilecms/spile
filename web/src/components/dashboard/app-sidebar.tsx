@@ -8,6 +8,7 @@ import {
 	BookOpen,
 	FolderIcon,
 	Gauge,
+	MailIcon,
 	SettingsIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -33,6 +34,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const navMain = [
 		{ title: t("dashboard.overview"), url: "/", icon: <Gauge /> },
 		{ title: t("dashboard.posts"), url: "/posts", icon: <DocumentTextIcon /> },
+		{
+			title: t("dashboard.newsletters", "Newsletters"),
+			url: "/newsletters",
+			icon: <MailIcon />,
+		},
+		{ title: t("dashboard.members"), url: "/members", icon: <UsersIcon /> },
 		{ title: t("dashboard.docs"), url: "/docs", icon: <BookOpen /> },
 		{ title: t("dashboard.tags"), url: "/tags", icon: <TagIcon /> },
 		{ title: t("dashboard.media"), url: "/media", icon: <FolderIcon /> },
@@ -41,7 +48,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 			url: "/analytics",
 			icon: <ChartBarIcon />,
 		},
-		{ title: t("dashboard.members"), url: "/members", icon: <UsersIcon /> },
 	];
 
 	const navSecondary = [

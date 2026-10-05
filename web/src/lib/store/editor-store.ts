@@ -3,16 +3,17 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
 	DocPage,
+	Newsletter,
 	Post,
-	PostDistribution,
 	PostSeo,
 	PostStatus,
-	PostType,
 } from "@/types/domain";
+
+export type ContentType = "post" | "doc" | "newsletter";
 
 interface EditorState {
 	postId: string | null;
-	type: PostType;
+	type: ContentType;
 	status: PostStatus;
 	blocks: OutputData;
 	title: string;
@@ -28,11 +29,11 @@ interface EditorState {
 	isDefaultLocale: boolean;
 	translationGroupId: string | null;
 	translationSourceId: string | null;
-	distribution: PostDistribution;
 	setBlocks: (blocks: OutputData) => void;
 	setTitle: (title: string) => void;
 	loadPost: (post: Post) => void;
 	loadDoc: (doc: DocPage) => void;
+	loadNewsletter: (newsletter: Newsletter) => void;
 	patchMeta: (patch: Partial<Omit<EditorState, keyof EditorActions>>) => void;
 	reset: () => void;
 }
@@ -42,12 +43,13 @@ type EditorActions =
 	| "setTitle"
 	| "loadPost"
 	| "loadDoc"
+	| "loadNewsletter"
 	| "patchMeta"
 	| "reset";
 
 const emptyState = {
 	postId: null,
-	type: "post" as PostType,
+	type: "post" as ContentType,
 	status: "draft" as PostStatus,
 	blocks: { blocks: [] } as OutputData,
 	title: "",
@@ -63,11 +65,6 @@ const emptyState = {
 	isDefaultLocale: true,
 	translationGroupId: null,
 	translationSourceId: null,
-	distribution: {
-		web: true,
-		newsletter: false,
-		newsletterSentAt: null,
-	} as PostDistribution,
 };
 
 export const useEditorStore = create<EditorState>()(
@@ -79,7 +76,7 @@ export const useEditorStore = create<EditorState>()(
 			loadPost: (post) =>
 				set({
 					postId: post.id,
-					type: post.type,
+					type: "post",
 					status: post.status,
 					blocks: post.content ?? { blocks: [] },
 					title: post.title,
@@ -96,11 +93,6 @@ export const useEditorStore = create<EditorState>()(
 						post.isDefaultLocale ?? (post.locale === "en" || !post.locale),
 					translationGroupId: post.translationGroupId ?? post.id,
 					translationSourceId: post.translationSourceId ?? null,
-					distribution: post.distribution ?? {
-						web: true,
-						newsletter: false,
-						newsletterSentAt: null,
-					},
 				}),
 			loadDoc: (doc) =>
 				set({
@@ -118,14 +110,30 @@ export const useEditorStore = create<EditorState>()(
 					scheduledFor: null,
 					updatedAt: doc.updatedAt,
 					locale: doc.locale ?? "en",
+					isDefaultLocale:
+						doc.isDefaultLocale ?? (doc.locale === "en" || !doc.locale),
+					translationGroupId: doc.translationGroupId ?? doc.id,
+					translationSourceId: doc.translationSourceId ?? null,
+				}),
+			loadNewsletter: (nl) =>
+				set({
+					postId: nl.id,
+					type: "newsletter",
+					status: (nl.status === "sent" ? "published" : "draft") as PostStatus,
+					blocks: nl.content ?? { blocks: [] },
+					title: nl.subject,
+					excerpt: nl.previewText ?? "",
+					slug: nl.title,
+					featuredImage: undefined,
+					tagIds: [],
+					seo: {},
+					publishedAt: nl.sentAt,
+					scheduledFor: nl.scheduledFor,
+					updatedAt: nl.updatedAt,
+					locale: "en",
 					isDefaultLocale: true,
-					translationGroupId: doc.id,
+					translationGroupId: nl.id,
 					translationSourceId: null,
-					distribution: {
-						web: true,
-						newsletter: false,
-						newsletterSentAt: null,
-					},
 				}),
 			patchMeta: (patch) => set({ ...patch, updatedAt: Date.now() }),
 			reset: () => set({ ...emptyState }),
@@ -151,7 +159,6 @@ export const useEditorStore = create<EditorState>()(
 				isDefaultLocale: state.isDefaultLocale,
 				translationGroupId: state.translationGroupId,
 				translationSourceId: state.translationSourceId,
-				distribution: state.distribution,
 			}),
 		},
 	),

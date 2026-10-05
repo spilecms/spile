@@ -329,7 +329,7 @@ export function DocsTree({
 			</div>
 
 			{/* Tree List */}
-			<div className="flex-1 overflow-y-auto p-2 space-y-1">
+			<div className="flex-1 overflow-y-auto p-2 space-y-1 editor-scroll">
 				{manifest.items.length === 0 ? (
 					<div className="flex flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
 						<p className="mb-2">No documents yet.</p>

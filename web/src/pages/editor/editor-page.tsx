@@ -16,9 +16,11 @@ export default function EditorPage() {
 	const searchParams = new URLSearchParams(location.search);
 	const projectId = searchParams.get("project") || undefined;
 	const isDoc = location.pathname.startsWith("/editor/doc");
+	const isNewsletter = location.pathname.startsWith("/editor/newsletter");
 	const isNew = id === "new";
 	const loadPost = useEditorStore((s) => s.loadPost);
 	const loadDoc = useEditorStore((s) => s.loadDoc);
+	const loadNewsletter = useEditorStore((s) => s.loadNewsletter);
 	const postId = useEditorStore((s) => s.postId);
 	const activeTitle = useEditorStore((s) => s.title);
 	const [publishOpen, setPublishOpen] = React.useState(false);
@@ -33,7 +35,18 @@ export default function EditorPage() {
 	} = useQuery({
 		queryKey: ["posts", id],
 		queryFn: () => mockApi.posts.get(id as string),
-		enabled: !isDoc && !isNew && Boolean(id),
+		enabled: !isDoc && !isNewsletter && !isNew && Boolean(id),
+	});
+
+	// Load Newsletter if editing a newsletter
+	const {
+		data: newsletter,
+		isPending: newsletterPending,
+		error: newsletterError,
+	} = useQuery({
+		queryKey: ["newsletters", id],
+		queryFn: () => mockApi.newsletters.get(id as string),
+		enabled: isNewsletter && !isNew && Boolean(id),
 	});
 
 	// Load Doc if editing a doc
@@ -47,10 +60,12 @@ export default function EditorPage() {
 		enabled: isDoc && !isNew && Boolean(id),
 	});
 
+	const docLocale = useEditorStore((s) => s.locale) || "en";
+
 	// Docs Navigation manifest for this project
 	const { data: navData } = useQuery({
-		queryKey: ["docs-navigation", projectId],
-		queryFn: () => mockApi.docs.getNavigation(projectId),
+		queryKey: ["docs-navigation", projectId, docLocale],
+		queryFn: () => mockApi.docs.getNavigation(projectId, docLocale),
 		enabled: isDoc,
 	});
 
@@ -81,21 +96,43 @@ export default function EditorPage() {
 		);
 	}, [activeTitle, id, isDoc]);
 
-	// Load post or doc into editor store
+	// Load post, doc, or newsletter into editor store
 	React.useEffect(() => {
 		if (isNew) return;
-		if (!isDoc && post) {
+		if (isNewsletter && newsletter) {
+			loadNewsletter(newsletter);
+		} else if (!isDoc && !isNewsletter && post) {
 			loadPost(post);
 		} else if (isDoc && doc) {
 			loadDoc(doc);
 		}
-	}, [isNew, isDoc, post, doc, loadPost, loadDoc]);
+	}, [
+		isNew,
+		isDoc,
+		isNewsletter,
+		post,
+		doc,
+		newsletter,
+		loadPost,
+		loadDoc,
+		loadNewsletter,
+	]);
 
 	// Handle creation if new
 	React.useEffect(() => {
 		if (!isNew || creatingRef.current) return;
 		creatingRef.current = true;
-		if (isDoc) {
+		if (isNewsletter) {
+			mockApi.newsletters
+				.create({ subject: "Untitled Newsletter", title: "Newsletter Issue" })
+				.then((created) => {
+					loadNewsletter(created);
+					navigate(`/editor/newsletter/${created.id}`, { replace: true });
+				})
+				.catch(() => {
+					creatingRef.current = false;
+				});
+		} else if (isDoc) {
 			mockApi.docs
 				.createPage({ title: "Untitled Doc" })
 				.then(({ page, navigation }) => {
@@ -117,11 +154,15 @@ export default function EditorPage() {
 					creatingRef.current = false;
 				});
 		}
-	}, [isNew, isDoc, loadPost, loadDoc, navigate]);
+	}, [isNew, isDoc, isNewsletter, loadPost, loadDoc, loadNewsletter, navigate]);
 
-	const isPending = isDoc ? docPending : postPending;
-	const error = isDoc ? docError : postError;
-	const activeItem = isDoc ? doc : post;
+	const isPending = isNewsletter
+		? newsletterPending
+		: isDoc
+			? docPending
+			: postPending;
+	const error = isNewsletter ? newsletterError : isDoc ? docError : postError;
+	const activeItem = isNewsletter ? newsletter : isDoc ? doc : post;
 
 	if (
 		isNew ||
@@ -147,9 +188,15 @@ export default function EditorPage() {
 				<button
 					type="button"
 					className="text-sm text-primary underline-offset-4 hover:underline"
-					onClick={() => navigate(isDoc ? "/docs" : "/posts")}
+					onClick={() =>
+						navigate(isNewsletter ? "/newsletters" : isDoc ? "/docs" : "/posts")
+					}
 				>
-					{isDoc ? "Back to docs" : "Back to posts"}
+					{isNewsletter
+						? "Back to newsletters"
+						: isDoc
+							? "Back to docs"
+							: "Back to posts"}
 				</button>
 			</div>
 		);
@@ -230,7 +277,7 @@ export default function EditorPage() {
 			<Editor
 				key={id}
 				onPublish={() => setPublishOpen(true)}
-				backUrl={isDoc ? "/docs" : "/posts"}
+				backUrl={isNewsletter ? "/newsletters" : isDoc ? "/docs" : "/posts"}
 				sidebar={docsSidebar}
 				isSidebarOpen={isSidebarOpen}
 				onToggleSidebar={() => setIsSidebarOpen((v) => !v)}
