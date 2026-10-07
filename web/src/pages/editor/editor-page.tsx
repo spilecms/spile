@@ -308,19 +308,25 @@ export default function EditorPage() {
 	}
 
 	const handleAddDoc = async (parentId?: string) => {
-		const { page, navigation } = await mockApi.docs.createPage({
-			title: "Untitled",
-			parentId,
-			projectId,
-		});
-		setManifest(navigation);
-		queryClient.setQueryData(
-			["docs-navigation", projectId, activeLocale],
-			navigation,
-		);
-		navigate(
-			`/editor/doc/${page.id}?${projectId ? `project=${projectId}&` : ""}lang=${activeLocale}`,
-		);
+		try {
+			const { page, navigation } = await mockApi.docs.createPage({
+				title: "Untitled",
+				parentId,
+				projectId,
+				locale: activeLocale,
+			});
+			setManifest(navigation);
+			queryClient.setQueryData(
+				["docs-navigation", projectId, activeLocale],
+				navigation,
+			);
+			queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
+			navigate(
+				`/editor/doc/${page.id}?${projectId ? `project=${projectId}&` : ""}lang=${activeLocale}`,
+			);
+		} catch (_err) {
+			toast.error("Failed to create document");
+		}
 	};
 
 	const handleDeleteDoc = (docId: string) => {
@@ -331,12 +337,18 @@ export default function EditorPage() {
 		if (!docToDelete || deletingDoc) return;
 		setDeletingDoc(true);
 		try {
-			const updated = await mockApi.docs.deletePage(docToDelete, projectId);
+			const updated = await mockApi.docs.deletePage(
+				docToDelete,
+				projectId,
+				activeLocale,
+			);
 			setManifest(updated);
 			queryClient.setQueryData(
 				["docs-navigation", projectId, activeLocale],
 				updated,
 			);
+			queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
+			toast.success("Document deleted");
 			if (docToDelete === id) {
 				const nextDoc = updated.items[0]?.id;
 				if (nextDoc) {
@@ -348,6 +360,8 @@ export default function EditorPage() {
 				}
 			}
 			setDocToDelete(null);
+		} catch (_err) {
+			toast.error("Failed to delete document");
 		} finally {
 			setDeletingDoc(false);
 		}
@@ -408,6 +422,7 @@ export default function EditorPage() {
 					)
 				}
 				onUpdateManifest={async (upd) => {
+					const previousManifest = manifest;
 					setManifest(upd);
 					queryClient.setQueryData(
 						["docs-navigation", projectId, activeLocale],
@@ -424,8 +439,16 @@ export default function EditorPage() {
 							["docs-navigation", projectId, activeLocale],
 							saved,
 						);
+						queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
 					} catch (_err) {
 						toast.error("Failed to save navigation order");
+						if (previousManifest) {
+							setManifest(previousManifest);
+							queryClient.setQueryData(
+								["docs-navigation", projectId, activeLocale],
+								previousManifest,
+							);
+						}
 					}
 				}}
 				onAddDoc={handleAddDoc}

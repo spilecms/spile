@@ -369,7 +369,7 @@ export function ApiKeysSection() {
 								}
 							>
 								<SelectTrigger className="h-8 text-xs">
-									<SelectValue />
+									<SelectValue placeholder="Select permission scope" />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="public_read" className="text-xs">

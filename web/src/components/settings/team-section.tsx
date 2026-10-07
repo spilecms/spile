@@ -176,7 +176,7 @@ export function TeamSection() {
 								onValueChange={(val) => setInviteRole(val as User["role"])}
 							>
 								<SelectTrigger className="h-8 text-xs">
-									<SelectValue />
+									<SelectValue placeholder="Select role" />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="admin" className="text-xs">

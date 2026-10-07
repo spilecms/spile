@@ -1,20 +1,26 @@
 import {
+	type CollisionDetection,
 	closestCenter,
 	DndContext,
 	type DragEndEvent,
+	type DragMoveEvent,
+	type DragOverEvent,
+	DragOverlay,
+	type DragStartEvent,
 	KeyboardSensor,
+	type Over,
 	PointerSensor,
+	pointerWithin,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
 import {
-	arrayMove,
 	SortableContext,
 	sortableKeyboardCoordinates,
 	useSortable,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import {
 	CheckIcon,
@@ -24,7 +30,6 @@ import {
 	FilesIcon,
 	FileTextIcon,
 	Globe,
-	GripVerticalIcon,
 	PencilIcon,
 	PlusIcon,
 	Trash2Icon,
@@ -55,6 +60,8 @@ import type {
 	WorkspaceLocale,
 } from "@/types/domain";
 
+export type DropPosition = "above" | "inside" | "below" | null;
+
 interface DocsTreeProps {
 	manifest: DocNavigationManifest;
 	selectedDocId: string | null;
@@ -72,6 +79,10 @@ interface RecursiveTreeItemProps {
 	selectedDocId: string | null;
 	depth?: number;
 	selectedLocale?: string;
+	activeDragId: string | null;
+	hoveredOverId: string | null;
+	dropPosition: DropPosition;
+	isAncestorDragging?: boolean;
 	onSelectDoc: (id: string) => void;
 	onAddChild: (parentId: string) => void;
 	onDeleteDoc: (id: string) => void;
@@ -84,6 +95,10 @@ function RecursiveTreeItem({
 	selectedDocId,
 	depth = 0,
 	selectedLocale,
+	activeDragId,
+	hoveredOverId,
+	dropPosition,
+	isAncestorDragging = false,
 	onSelectDoc,
 	onAddChild,
 	onDeleteDoc,
@@ -96,10 +111,37 @@ function RecursiveTreeItem({
 	const inputRef = React.useRef<HTMLInputElement>(null);
 
 	const hasChildren = Boolean(item.children && item.children.length > 0);
-	const isSelected = selectedDocId === item.id;
+	const isSelected =
+		selectedDocId === item.id ||
+		(Boolean(item.localizedDocId) && selectedDocId === item.localizedDocId);
 	const isUntranslated = Boolean(
 		selectedLocale && selectedLocale !== "en" && item.hasTranslation === false,
 	);
+
+	const isDropTarget =
+		hoveredOverId === item.id &&
+		activeDragId !== item.id &&
+		!isAncestorDragging;
+	const isAboveTarget = isDropTarget && dropPosition === "above";
+	const isInsideTarget = isDropTarget && dropPosition === "inside";
+	const isBelowTarget = isDropTarget && dropPosition === "below";
+
+	// Auto-expand if dropped inside
+	React.useEffect(() => {
+		if (isInsideTarget && collapsed) {
+			setCollapsed(false);
+		}
+	}, [isInsideTarget, collapsed]);
+
+	// Auto-expand when new children are added
+	const prevChildrenCountRef = React.useRef(item.children?.length ?? 0);
+	React.useEffect(() => {
+		const currentCount = item.children?.length ?? 0;
+		if (currentCount > prevChildrenCountRef.current) {
+			setCollapsed(false);
+		}
+		prevChildrenCountRef.current = currentCount;
+	}, [item.children?.length]);
 
 	React.useEffect(() => {
 		setEditTitle(item.title || "Untitled");
@@ -121,49 +163,80 @@ function RecursiveTreeItem({
 		setIsEditing(false);
 	};
 
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		transition,
-		isDragging,
-	} = useSortable({ id: item.id });
-
-	const style = {
-		transform: CSS.Transform.toString(transform),
-		transition,
-		paddingLeft: `${Math.max(depth * 14 + 6, 6)}px`,
-	};
+	const { attributes, listeners, setNodeRef, isDragging } = useSortable({
+		id: item.id,
+	});
 
 	return (
-		<div ref={setNodeRef} style={style} className="space-y-0.5">
+		<div
+			style={{ paddingLeft: `${Math.max(depth * 14 + 6, 6)}px` }}
+			className="space-y-0.5 relative select-none"
+		>
+			{/* Main draggable row */}
 			<div
+				ref={setNodeRef}
+				{...attributes}
+				{...listeners}
+				role="treeitem"
+				aria-selected={isSelected}
+				tabIndex={0}
+				onClick={() => {
+					if (isUntranslated && onRequestTranslate) {
+						onRequestTranslate(item);
+					} else {
+						onSelectDoc(item.localizedDocId || item.id);
+					}
+				}}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						if (isUntranslated && onRequestTranslate) {
+							onRequestTranslate(item);
+						} else {
+							onSelectDoc(item.localizedDocId || item.id);
+						}
+					}
+				}}
+				onDoubleClick={(e) => {
+					e.stopPropagation();
+					if (!isUntranslated) {
+						setIsEditing(true);
+					}
+				}}
 				className={cn(
-					"group flex items-center justify-between gap-1 rounded-md pr-1.5 py-1 text-xs font-medium transition-colors",
+					"group relative flex items-center justify-between gap-1.5 rounded-md px-2 py-1 text-xs font-medium cursor-grab active:cursor-grabbing transition-colors outline-none",
 					isSelected
 						? "bg-accent text-accent-foreground font-semibold"
 						: "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-					isDragging && "opacity-50 z-50 bg-accent/50 shadow-md",
+					(isDragging || isAncestorDragging) &&
+						"opacity-30 border border-dashed border-primary/50 pointer-events-none",
+					isInsideTarget &&
+						"bg-primary/10 text-primary border border-primary/40 ring-2 ring-primary/20",
 				)}
 			>
-				{/* Reorder grip */}
-				<button
-					type="button"
-					aria-label="Reorder document"
-					{...attributes}
-					{...listeners}
-					className="text-muted-foreground/30 hover:text-foreground cursor-grab active:cursor-grabbing p-0.5 rounded shrink-0"
-				>
-					<GripVerticalIcon className="h-3 w-3" />
-				</button>
+				{/* Top insertion line indicator */}
+				{isAboveTarget && (
+					<div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-primary z-30 pointer-events-none rounded-full flex items-center">
+						<div className="size-2 rounded-full bg-primary -ml-1 border-2 border-background" />
+					</div>
+				)}
+
+				{/* Bottom insertion line indicator */}
+				{isBelowTarget && (
+					<div className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-primary z-30 pointer-events-none rounded-full flex items-center">
+						<div className="size-2 rounded-full bg-primary -ml-1 border-2 border-background" />
+					</div>
+				)}
 
 				{/* Expand/Collapse Chevron (if has children) or File Icon */}
 				{hasChildren ? (
 					<button
 						type="button"
-						onClick={() => setCollapsed((v) => !v)}
-						className="p-0.5 text-muted-foreground hover:text-foreground shrink-0"
+						onClick={(e) => {
+							e.stopPropagation();
+							setCollapsed((v) => !v);
+						}}
+						className="p-0.5 text-muted-foreground hover:text-foreground shrink-0 rounded hover:bg-accent/50 cursor-pointer"
 					>
 						{collapsed ? (
 							<ChevronRightIcon className="h-3 w-3" />
@@ -172,9 +245,9 @@ function RecursiveTreeItem({
 						)}
 					</button>
 				) : (
-					<FileTextIcon
+					<DocumentTextIcon
 						className={cn(
-							"h-3.5 w-3.5 shrink-0",
+							"h-3.5 w-3.5 shrink-0 pointer-events-none",
 							isUntranslated
 								? "text-amber-500/70 dark:text-amber-400/70"
 								: "text-muted-foreground/60",
@@ -189,7 +262,7 @@ function RecursiveTreeItem({
 							e.preventDefault();
 							handleCommitRename();
 						}}
-						className="flex items-center gap-1 flex-1 min-w-0 pr-1"
+						className="flex items-center gap-1 flex-1 min-w-0 pr-1 cursor-default"
 					>
 						<input
 							ref={inputRef}
@@ -215,28 +288,14 @@ function RecursiveTreeItem({
 						</button>
 					</form>
 				) : (
-					<button
-						type="button"
-						onClick={() => {
-							if (isUntranslated && onRequestTranslate) {
-								onRequestTranslate(item);
-							} else {
-								onSelectDoc(item.id);
-							}
-						}}
-						onDoubleClick={(e) => {
-							e.stopPropagation();
-							if (!isUntranslated) {
-								setIsEditing(true);
-							}
-						}}
+					<div
 						className={cn(
-							"flex-1 truncate text-left select-none",
+							"flex-1 truncate text-left pointer-events-none",
 							isUntranslated && "text-muted-foreground/75 italic",
 						)}
 					>
 						<span className="truncate">{item.title || "Untitled"}</span>
-					</button>
+					</div>
 				)}
 
 				{/* Status & Actions */}
@@ -258,7 +317,7 @@ function RecursiveTreeItem({
 						) : item.status === "draft" ? (
 							<Badge
 								variant="secondary"
-								className="px-1 py-0 text-[9px] uppercase font-mono tracking-wider"
+								className="px-1 py-0 text-[9px] uppercase font-mono tracking-wider pointer-events-none"
 							>
 								Draft
 							</Badge>
@@ -270,7 +329,7 @@ function RecursiveTreeItem({
 								<Button
 									variant="ghost"
 									size="icon"
-									className="h-5 w-5 text-muted-foreground hover:text-foreground"
+									className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
 									onClick={(e) => {
 										e.stopPropagation();
 										setIsEditing(true);
@@ -285,7 +344,7 @@ function RecursiveTreeItem({
 							<Button
 								variant="ghost"
 								size="icon"
-								className="h-5 w-5 text-muted-foreground hover:text-foreground"
+								className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
 								onClick={(e) => {
 									e.stopPropagation();
 									onAddChild(item.id);
@@ -300,7 +359,7 @@ function RecursiveTreeItem({
 							<Button
 								variant="ghost"
 								size="icon"
-								className="h-5 w-5 text-muted-foreground hover:text-destructive"
+								className="h-5 w-5 text-muted-foreground hover:text-destructive cursor-pointer"
 								onClick={(e) => {
 									e.stopPropagation();
 									onDeleteDoc(item.id);
@@ -316,7 +375,13 @@ function RecursiveTreeItem({
 
 			{/* Sub-pages / Nested children */}
 			{hasChildren && !collapsed && (
-				<div className="space-y-0.5 border-l border-border/40 ml-2">
+				<div
+					className={cn(
+						"space-y-0.5 border-l border-border/40 ml-2",
+						(isDragging || isAncestorDragging) &&
+							"opacity-30 pointer-events-none",
+					)}
+				>
 					<SortableContext
 						items={item.children ? item.children.map((child) => child.id) : []}
 						strategy={verticalListSortingStrategy}
@@ -327,6 +392,10 @@ function RecursiveTreeItem({
 								item={child}
 								selectedDocId={selectedDocId}
 								selectedLocale={selectedLocale}
+								activeDragId={activeDragId}
+								hoveredOverId={hoveredOverId}
+								dropPosition={dropPosition}
+								isAncestorDragging={isDragging || isAncestorDragging}
 								depth={depth + 1}
 								onSelectDoc={onSelectDoc}
 								onAddChild={onAddChild}
@@ -341,49 +410,49 @@ function RecursiveTreeItem({
 		</div>
 	);
 }
-function reorderTree(
+
+// Tree helper functions
+function isDescendant(parent: DocTreeItem, targetId: string): boolean {
+	if (!parent.children || parent.children.length === 0) return false;
+	for (const child of parent.children) {
+		if (child.id === targetId || isDescendant(child, targetId)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function findNode(list: DocTreeItem[], targetId: string): DocTreeItem | null {
+	for (const item of list) {
+		if (item.id === targetId) return item;
+		if (item.children && item.children.length > 0) {
+			const found = findNode(item.children, targetId);
+			if (found) return found;
+		}
+	}
+	return null;
+}
+
+// Reorders or nests items according to drop position: "above" | "inside" | "below"
+function reorderTreeWithPosition(
 	items: DocTreeItem[],
 	activeId: string,
 	overId: string,
+	position: "above" | "inside" | "below",
 ): DocTreeItem[] {
-	// 1. Try sibling reordering (at root or inside any children list)
-	function reorderSiblings(list: DocTreeItem[]): {
-		list: DocTreeItem[];
-		reordered: boolean;
-	} {
-		const activeIndex = list.findIndex((i) => i.id === activeId);
-		const overIndex = list.findIndex((i) => i.id === overId);
+	if (activeId === overId) return items;
 
-		if (activeIndex !== -1 && overIndex !== -1) {
-			return {
-				list: arrayMove(list, activeIndex, overIndex),
-				reordered: true,
-			};
-		}
+	const activeNode = findNode(items, activeId);
+	if (!activeNode) return items;
 
-		let anyChildReordered = false;
-		const nextList = list.map((item) => {
-			if (item.children && item.children.length > 0) {
-				const res = reorderSiblings(item.children);
-				if (res.reordered) {
-					anyChildReordered = true;
-					return { ...item, children: res.list };
-				}
-			}
-			return item;
-		});
-
-		return { list: nextList, reordered: anyChildReordered };
+	// PREVENT DATA LOSS & CYCLES: Cannot drop a node into itself or any descendant
+	if (isDescendant(activeNode, overId)) {
+		return items;
 	}
 
-	const siblingAttempt = reorderSiblings(items);
-	if (siblingAttempt.reordered) {
-		return siblingAttempt.list;
-	}
-
-	// 2. Cross-level move: extract active item, then insert adjacent to over item
 	let extractedItem: DocTreeItem | null = null;
 
+	// 1. Extract activeItem from previous location
 	function extract(list: DocTreeItem[]): DocTreeItem[] {
 		const result: DocTreeItem[] = [];
 		for (const it of list) {
@@ -403,12 +472,26 @@ function reorderTree(
 	const pruned = extract(items);
 	if (!extractedItem) return items;
 
+	// 2. Insert item according to position
 	function insert(list: DocTreeItem[]): DocTreeItem[] {
 		const result: DocTreeItem[] = [];
 		for (const it of list) {
 			if (it.id === overId) {
-				if (extractedItem) result.push(extractedItem);
-				result.push(it);
+				if (position === "above") {
+					if (extractedItem) result.push(extractedItem);
+					result.push(it);
+				} else if (position === "below") {
+					result.push(it);
+					if (extractedItem) result.push(extractedItem);
+				} else if (position === "inside") {
+					// Nest inside it.children!
+					const updatedChildren = it.children ? [...it.children] : [];
+					if (extractedItem) updatedChildren.push(extractedItem);
+					result.push({
+						...it,
+						children: updatedChildren,
+					});
+				}
 			} else {
 				if (it.children && it.children.length > 0) {
 					result.push({ ...it, children: insert(it.children) });
@@ -437,7 +520,7 @@ export function DocsTree({
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: {
-				distance: 5,
+				distance: 6, // 6px movement threshold ensures clean clicks vs drags
 			},
 		}),
 		useSensor(KeyboardSensor, {
@@ -464,6 +547,41 @@ export function DocsTree({
 	);
 	const [isTranslating, setIsTranslating] = React.useState(false);
 
+	// Live pointer tracking for precision drop target calculation
+	const pointerYRef = React.useRef<number>(0);
+
+	React.useEffect(() => {
+		const handlePointerMove = (e: PointerEvent) => {
+			pointerYRef.current = e.clientY;
+		};
+		window.addEventListener("pointermove", handlePointerMove, {
+			passive: true,
+		});
+		return () => {
+			window.removeEventListener("pointermove", handlePointerMove);
+		};
+	}, []);
+
+	// Dragging states
+	const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
+	const [hoveredOverId, setHoveredOverId] = React.useState<string | null>(null);
+	const [dropPosition, setDropPosition] = React.useState<DropPosition>(null);
+
+	const activeItem = React.useMemo(() => {
+		return activeDragId ? findNode(manifest.items, activeDragId) : null;
+	}, [activeDragId, manifest.items]);
+
+	const customCollisionDetection: CollisionDetection = React.useCallback(
+		(args) => {
+			const pointerCollisions = pointerWithin(args);
+			if (pointerCollisions.length > 0) {
+				return pointerCollisions;
+			}
+			return closestCenter(args);
+		},
+		[],
+	);
+
 	const handleConfirmTranslate = async () => {
 		if (!translateItem || !currentLocale) return;
 		setIsTranslating(true);
@@ -485,16 +603,83 @@ export function DocsTree({
 		}
 	};
 
+	const handleDragStart = (event: DragStartEvent) => {
+		setActiveDragId(event.active.id as string);
+	};
+
+	const updateDropTarget = React.useCallback(
+		(over: Over | null) => {
+			if (!over || !activeDragId || over.id === activeDragId) {
+				setHoveredOverId(null);
+				setDropPosition(null);
+				return;
+			}
+
+			const activeNode = findNode(manifest.items, activeDragId);
+			if (activeNode && isDescendant(activeNode, over.id as string)) {
+				setHoveredOverId(null);
+				setDropPosition(null);
+				return;
+			}
+
+			const overId = over.id as string;
+			setHoveredOverId(overId);
+
+			const overRect = over.rect;
+			const pointerY = pointerYRef.current;
+
+			if (overRect && overRect.height > 0) {
+				const relativeY = (pointerY - overRect.top) / overRect.height;
+				if (relativeY < 0.25) {
+					setDropPosition("above");
+				} else if (relativeY > 0.75) {
+					setDropPosition("below");
+				} else {
+					setDropPosition("inside");
+				}
+			} else {
+				setDropPosition("inside");
+			}
+		},
+		[activeDragId, manifest.items],
+	);
+
+	const handleDragMove = (event: DragMoveEvent) => {
+		updateDropTarget(event.over);
+	};
+
+	const handleDragOver = (event: DragOverEvent) => {
+		updateDropTarget(event.over);
+	};
+
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { active, over } = event;
+		const finalPosition = dropPosition || "below";
+
+		setActiveDragId(null);
+		setHoveredOverId(null);
+		setDropPosition(null);
+
 		if (!over || active.id === over.id) return;
 
-		const reordered = reorderTree(
+		const activeNode = findNode(manifest.items, active.id as string);
+		if (activeNode && isDescendant(activeNode, over.id as string)) {
+			return;
+		}
+
+		const reordered = reorderTreeWithPosition(
 			manifest.items,
 			active.id as string,
 			over.id as string,
+			finalPosition,
 		);
 		onUpdateManifest({ ...manifest, items: reordered });
+	};
+
+	const handleDragCancel = () => {
+		setActiveDragId(null);
+		setHoveredOverId(null);
+		setDropPosition(null);
 	};
 
 	const itemIds = manifest.items.map((i) => i.id);
@@ -513,7 +698,7 @@ export function DocsTree({
 					<Button
 						variant="ghost"
 						size="sm"
-						className="h-6 px-1.5 text-xs gap-1"
+						className="h-6 px-1.5 text-xs gap-1 cursor-pointer"
 						onClick={() => onAddDoc()}
 						title="Add root document"
 					>
@@ -535,7 +720,7 @@ export function DocsTree({
 									<Button
 										variant="ghost"
 										size="xs"
-										className="h-5 px-1.5 text-xs gap-1 font-normal hover:bg-muted"
+										className="h-5 px-1.5 text-xs gap-1 font-normal hover:bg-muted cursor-pointer"
 									/>
 								}
 								aria-label={`Current language: ${currentLocaleObj.name}`}
@@ -586,8 +771,12 @@ export function DocsTree({
 				) : (
 					<DndContext
 						sensors={sensors}
-						collisionDetection={closestCenter}
+						collisionDetection={customCollisionDetection}
+						onDragStart={handleDragStart}
+						onDragMove={handleDragMove}
+						onDragOver={handleDragOver}
 						onDragEnd={handleDragEnd}
+						onDragCancel={handleDragCancel}
 					>
 						<SortableContext
 							items={itemIds}
@@ -599,6 +788,9 @@ export function DocsTree({
 									item={item}
 									selectedDocId={selectedDocId}
 									selectedLocale={currentLocale}
+									activeDragId={activeDragId}
+									hoveredOverId={hoveredOverId}
+									dropPosition={dropPosition}
 									onSelectDoc={onSelectDoc}
 									onAddChild={(parentId) => onAddDoc(parentId)}
 									onDeleteDoc={onDeleteDoc}
@@ -607,6 +799,18 @@ export function DocsTree({
 								/>
 							))}
 						</SortableContext>
+
+						{/* Floating Drag Overlay */}
+						<DragOverlay>
+							{activeItem ? (
+								<div className="flex items-center gap-2 rounded-md bg-background px-2.5 py-1.5 text-xs font-medium text-foreground shadow-lg border border-primary/40 ring-1 ring-primary/20 max-w-56 truncate opacity-95">
+									<FileTextIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+									<span className="truncate">
+										{activeItem.title || "Untitled Document"}
+									</span>
+								</div>
+							) : null}
+						</DragOverlay>
 					</DndContext>
 				)}
 			</div>

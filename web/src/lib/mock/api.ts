@@ -83,12 +83,13 @@ const notificationsList: Notification[] = JSON.parse(
 let workspaceLocalesList: WorkspaceLocale[] = [...workspaceLocales];
 
 let storageSettingsData: StorageSettings = {
-	provider: "r2",
+	provider: "local",
+	localPath: "./uploads",
+	publicUrl: "/uploads",
 	bucket: "spile-media-assets",
 	endpoint: "https://<account-id>.r2.cloudflarestorage.com",
 	accessKey: "cf_acc_9831720184",
 	secretKey: "••••••••••••••••••••••••••••••••",
-	publicUrl: "https://media.spile.io",
 };
 
 let emailSettingsData: EmailSettings = {
@@ -143,7 +144,16 @@ function hydrateTreeItem(
 	pageMap: Map<string, DocPage>,
 	locale: string = "en",
 	allPages: DocPage[] = [],
+	depth = 0,
 ): DocTreeItem {
+	if (depth > 20) {
+		return {
+			...item,
+			title: "Cycle detected",
+			children: undefined,
+		};
+	}
+
 	const directPage = pageMap.get(item.id);
 	// If a specific locale is requested, check if a translation exists for this group
 	let page = directPage;
@@ -162,8 +172,10 @@ function hydrateTreeItem(
 	}
 
 	return {
-		id: page?.id ?? item.id,
+		id: item.id,
+		canonicalId: item.id,
 		sourceDocId: directPage?.id ?? item.id,
+		localizedDocId: page?.id ?? item.id,
 		translationGroupId:
 			page?.translationGroupId ?? directPage?.translationGroupId,
 		locale: page?.locale ?? directPage?.locale ?? locale,
@@ -172,7 +184,7 @@ function hydrateTreeItem(
 		status: page?.status ?? "draft",
 		hasTranslation,
 		children: item.children?.map((child) =>
-			hydrateTreeItem(child, pageMap, locale, allPages),
+			hydrateTreeItem(child, pageMap, locale, allPages, depth + 1),
 		),
 	};
 }
@@ -183,7 +195,7 @@ function hydrateTreeItems(
 	locale: string = "en",
 ): DocTreeItem[] {
 	const pageMap = new Map(pages.map((p) => [p.id, p]));
-	return items.map((it) => hydrateTreeItem(it, pageMap, locale, pages));
+	return items.map((it) => hydrateTreeItem(it, pageMap, locale, pages, 0));
 }
 
 function matches(post: Post, params: PostListParams): boolean {
@@ -824,6 +836,31 @@ export const mockApi = {
 		},
 		async deleteProject(projectId: string): Promise<void> {
 			await delay(120);
+			const proj = docProjectsList.find((p) => p.id === projectId);
+			// Gather all canonical ids in project's navigation
+			const projectPageIds = new Set<string>();
+			function gatherIds(items?: DocTreeItem[]) {
+				if (!items) return;
+				for (const item of items) {
+					projectPageIds.add(item.id);
+					gatherIds(item.children);
+				}
+			}
+			if (proj) {
+				gatherIds(proj.navigation.items);
+			}
+
+			// Also cascade delete all pages belonging to projectId or referenced in nav
+			docPagesList = docPagesList.filter((p) => {
+				if (p.projectId === projectId) return false;
+				if (projectPageIds.has(p.id)) return false;
+				if (p.translationGroupId && projectPageIds.has(p.translationGroupId))
+					return false;
+				if (p.translationSourceId && projectPageIds.has(p.translationSourceId))
+					return false;
+				return true;
+			});
+
 			docProjectsList = docProjectsList.filter((p) => p.id !== projectId);
 		},
 		async getNavigation(
@@ -850,17 +887,36 @@ export const mockApi = {
 		): Promise<DocNavigationManifest> {
 			await delay(150);
 			const pageMap = new Map(docPagesList.map((p) => [p.id, p]));
-			function cleanTreeItem(item: DocTreeItem): DocTreeItem {
+			const seenIds = new Set<string>();
+
+			function cleanTreeItem(item: DocTreeItem): DocTreeItem | null {
 				const page = pageMap.get(item.id);
 				// Canonical ID is the default locale / source ID, or translationGroupId
 				const canonicalId =
 					page?.translationSourceId || page?.translationGroupId || item.id;
+
+				if (seenIds.has(canonicalId)) {
+					// Reject cycle / duplicate insertion
+					return null;
+				}
+				seenIds.add(canonicalId);
+
+				const cleanedChildren = item.children
+					?.map(cleanTreeItem)
+					.filter((c): c is DocTreeItem => c !== null);
+
 				return {
 					id: canonicalId,
-					children: item.children?.map(cleanTreeItem),
+					children:
+						cleanedChildren && cleanedChildren.length > 0
+							? cleanedChildren
+							: undefined,
 				};
 			}
-			const cleanItems = items.map(cleanTreeItem);
+
+			const cleanItems = items
+				.map(cleanTreeItem)
+				.filter((c): c is DocTreeItem => c !== null);
 
 			const targetProj = projectId
 				? docProjectsList.find((p) => p.id === projectId)
@@ -901,22 +957,45 @@ export const mockApi = {
 			title?: string;
 			parentId?: string;
 			projectId?: string;
+			locale?: string;
 		}): Promise<{ page: DocPage; navigation: DocNavigationManifest }> {
 			await delay(120);
 			const newId = `doc-${nextDocId++}`;
 			const pageTitle = data.title || "Untitled";
+			const pageLocale = data.locale || "en";
 			const slug =
 				pageTitle
 					.toLowerCase()
 					.replace(/[^a-z0-9]+/g, "-")
 					.replace(/(^-|-$)/g, "") || newId;
 
+			// Canonical parent resolution: if localized parentId was passed, resolve to canonical
+			let canonicalParentId: string | undefined = data.parentId;
+			if (data.parentId) {
+				const parentDoc = docPagesList.find((p) => p.id === data.parentId);
+				if (parentDoc) {
+					canonicalParentId =
+						parentDoc.translationSourceId ||
+						parentDoc.translationGroupId ||
+						parentDoc.id;
+				}
+			}
+
+			const targetProj = data.projectId
+				? docProjectsList.find((p) => p.id === data.projectId)
+				: docProjectsList[0];
+			const finalProjectId = data.projectId || targetProj?.id;
+
 			const newPage: DocPage = {
 				id: newId,
+				projectId: finalProjectId,
+				parentId: canonicalParentId || null,
+				translationGroupId: newId,
+				locale: pageLocale,
+				isDefaultLocale: pageLocale === "en",
 				title: pageTitle,
 				slug,
 				status: "draft",
-				locale: "en",
 				createdAt: Date.now(),
 				updatedAt: Date.now(),
 				content: {
@@ -944,14 +1023,10 @@ export const mockApi = {
 
 			docPagesList.push(newPage);
 
-			const targetProj = data.projectId
-				? docProjectsList.find((p) => p.id === data.projectId)
-				: docProjectsList[0];
-
 			if (!targetProj) {
 				const fallbackNav: DocNavigationManifest = {
 					id: `nav-${Date.now()}`,
-					locale: "en",
+					locale: pageLocale,
 					updatedAt: Date.now(),
 					items: [{ id: newId }],
 				};
@@ -960,11 +1035,11 @@ export const mockApi = {
 
 			const newItemNode: DocTreeItem = { id: newId };
 
-			if (data.parentId) {
+			if (canonicalParentId) {
 				// Recursively locate parent and append child
 				function appendToParent(list: DocTreeItem[]): boolean {
 					for (const node of list) {
-						if (node.id === data.parentId) {
+						if (node.id === canonicalParentId || node.id === data.parentId) {
 							node.children = node.children || [];
 							node.children.push(newItemNode);
 							return true;
@@ -989,7 +1064,12 @@ export const mockApi = {
 				page: { ...newPage },
 				navigation: {
 					...targetProj.navigation,
-					items: hydrateTreeItems(targetProj.navigation.items, docPagesList),
+					locale: pageLocale,
+					items: hydrateTreeItems(
+						targetProj.navigation.items,
+						docPagesList,
+						pageLocale,
+					),
 				},
 			};
 		},
@@ -1081,14 +1161,76 @@ export const mockApi = {
 		async deletePage(
 			id: string,
 			projectId?: string,
+			locale: string = "en",
 		): Promise<DocNavigationManifest> {
 			await delay(120);
-			docPagesList = docPagesList.filter((p) => p.id !== id);
+
+			// Find target canonical id if a localized id was passed
+			const targetPage = docPagesList.find((p) => p.id === id);
+			const canonicalTargetId =
+				targetPage?.translationSourceId || targetPage?.translationGroupId || id;
+
+			const targetProj = projectId
+				? docProjectsList.find((p) => p.id === projectId)
+				: docProjectsList[0];
+
+			// Collect all ids in the subtree to delete (cascading delete)
+			const idsToDelete = new Set<string>();
+			idsToDelete.add(id);
+			idsToDelete.add(canonicalTargetId);
+
+			function collectSubtreeIds(items: DocTreeItem[]) {
+				for (const item of items) {
+					if (
+						item.id === canonicalTargetId ||
+						item.id === id ||
+						idsToDelete.has(item.id)
+					) {
+						idsToDelete.add(item.id);
+						function addAllChildren(children?: DocTreeItem[]) {
+							if (!children) return;
+							for (const child of children) {
+								idsToDelete.add(child.id);
+								addAllChildren(child.children);
+							}
+						}
+						addAllChildren(item.children);
+					} else if (item.children) {
+						collectSubtreeIds(item.children);
+					}
+				}
+			}
+
+			if (targetProj) {
+				collectSubtreeIds(targetProj.navigation.items);
+			}
+
+			// Also collect all translation rows that share translationGroupId or translationSourceId
+			const groupIdsToDelete = new Set<string>();
+			for (const p of docPagesList) {
+				if (idsToDelete.has(p.id)) {
+					groupIdsToDelete.add(p.translationGroupId || p.id);
+					if (p.translationSourceId)
+						groupIdsToDelete.add(p.translationSourceId);
+				}
+			}
+
+			// Remove all corresponding pages and their localized translations from docPagesList
+			docPagesList = docPagesList.filter((p) => {
+				if (idsToDelete.has(p.id)) return false;
+				if (groupIdsToDelete.has(p.translationGroupId || p.id)) return false;
+				if (
+					p.translationSourceId &&
+					groupIdsToDelete.has(p.translationSourceId)
+				)
+					return false;
+				return true;
+			});
 
 			// Recursively remove from navigation tree
 			function removeFromItems(items: DocTreeItem[]): DocTreeItem[] {
 				return items
-					.filter((item) => item.id !== id)
+					.filter((item) => !idsToDelete.has(item.id))
 					.map((item) => ({
 						...item,
 						children: item.children
@@ -1097,9 +1239,6 @@ export const mockApi = {
 					}));
 			}
 
-			const targetProj = projectId
-				? docProjectsList.find((p) => p.id === projectId)
-				: docProjectsList[0];
 			if (targetProj) {
 				targetProj.navigation.items = removeFromItems(
 					targetProj.navigation.items,
@@ -1107,10 +1246,15 @@ export const mockApi = {
 				targetProj.updatedAt = Date.now();
 				return {
 					...targetProj.navigation,
-					items: hydrateTreeItems(targetProj.navigation.items, docPagesList),
+					locale,
+					items: hydrateTreeItems(
+						targetProj.navigation.items,
+						docPagesList,
+						locale,
+					),
 				};
 			}
-			return { id: "empty", locale: "en", items: [], updatedAt: Date.now() };
+			return { id: "empty", locale, items: [], updatedAt: Date.now() };
 		},
 	},
 

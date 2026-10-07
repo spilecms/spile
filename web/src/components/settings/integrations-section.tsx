@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, CheckCircle2, Cloud, Mail, Send, Sparkles } from "lucide-react";
+import {
+	Bot,
+	CheckCircle2,
+	HardDrive,
+	Mail,
+	Send,
+	Sparkles,
+} from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -107,7 +114,11 @@ export function IntegrationsSection() {
 	};
 
 	const handleTestStorage = () => {
-		toast.success("Successfully connected to S3/R2 storage bucket!");
+		if (localStorage?.provider === "local") {
+			toast.success("Local disk storage directory is accessible and writable!");
+		} else {
+			toast.success("Successfully connected to S3/R2 storage bucket!");
+		}
 	};
 
 	return (
@@ -118,12 +129,12 @@ export function IntegrationsSection() {
 					<div className="flex items-center justify-between">
 						<div>
 							<CardTitle className="text-base font-semibold flex items-center gap-2">
-								<Cloud className="size-4 text-primary" />
-								<span>Cloud Storage (Media & Attachments)</span>
+								<HardDrive className="size-4 text-primary" />
+								<span>Storage & Media Assets</span>
 							</CardTitle>
 							<CardDescription className="text-xs mt-1">
-								Connect Cloudflare R2, AWS S3, or MinIO for file and image
-								uploads in the editor.
+								Configure where uploaded images, documents, and media assets are
+								stored.
 							</CardDescription>
 						</div>
 						<Button
@@ -138,11 +149,27 @@ export function IntegrationsSection() {
 					</div>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
+					{/* Recommendation Banner */}
+					<div className="rounded-lg border border-primary/20 bg-primary/5 p-3.5 text-xs text-foreground flex flex-col gap-1.5">
+						<div className="flex items-center gap-2 font-bold ">
+							<HardDrive className="size-4 shrink-0 text-primary" />
+							<span>Recommended: Local File System Storage</span>
+						</div>
+						<p className="text-muted-foreground leading-relaxed">
+							Spile recommends the local file system to store uploaded files
+							because it is more performant, easier to manage and backup.
+						</p>
+						<p className="text-muted-foreground/80 leading-relaxed text-[11px]">
+							Alternatively, if you have limited disk space available, you could
+							opt to an S3 compatible external storage.
+						</p>
+					</div>
+
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<div className="flex flex-col gap-1.5">
 							<Label className="text-xs">Storage Provider</Label>
 							<Select
-								value={localStorage?.provider ?? "r2"}
+								value={localStorage?.provider ?? "local"}
 								onValueChange={(val) =>
 									setLocalStorage((prev) =>
 										prev
@@ -152,9 +179,12 @@ export function IntegrationsSection() {
 								}
 							>
 								<SelectTrigger className="h-8 text-xs">
-									<SelectValue />
+									<SelectValue placeholder="Select storage provider" />
 								</SelectTrigger>
 								<SelectContent>
+									<SelectItem value="local" className="text-xs">
+										Local File System (Recommended)
+									</SelectItem>
 									<SelectItem value="r2" className="text-xs">
 										Cloudflare R2 (S3 Compatible)
 									</SelectItem>
@@ -164,83 +194,120 @@ export function IntegrationsSection() {
 									<SelectItem value="minio" className="text-xs">
 										MinIO Self-Hosted
 									</SelectItem>
-									<SelectItem value="local" className="text-xs">
-										Local Disk Storage
-									</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
 
-						<div className="flex flex-col gap-1.5">
-							<Label className="text-xs">Bucket Name</Label>
-							<Input
-								value={localStorage?.bucket ?? ""}
-								onChange={(e) =>
-									setLocalStorage((prev) =>
-										prev ? { ...prev, bucket: e.target.value } : null,
-									)
-								}
-								placeholder="spile-media-bucket"
-								className="h-8 text-xs font-mono"
-							/>
-						</div>
+						{localStorage?.provider === "local" ? (
+							<>
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-xs">Local Upload Directory</Label>
+									<Input
+										value={localStorage?.localPath ?? "./uploads"}
+										onChange={(e) =>
+											setLocalStorage((prev) =>
+												prev ? { ...prev, localPath: e.target.value } : null,
+											)
+										}
+										placeholder="./uploads or /var/lib/spile/uploads"
+										className="h-8 text-xs font-mono"
+									/>
+									<span className="text-[10px] text-muted-foreground">
+										Relative to server root or an absolute server file path.
+									</span>
+								</div>
 
-						<div className="flex flex-col gap-1.5">
-							<Label className="text-xs">S3 Endpoint URL</Label>
-							<Input
-								value={localStorage?.endpoint ?? ""}
-								onChange={(e) =>
-									setLocalStorage((prev) =>
-										prev ? { ...prev, endpoint: e.target.value } : null,
-									)
-								}
-								placeholder="https://<account>.r2.cloudflarestorage.com"
-								className="h-8 text-xs font-mono"
-							/>
-						</div>
+								<div className="flex flex-col gap-1.5 md:col-span-2">
+									<Label className="text-xs">Public Asset URL Prefix</Label>
+									<Input
+										value={localStorage?.publicUrl ?? "/uploads"}
+										onChange={(e) =>
+											setLocalStorage((prev) =>
+												prev ? { ...prev, publicUrl: e.target.value } : null,
+											)
+										}
+										placeholder="/uploads or https://media.yourdomain.com/uploads"
+										className="h-8 text-xs font-mono"
+									/>
+									<span className="text-[10px] text-muted-foreground">
+										Base URL path where the server exposes uploaded media files.
+									</span>
+								</div>
+							</>
+						) : (
+							<>
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-xs">Bucket Name</Label>
+									<Input
+										value={localStorage?.bucket ?? ""}
+										onChange={(e) =>
+											setLocalStorage((prev) =>
+												prev ? { ...prev, bucket: e.target.value } : null,
+											)
+										}
+										placeholder="spile-media-bucket"
+										className="h-8 text-xs font-mono"
+									/>
+								</div>
 
-						<div className="flex flex-col gap-1.5">
-							<Label className="text-xs">Public CDN / Media Domain</Label>
-							<Input
-								value={localStorage?.publicUrl ?? ""}
-								onChange={(e) =>
-									setLocalStorage((prev) =>
-										prev ? { ...prev, publicUrl: e.target.value } : null,
-									)
-								}
-								placeholder="https://media.yourdomain.com"
-								className="h-8 text-xs font-mono"
-							/>
-						</div>
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-xs">S3 Endpoint URL</Label>
+									<Input
+										value={localStorage?.endpoint ?? ""}
+										onChange={(e) =>
+											setLocalStorage((prev) =>
+												prev ? { ...prev, endpoint: e.target.value } : null,
+											)
+										}
+										placeholder="https://<account>.r2.cloudflarestorage.com"
+										className="h-8 text-xs font-mono"
+									/>
+								</div>
 
-						<div className="flex flex-col gap-1.5">
-							<Label className="text-xs">Access Key ID</Label>
-							<Input
-								value={localStorage?.accessKey ?? ""}
-								onChange={(e) =>
-									setLocalStorage((prev) =>
-										prev ? { ...prev, accessKey: e.target.value } : null,
-									)
-								}
-								placeholder="Access Key"
-								className="h-8 text-xs font-mono"
-							/>
-						</div>
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-xs">Public CDN / Media Domain</Label>
+									<Input
+										value={localStorage?.publicUrl ?? ""}
+										onChange={(e) =>
+											setLocalStorage((prev) =>
+												prev ? { ...prev, publicUrl: e.target.value } : null,
+											)
+										}
+										placeholder="https://media.yourdomain.com"
+										className="h-8 text-xs font-mono"
+									/>
+								</div>
 
-						<div className="flex flex-col gap-1.5">
-							<Label className="text-xs">Secret Access Key</Label>
-							<Input
-								type="password"
-								value={localStorage?.secretKey ?? ""}
-								onChange={(e) =>
-									setLocalStorage((prev) =>
-										prev ? { ...prev, secretKey: e.target.value } : null,
-									)
-								}
-								placeholder="••••••••••••••••••••••••"
-								className="h-8 text-xs font-mono"
-							/>
-						</div>
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-xs">Access Key ID</Label>
+									<Input
+										value={localStorage?.accessKey ?? ""}
+										onChange={(e) =>
+											setLocalStorage((prev) =>
+												prev ? { ...prev, accessKey: e.target.value } : null,
+											)
+										}
+										placeholder="Access Key"
+										className="h-8 text-xs font-mono"
+									/>
+								</div>
+
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-xs">Secret Access Key</Label>
+									<Input
+										type="password"
+										value={localStorage?.secretKey ?? ""}
+										onChange={(e) =>
+											setLocalStorage((prev) =>
+												prev ? { ...prev, secretKey: e.target.value } : null,
+											)
+										}
+										placeholder="••••••••••••••••••••••••"
+										className="h-8 text-xs font-mono"
+									/>
+								</div>
+							</>
+						)}
 					</div>
 
 					<div className="flex justify-end pt-2">
@@ -353,7 +420,7 @@ export function IntegrationsSection() {
 								}
 							>
 								<SelectTrigger className="h-8 text-xs">
-									<SelectValue />
+									<SelectValue placeholder="Select email provider" />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="resend" className="text-xs">
@@ -492,7 +559,7 @@ export function IntegrationsSection() {
 								}
 							>
 								<SelectTrigger className="h-8 text-xs">
-									<SelectValue />
+									<SelectValue placeholder="Select AI provider" />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="gemini" className="text-xs">
@@ -533,7 +600,7 @@ export function IntegrationsSection() {
 								}}
 							>
 								<SelectTrigger className="h-8 text-xs">
-									<SelectValue />
+									<SelectValue placeholder="Select default model" />
 								</SelectTrigger>
 								<SelectContent>
 									{localAi?.provider === "openai" ? (

@@ -175,9 +175,11 @@ export type DocPagePatch = Partial<
 
 export interface DocTreeItem {
 	id: string;
+	canonicalId?: string;
 	parentId?: string | null;
 	translationGroupId?: string;
 	sourceDocId?: string;
+	localizedDocId?: string;
 	locale?: string;
 	title?: string;
 	slug?: string;
@@ -215,7 +217,8 @@ export type StorageProviderType = "r2" | "s3" | "minio" | "local";
 
 export interface StorageSettings {
 	provider: StorageProviderType;
-	bucket: string;
+	localPath?: string;
+	bucket?: string;
 	endpoint?: string;
 	region?: string;
 	accessKey?: string;

@@ -687,6 +687,39 @@ export const docPages: DocPage[] = [
 			version: "2.31.7",
 		},
 	},
+	{
+		id: "doc-handbook-1",
+		projectId: "doc-proj-user-handbook",
+		translationGroupId: "doc-handbook-1",
+		isDefaultLocale: true,
+		locale: "en",
+		title: "Editorial Guidelines & Tone",
+		slug: "editorial-guidelines",
+		status: "draft",
+		createdAt: day(14),
+		updatedAt: day(3),
+		content: {
+			time: day(3),
+			blocks: [
+				{
+					id: "blk-hb-1",
+					type: "header",
+					data: {
+						text: "Editorial Guidelines & Tone",
+						level: 1,
+					},
+				},
+				{
+					id: "blk-hb-2",
+					type: "paragraph",
+					data: {
+						text: "Welcome to the Spile Editorial Handbook. This guide covers publishing voice, editorial standards, and content review procedures.",
+					},
+				},
+			],
+			version: "2.31.7",
+		},
+	},
 ];
 
 export const docNavigation: DocNavigationManifest = {
@@ -742,7 +775,7 @@ export const docProjects: DocumentationProject[] = [
 			updatedAt: day(3),
 			items: [
 				{
-					id: "doc-1",
+					id: "doc-handbook-1",
 				},
 			],
 		},

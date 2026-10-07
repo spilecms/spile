@@ -1,4 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	CN,
+	DE,
+	ES,
+	ET,
+	type FlagComponent,
+	FR,
+	IT,
+	JP,
+	PT,
+	SA,
+	US,
+} from "country-flag-icons/react/3x2";
 import { Check, Globe, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -43,11 +56,33 @@ const PRESET_LANGUAGES: WorkspaceLocale[] = [
 	{ code: "it", name: "Italian", flag: "🇮🇹" },
 ];
 
+const flags: Record<string, FlagComponent> = {
+	en: US,
+	es: ES,
+	fr: FR,
+	de: DE,
+	am: ET,
+	ar: SA,
+	zh: CN,
+	ja: JP,
+	pt: PT,
+	it: IT,
+};
+
+function LocaleFlag({ code, flag }: { code: string; flag: string }) {
+	const Flag = flags[code];
+	if (Flag) {
+		return <Flag className="size-6 h-4 shrink-0 rounded-[2px]" />;
+	}
+	return <span className="text-base">{flag}</span>;
+}
+
 export function LocalesSection() {
 	const queryClient = useQueryClient();
 	const [addOpen, setAddOpen] = React.useState(false);
 	const [selectedCode, setSelectedCode] = React.useState("");
 	const [searchLang, setSearchLang] = React.useState("");
+	const [defaultCode, setDefaultCode] = React.useState("en");
 
 	const { data: locales, isLoading } = useQuery({
 		queryKey: ["workspace", "locales"],
@@ -123,9 +158,26 @@ export function LocalesSection() {
 							</span>
 						</div>
 						<div className="w-40">
-							<Select defaultValue="en">
-								<SelectTrigger className="h-8 text-xs">
-									<SelectValue />
+							<Select
+								value={defaultCode}
+								onValueChange={(val) => {
+									if (typeof val === "string") setDefaultCode(val);
+								}}
+							>
+								<SelectTrigger className="h-8 text-xs rounded-none">
+									<SelectValue>
+										{(value) => {
+											const loc = (locales ?? []).find((l) => l.code === value);
+											return (
+												<>
+													{loc && (
+														<LocaleFlag code={loc.code} flag={loc.flag} />
+													)}
+													<span>{loc ? loc.name : String(value ?? "")}</span>
+												</>
+											);
+										}}
+									</SelectValue>
 								</SelectTrigger>
 								<SelectContent>
 									{(locales ?? []).map((loc) => (
@@ -134,7 +186,7 @@ export function LocalesSection() {
 											value={loc.code}
 											className="text-xs"
 										>
-											<span className="mr-1.5">{loc.flag}</span>
+											<LocaleFlag code={loc.code} flag={loc.flag} />
 											<span>{loc.name}</span>
 										</SelectItem>
 									))}
@@ -167,14 +219,14 @@ export function LocalesSection() {
 									</tr>
 								) : (
 									(locales ?? []).map((loc) => {
-										const isDefault = loc.code === "en";
+										const isDefault = loc.code === defaultCode;
 										return (
 											<tr
 												key={loc.code}
 												className="hover:bg-muted/30 transition-colors"
 											>
 												<td className="py-2.5 px-3 font-medium flex items-center gap-2">
-													<span className="text-base">{loc.flag}</span>
+													<LocaleFlag code={loc.code} flag={loc.flag} />
 													<span>{loc.name}</span>
 												</td>
 												<td className="py-2.5 px-3 font-mono text-[11px] uppercase text-muted-foreground">
