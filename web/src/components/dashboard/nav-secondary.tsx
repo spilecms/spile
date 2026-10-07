@@ -25,7 +25,18 @@ export function NavSecondary({
 						<SidebarMenuItem key={item.title}>
 							<SidebarMenuButton
 								isActive={currentPath === item.url}
-								render={<Link to={item.url} />}
+								render={
+									item.outlink ? (
+										// biome-ignore lint/a11y/useAnchorContent: Children are provided by SidebarMenuButton
+										<a
+											href={item.url}
+											target="_blank"
+											rel="noopener noreferrer"
+										/>
+									) : (
+										<Link to={item.url} />
+									)
+								}
 								className="flex items-center gap-2 text-[0.75rem] font-semibold"
 							>
 								{item.icon}

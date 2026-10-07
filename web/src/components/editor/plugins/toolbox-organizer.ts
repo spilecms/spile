@@ -24,6 +24,12 @@ export const TOOLBOX_CATEGORIES: ToolboxCategory[] = [
 		firstToolName: "table",
 		showDivider: true,
 	},
+	{
+		id: "api",
+		label: "API Reference",
+		firstToolName: "paramField",
+		showDivider: true,
+	},
 ];
 
 /**
@@ -96,16 +102,19 @@ export function setupToolboxOrganizer(holder: HTMLElement): () => void {
 	};
 
 	const scanAndDecorate = () => {
-		// Find any popover items container in holder or document
-		const candidates = [
-			...holder.querySelectorAll<HTMLElement>(".ce-popover__items"),
-			...document.querySelectorAll<HTMLElement>(
-				".ce-toolbox .ce-popover__items, .ce-popover__items",
-			),
-		];
+		// Only search within the editor holder — never do a document-wide query.
+		// The bodyObserver already triggers a scan when the popover is appended to
+		// document.body, so we can rely on holder + body-level popover containers.
+		const holderCandidates =
+			holder.querySelectorAll<HTMLElement>(".ce-popover__items");
+
+		// Also catch popovers that Editor.js appends directly to <body> (outside the holder)
+		const bodyCandidates = document.querySelectorAll<HTMLElement>(
+			".ce-toolbox .ce-popover__items",
+		);
 
 		const seen = new Set<HTMLElement>();
-		for (const container of candidates) {
+		for (const container of [...holderCandidates, ...bodyCandidates]) {
 			if (seen.has(container)) continue;
 			seen.add(container);
 
@@ -120,39 +129,64 @@ export function setupToolboxOrganizer(holder: HTMLElement): () => void {
 		}
 	};
 
-	// 1. Initial scan
-	scanAndDecorate();
-
-	// 2. Scan when user clicks or types inside holder (e.g. clicking the '+' button or typing '/')
-	const onHolderInteraction = () => {
-		requestAnimationFrame(scanAndDecorate);
+	let scheduled = false;
+	const scheduleScan = () => {
+		if (scheduled) return;
+		scheduled = true;
+		requestAnimationFrame(() => {
+			scheduled = false;
+			scanAndDecorate();
+		});
 	};
-	holder.addEventListener("click", onHolderInteraction, true);
-	holder.addEventListener("keydown", onHolderInteraction, true);
-	cleanups.push(() => {
-		holder.removeEventListener("click", onHolderInteraction, true);
-		holder.removeEventListener("keydown", onHolderInteraction, true);
-	});
 
-	// 3. MutationObserver on editor holder
-	holderObserver = new MutationObserver(() => {
-		scanAndDecorate();
+	// 1. Initial scan
+	scheduleScan();
+
+	// 2. Targeted MutationObserver on editor holder — shallow childList only.
+	//    subtree:true was the main performance killer: it fired on every single
+	//    keystroke/cursor move, triggering expensive DOM scans while the popover
+	//    was open. We only need to know when a block is added or removed (direct
+	//    child of holder), which does NOT require subtree observation.
+	holderObserver = new MutationObserver((mutations) => {
+		let shouldScan = false;
+		for (const m of mutations) {
+			if (m.addedNodes.length > 0 || m.removedNodes.length > 0) {
+				shouldScan = true;
+				break;
+			}
+		}
+		if (shouldScan) {
+			scheduleScan();
+		}
 	});
 	holderObserver.observe(holder, {
 		childList: true,
-		subtree: true,
+		subtree: false, // Only direct children — block add/remove, not text edits
 	});
 
-	// 4. MutationObserver on document.body (in case popover is appended to body or moves)
-	bodyObserver = new MutationObserver(() => {
-		scanAndDecorate();
+	// 3. Targeted MutationObserver on document.body for popover containers added at root level (shallow childList only)
+	bodyObserver = new MutationObserver((mutations) => {
+		for (const m of mutations) {
+			for (const node of m.addedNodes) {
+				if (node instanceof HTMLElement) {
+					if (
+						node.classList.contains("ce-popover") ||
+						node.classList.contains("ce-toolbox") ||
+						node.querySelector?.(".ce-popover__items")
+					) {
+						scheduleScan();
+						return;
+					}
+				}
+			}
+		}
 	});
 	bodyObserver.observe(document.body, {
 		childList: true,
-		subtree: true,
 	});
 
 	return () => {
+		scheduled = false;
 		if (holderObserver) {
 			holderObserver.disconnect();
 			holderObserver = null;

@@ -31,7 +31,7 @@ export function TranslationContextBanner() {
 	const handleSwitchToOriginal = () => {
 		if (targetOriginalId) {
 			if (isDoc) {
-				navigate(`/editor/doc/${targetOriginalId}`);
+				navigate(`/editor/doc/${targetOriginalId}?lang=en`);
 			} else {
 				navigate(`/editor/${targetOriginalId}`);
 			}

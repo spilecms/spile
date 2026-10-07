@@ -7,7 +7,12 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import {
+	ROLE_LABELS,
+	UserPersonaSubmenu,
+} from "@/components/common/role-switcher";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -46,6 +51,8 @@ export function NavUser() {
 
 	const name = user?.name ?? "…";
 	const email = user?.email ?? "";
+	const role = user?.role || "owner";
+	const roleInfo = ROLE_LABELS[role] || ROLE_LABELS.owner;
 
 	return (
 		<SidebarMenu>
@@ -62,7 +69,15 @@ export function NavUser() {
 							</AvatarFallback>
 						</Avatar>
 						<div className="grid flex-1 text-left text-sm leading-tight">
-							<span className="truncate font-medium">{name}</span>
+							<div className="flex items-center gap-1.5 min-w-0">
+								<span className="truncate font-medium">{name}</span>
+								<Badge
+									variant="outline"
+									className={`h-4 px-1 text-[9px] font-semibold uppercase tracking-wider shrink-0 ${roleInfo.color}`}
+								>
+									{roleInfo.badge}
+								</Badge>
+							</div>
 							<span className="truncate text-xs text-foreground/70">
 								{email}
 							</span>
@@ -84,7 +99,15 @@ export function NavUser() {
 										</AvatarFallback>
 									</Avatar>
 									<div className="grid flex-1 text-left text-sm leading-tight">
-										<span className="truncate font-medium">{name}</span>
+										<div className="flex items-center gap-1.5 min-w-0">
+											<span className="truncate font-medium">{name}</span>
+											<Badge
+												variant="outline"
+												className={`h-4 px-1 text-[9px] font-semibold uppercase tracking-wider shrink-0 ${roleInfo.color}`}
+											>
+												{roleInfo.badge}
+											</Badge>
+										</div>
 										<span className="truncate text-xs text-muted-foreground">
 											{email}
 										</span>
@@ -102,6 +125,7 @@ export function NavUser() {
 								<Settings2Icon />
 								{t("userMenu.settings")}
 							</DropdownMenuItem>
+							<UserPersonaSubmenu />
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem>

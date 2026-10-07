@@ -47,19 +47,39 @@ export function FloatingToc({
 			setHeadings(items);
 		};
 
+		let rafId: number | null = null;
+		const debouncedUpdate = () => {
+			if (rafId !== null) return;
+			rafId = requestAnimationFrame(() => {
+				rafId = null;
+				updateHeadings();
+			});
+		};
+
 		updateHeadings();
 
-		const observer = new MutationObserver(() => {
-			updateHeadings();
+		const observer = new MutationObserver((mutations) => {
+			// Ignore mutations caused by our own id assignments
+			const isOnlyIdChange = mutations.every(
+				(m) => m.type === "attributes" && m.attributeName === "id",
+			);
+			if (isOnlyIdChange) return;
+
+			debouncedUpdate();
 		});
 
 		observer.observe(container, {
 			childList: true,
 			subtree: true,
-			characterData: true,
+			// characterData:true removed — it fired on every keystroke, triggering
+			// heading scans on each character. childList+subtree is enough to catch
+			// heading blocks being added, removed, or reordered.
 		});
 
-		return () => observer.disconnect();
+		return () => {
+			if (rafId !== null) cancelAnimationFrame(rafId);
+			observer.disconnect();
+		};
 	}, [editorContainerRef]);
 
 	// 2. Scroll Spy using IntersectionObserver

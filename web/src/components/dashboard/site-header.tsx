@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { ModeToggle } from "@/components/theme/theme-toggle";
+import { NotificationsPopover } from "@/components/notifications/notifications-popover";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import LanguageSelector from "../i18n/language-selector";
@@ -50,8 +50,8 @@ export function SiteHeader({
 				/>
 				<h1 className="text-base font-medium">{titleForPath(pathname)}</h1>
 				<div className="ml-auto flex items-center gap-2" ref={onActionsRef} />
+				<NotificationsPopover />
 				<LanguageSelector />
-				<ModeToggle />
 			</div>
 		</header>
 	);

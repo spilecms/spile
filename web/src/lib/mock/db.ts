@@ -1,11 +1,14 @@
 import type {
 	ActivityItem,
+	ContentRevision,
 	DocNavigationManifest,
 	DocPage,
 	DocumentationProject,
 	Member,
 	Newsletter,
+	Notification,
 	Post,
+	ReviewRequest,
 	Tag,
 	User,
 	ViewsPoint,
@@ -102,6 +105,13 @@ export const users: User[] = [
 		email: "diego@spile.dev",
 		avatar: "",
 		role: "author",
+	},
+	{
+		id: "u5",
+		name: "Oliyad Tesfaye",
+		email: "oliyad@spile.dev",
+		avatar: "",
+		role: "contributor",
 	},
 ];
 
@@ -923,5 +933,70 @@ export const newsletters: Newsletter[] = [
 			],
 			version: "2.31.7",
 		},
+	},
+];
+
+export const revisions: ContentRevision[] = [
+	{
+		id: "rev-1",
+		targetType: "post",
+		targetId: "post-1",
+		versionNumber: 1,
+		versionLabel: "v1.0",
+		title: "Engineering high-performance rich text editors on the modern web",
+		summary: "Initial publication by Mara",
+		content: posts[0]?.content || null,
+		authorId: "u1",
+		authorName: "Mara Lindqvist",
+		status: "published",
+		createdAt: day(7),
+	},
+	{
+		id: "rev-2",
+		targetType: "post",
+		targetId: "post-1",
+		versionNumber: 2,
+		versionLabel: "v2.0",
+		title: "Engineering high-performance rich text editors on the modern web",
+		summary: "Added API Reference parameters and code tabs breakdown",
+		content: posts[0]?.content || null,
+		authorId: "u5",
+		authorName: "Oliyad Tesfaye",
+		status: "in_review",
+		createdAt: day(1),
+	},
+];
+
+export const reviewRequests: ReviewRequest[] = [
+	{
+		id: "review-1",
+		targetType: "post",
+		targetId: "post-1",
+		targetTitle:
+			"Engineering high-performance rich text editors on the modern web",
+		revisionId: "rev-2",
+		authorId: "u5",
+		authorName: "Oliyad Tesfaye",
+		reviewerId: "u2",
+		reviewerName: "Jonas Okafor",
+		summary: "Added API Reference parameters and code tabs breakdown",
+		status: "in_review",
+		createdAt: day(1),
+		updatedAt: day(1),
+	},
+];
+
+export const notifications: Notification[] = [
+	{
+		id: "notif-1",
+		type: "review_requested",
+		title: "Review Requested",
+		message:
+			"Oliyad Tesfaye requested your review on 'Engineering high-performance rich text editors on the modern web'",
+		targetType: "post",
+		targetId: "post-1",
+		reviewId: "review-1",
+		read: false,
+		createdAt: day(1),
 	},
 ];

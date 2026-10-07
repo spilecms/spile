@@ -14,6 +14,7 @@ import {
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router-dom";
+import logoImg from "@/assets/logo4.png";
 import {
 	Sidebar,
 	SidebarContent,
@@ -71,10 +72,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 							className="data-[slot=sidebar-menu-button]:p-1.5! flex items-center gap-2 mb-2.5"
 							render={<Link to="/" />}
 						>
-							<div className="flex size-7 items-center justify-center rounded-md ">
-								<img src="src/assets/logo.png" alt="Spile Logo" />
+							<div className="flex size-8 items-center justify-center rounded-md ">
+								<img src={logoImg} alt="Spile Logo" />
 							</div>
-							<span className="text-lg font-semibold">Spile</span>
+							<span className="text-lg font-bold">Spile</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>

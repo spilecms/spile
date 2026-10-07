@@ -45,6 +45,9 @@ export function PublishPanel({
 	const postId = useEditorStore((s) => s.postId);
 	const itemType = useEditorStore((s) => s.type);
 	const isDoc = itemType === "doc";
+	const isNewsletter = itemType === "newsletter";
+	const title = useEditorStore((s) => s.title);
+	const setTitle = useEditorStore((s) => s.setTitle);
 	const status = useEditorStore((s) => s.status);
 	const slug = useEditorStore((s) => s.slug);
 	const excerpt = useEditorStore((s) => s.excerpt);
@@ -52,17 +55,20 @@ export function PublishPanel({
 	const seo = useEditorStore((s) => s.seo);
 	const scheduledFor = useEditorStore((s) => s.scheduledFor);
 	const patchMeta = useEditorStore((s) => s.patchMeta);
+	const saveContent = useEditorStore((s) => s.saveContent);
 	const { t } = useTranslation();
 
 	const { data: tags } = useQuery({
 		queryKey: ["tags", "list"],
 		queryFn: () => mockApi.tags.list(),
-		enabled: open && !isDoc,
+		enabled: open && !isDoc && !isNewsletter,
 	});
 
 	const [localStatus, setLocalStatus] = useState<PostStatus>(status);
 	const [localSlug, setLocalSlug] = useState(slug);
 	const [localExcerpt, setLocalExcerpt] = useState(excerpt);
+	const [localSubject, setLocalSubject] = useState(title);
+	const [localCampaignTitle, setLocalCampaignTitle] = useState(slug);
 	const [localTagIds, setLocalTagIds] = useState<string[]>(tagIds);
 	const [scheduleAt, setScheduleAt] = useState(() =>
 		scheduledFor ? toDateTimeLocal(scheduledFor) : "",
@@ -77,21 +83,27 @@ export function PublishPanel({
 			setLocalStatus(status);
 			setLocalSlug(slug);
 			setLocalExcerpt(excerpt);
+			setLocalSubject(title);
+			setLocalCampaignTitle(slug);
 			setLocalTagIds(tagIds);
 			setScheduleAt(scheduledFor ? toDateTimeLocal(scheduledFor) : "");
 			setSeoTitle(seo.metaTitle ?? "");
 			setSeoDescription(seo.metaDescription ?? "");
 		}
-	}, [open, status, slug, excerpt, tagIds, scheduledFor, seo]);
+	}, [open, status, slug, excerpt, title, tagIds, scheduledFor, seo]);
 
 	const handleSave = async () => {
+		if (saveContent) {
+			await saveContent();
+		}
 		const seoPatch: PostSeo = {
 			metaTitle: seoTitle || undefined,
 			metaDescription: seoDescription || undefined,
 		};
 		patchMeta({
 			status: localStatus,
-			slug: localSlug,
+			slug: isNewsletter ? localCampaignTitle : localSlug,
+			title: isNewsletter ? localSubject : title,
 			excerpt: localExcerpt,
 			tagIds: localTagIds,
 			scheduledFor:
@@ -100,9 +112,37 @@ export function PublishPanel({
 					: null,
 			seo: seoPatch,
 		});
+		if (isNewsletter) {
+			setTitle(localSubject);
+		}
 		if (postId) {
 			try {
-				if (isDoc) {
+				if (isNewsletter) {
+					const nlStatus =
+						localStatus === "published"
+							? "sent"
+							: localStatus === "scheduled"
+								? "scheduled"
+								: "draft";
+					await mockApi.newsletters.update(postId, {
+						subject: localSubject || title,
+						title: localCampaignTitle || slug,
+						previewText: localExcerpt || undefined,
+						status: nlStatus,
+						scheduledFor:
+							nlStatus === "scheduled" && scheduleAt
+								? new Date(scheduleAt).getTime()
+								: null,
+					});
+					await queryClient.invalidateQueries({ queryKey: ["newsletters"] });
+					toast.success(
+						nlStatus === "sent"
+							? "Newsletter sent"
+							: nlStatus === "scheduled"
+								? "Newsletter scheduled"
+								: "Newsletter issue saved",
+					);
+				} else if (isDoc) {
 					await mockApi.docs.updatePage(postId, {
 						status: localStatus === "published" ? "published" : "draft",
 						slug: localSlug,
@@ -159,181 +199,265 @@ export function PublishPanel({
 			>
 				<SheetHeader>
 					<SheetTitle>
-						{isDoc ? "Document Settings" : "Post settings"}
+						{isNewsletter
+							? "Newsletter Settings"
+							: isDoc
+								? "Document Settings"
+								: "Post settings"}
 					</SheetTitle>
 				</SheetHeader>
 
 				<div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4 sheet-content-scroll">
-					<TranslationsSection onNavigate={() => onOpenChange(false)} />
-
-					<div className="h-px w-full bg-border/60" />
-
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="publish-status">Status</Label>
-						<Select
-							value={localStatus}
-							onValueChange={(value) => setLocalStatus(value as PostStatus)}
-						>
-							<SelectTrigger id="publish-status" className="w-full">
-								<SelectValue placeholder="Select a status" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectGroup>
-									<SelectItem value="draft">Draft</SelectItem>
-									<SelectItem value="published">Published</SelectItem>
-									<SelectItem value="scheduled">Scheduled</SelectItem>
-								</SelectGroup>
-							</SelectContent>
-						</Select>
-					</div>
-
-					{!isDoc && localStatus === "scheduled" && (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="publish-schedule">Publish at</Label>
-							<Input
-								id="publish-schedule"
-								type="datetime-local"
-								value={scheduleAt}
-								onChange={(e) => setScheduleAt(e.target.value)}
-							/>
-						</div>
-					)}
-
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="publish-slug">Slug</Label>
-						<div className="flex items-center gap-1">
-							<span className="text-xs text-muted-foreground">
-								{isDoc ? "/docs/" : "/"}
-							</span>
-							<Input
-								id="publish-slug"
-								value={localSlug}
-								onChange={(e) => {
-									const val = e.target.value
-										.toLowerCase()
-										.replace(/\s+/g, "-")
-										.replace(/[^a-z0-9-]/g, "");
-									setLocalSlug(val);
-								}}
-								onBlur={() => setLocalSlug(slugify(localSlug))}
-								placeholder={isDoc ? "doc-slug" : "post-url-slug"}
-							/>
-						</div>
-						{!localSlug && (
-							<p className="text-xs text-muted-foreground">
-								Slug is empty. Type a title in the editor to generate one.
-							</p>
-						)}
-					</div>
-
-					{!isDoc && (
+					{isNewsletter ? (
 						<>
 							<div className="flex flex-col gap-2">
-								<Label htmlFor="publish-excerpt">Excerpt</Label>
+								<Label htmlFor="nl-subject">Subject Line</Label>
+								<Input
+									id="nl-subject"
+									value={localSubject}
+									onChange={(e) => setLocalSubject(e.target.value)}
+									placeholder="Email subject line shown in inbox..."
+								/>
+							</div>
+
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="nl-campaign-title">
+									Internal Campaign Name
+								</Label>
+								<Input
+									id="nl-campaign-title"
+									value={localCampaignTitle}
+									onChange={(e) => setLocalCampaignTitle(e.target.value)}
+									placeholder="e.g. Issue #14 - Product Updates"
+								/>
+							</div>
+
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="nl-preview-text">
+									Preview Text (Preheader)
+								</Label>
 								<Textarea
-									id="publish-excerpt"
+									id="nl-preview-text"
 									value={localExcerpt}
 									onChange={(e) => setLocalExcerpt(e.target.value)}
-									placeholder="A short summary shown in post lists and search results…"
+									placeholder="A short preview snippet displayed next to the subject..."
 									className="min-h-20"
 								/>
 							</div>
 
 							<div className="flex flex-col gap-2">
-								<Label>Tags</Label>
-								<div className="flex flex-wrap gap-1.5">
-									{(tags ?? []).map((tag) => {
-										const selected = localTagIds.includes(tag.id);
-										return (
-											<button
-												key={tag.id}
-												type="button"
-												onClick={() => toggleTag(tag.id)}
-												className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-											>
-												<Badge
-													variant={selected ? "default" : "outline"}
-													className="cursor-pointer gap-1"
-												>
-													<span
-														className="size-2 rounded-full"
-														style={{ backgroundColor: tag.color }}
-														aria-hidden
-													/>
-													{tag.name}
-													{selected && <XIcon className="size-3!" />}
-												</Badge>
-											</button>
-										);
-									})}
-									{(tags ?? []).length === 0 && (
-										<p className="text-xs text-muted-foreground">
-											No tags yet.
-										</p>
-									)}
-								</div>
+								<Label htmlFor="nl-status">Status</Label>
+								<Select
+									value={localStatus}
+									onValueChange={(value) => setLocalStatus(value as PostStatus)}
+								>
+									<SelectTrigger id="nl-status" className="w-full">
+										<SelectValue placeholder="Select a status" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectGroup>
+											<SelectItem value="draft">Draft</SelectItem>
+											<SelectItem value="scheduled">Scheduled</SelectItem>
+											<SelectItem value="published">
+												Sent (Broadcast)
+											</SelectItem>
+										</SelectGroup>
+									</SelectContent>
+								</Select>
 							</div>
+
+							{localStatus === "scheduled" && (
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="nl-schedule">Broadcast At</Label>
+									<Input
+										id="nl-schedule"
+										type="datetime-local"
+										value={scheduleAt}
+										onChange={(e) => setScheduleAt(e.target.value)}
+									/>
+								</div>
+							)}
+						</>
+					) : (
+						<>
+							<TranslationsSection onNavigate={() => onOpenChange(false)} />
+
+							<div className="h-px w-full bg-border/60" />
+
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="publish-status">Status</Label>
+								<Select
+									value={localStatus}
+									onValueChange={(value) => setLocalStatus(value as PostStatus)}
+								>
+									<SelectTrigger id="publish-status" className="w-full">
+										<SelectValue placeholder="Select a status" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectGroup>
+											<SelectItem value="draft">Draft</SelectItem>
+											<SelectItem value="published">Published</SelectItem>
+											<SelectItem value="scheduled">Scheduled</SelectItem>
+										</SelectGroup>
+									</SelectContent>
+								</Select>
+							</div>
+
+							{!isDoc && localStatus === "scheduled" && (
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="publish-schedule">Publish at</Label>
+									<Input
+										id="publish-schedule"
+										type="datetime-local"
+										value={scheduleAt}
+										onChange={(e) => setScheduleAt(e.target.value)}
+									/>
+								</div>
+							)}
+
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="publish-slug">Slug</Label>
+								<div className="flex items-center gap-1">
+									<span className="text-xs text-muted-foreground">
+										{isDoc ? "/docs/" : "/"}
+									</span>
+									<Input
+										id="publish-slug"
+										value={localSlug}
+										onChange={(e) => {
+											const val = e.target.value
+												.toLowerCase()
+												.replace(/\s+/g, "-")
+												.replace(/[^a-z0-9-]/g, "");
+											setLocalSlug(val);
+										}}
+										onBlur={() => setLocalSlug(slugify(localSlug))}
+										placeholder={isDoc ? "doc-slug" : "post-url-slug"}
+									/>
+								</div>
+								{!localSlug && (
+									<p className="text-xs text-muted-foreground">
+										Slug is empty. Type a title in the editor to generate one.
+									</p>
+								)}
+							</div>
+
+							{!isDoc && (
+								<>
+									<div className="flex flex-col gap-2">
+										<Label htmlFor="publish-excerpt">Excerpt</Label>
+										<Textarea
+											id="publish-excerpt"
+											value={localExcerpt}
+											onChange={(e) => setLocalExcerpt(e.target.value)}
+											placeholder="A short summary shown in post lists and search results…"
+											className="min-h-20"
+										/>
+									</div>
+
+									<div className="flex flex-col gap-2">
+										<Label>Tags</Label>
+										<div className="flex flex-wrap gap-1.5">
+											{(tags ?? []).map((tag) => {
+												const selected = localTagIds.includes(tag.id);
+												return (
+													<button
+														key={tag.id}
+														type="button"
+														onClick={() => toggleTag(tag.id)}
+														className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+													>
+														<Badge
+															variant={selected ? "default" : "outline"}
+															className="cursor-pointer gap-1"
+														>
+															<span
+																className="size-2 rounded-full"
+																style={{ backgroundColor: tag.color }}
+																aria-hidden
+															/>
+															{tag.name}
+															{selected && <XIcon className="size-3!" />}
+														</Badge>
+													</button>
+												);
+											})}
+											{(tags ?? []).length === 0 && (
+												<p className="text-xs text-muted-foreground">
+													No tags yet.
+												</p>
+											)}
+										</div>
+									</div>
+								</>
+							)}
+
+							<Collapsible>
+								<CollapsibleTrigger
+									render={
+										<Button
+											variant="ghost"
+											size="sm"
+											className="flex w-full items-center justify-between px-2"
+										/>
+									}
+								>
+									<span className="font-medium">SEO</span>
+									<ChevronDownIcon className="size-4" />
+								</CollapsibleTrigger>
+								<CollapsibleContent className="flex flex-col gap-3 pt-3">
+									<div className="flex flex-col gap-2">
+										<Label htmlFor="seo-title">Meta title</Label>
+										<Input
+											id="seo-title"
+											value={seoTitle}
+											onChange={(e) => setSeoTitle(e.target.value)}
+											placeholder="Defaults to the post title"
+										/>
+										<p className="text-xs text-muted-foreground">
+											{seoTitle.length}/60 characters
+										</p>
+									</div>
+									<div className="flex flex-col gap-2">
+										<Label htmlFor="seo-description">Meta description</Label>
+										<Textarea
+											id="seo-description"
+											value={seoDescription}
+											onChange={(e) => setSeoDescription(e.target.value)}
+											placeholder="Defaults to the post excerpt"
+											className="min-h-16"
+										/>
+										<p className="text-xs text-muted-foreground">
+											{seoDescription.length}/160 characters
+										</p>
+									</div>
+								</CollapsibleContent>
+							</Collapsible>
 						</>
 					)}
-
-					<Collapsible>
-						<CollapsibleTrigger
-							render={
-								<Button
-									variant="ghost"
-									size="sm"
-									className="flex w-full items-center justify-between px-2"
-								/>
-							}
-						>
-							<span className="font-medium">SEO</span>
-							<ChevronDownIcon className="size-4" />
-						</CollapsibleTrigger>
-						<CollapsibleContent className="flex flex-col gap-3 pt-3">
-							<div className="flex flex-col gap-2">
-								<Label htmlFor="seo-title">Meta title</Label>
-								<Input
-									id="seo-title"
-									value={seoTitle}
-									onChange={(e) => setSeoTitle(e.target.value)}
-									placeholder="Defaults to the post title"
-								/>
-								<p className="text-xs text-muted-foreground">
-									{seoTitle.length}/60 characters
-								</p>
-							</div>
-							<div className="flex flex-col gap-2">
-								<Label htmlFor="seo-description">Meta description</Label>
-								<Textarea
-									id="seo-description"
-									value={seoDescription}
-									onChange={(e) => setSeoDescription(e.target.value)}
-									placeholder="Defaults to the post excerpt"
-									className="min-h-16"
-								/>
-								<p className="text-xs text-muted-foreground">
-									{seoDescription.length}/160 characters
-								</p>
-							</div>
-						</CollapsibleContent>
-					</Collapsible>
 				</div>
 
 				<SheetFooter>
 					<Button onClick={handleSave}>
-						{isDoc
+						{isNewsletter
 							? localStatus === "published"
-								? status === "published"
-									? "Save document"
-									: "Publish document"
-								: "Save draft"
-							: localStatus === "published"
-								? status === "published"
-									? t("posts.delivery.saveChanges")
-									: "Publish post"
+								? "Send newsletter"
 								: localStatus === "scheduled"
-									? "Schedule"
-									: "Save draft"}
+									? "Schedule issue"
+									: "Save draft"
+							: isDoc
+								? localStatus === "published"
+									? status === "published"
+										? "Save document"
+										: "Publish document"
+									: "Save draft"
+								: localStatus === "published"
+									? status === "published"
+										? t("posts.delivery.saveChanges")
+										: "Publish post"
+									: localStatus === "scheduled"
+										? "Schedule"
+										: "Save draft"}
 					</Button>
 				</SheetFooter>
 			</SheetContent>

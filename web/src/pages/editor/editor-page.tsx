@@ -1,31 +1,124 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router-dom";
+import { toast } from "sonner";
 import { DocsTree } from "@/components/docs/docs-tree";
 import Editor from "@/components/editor/editor";
 import { PublishPanel } from "@/components/editor/publish-panel";
+import { ReviewActionBar } from "@/components/editor/review-action-bar";
+import { ReviewLockBanner } from "@/components/editor/review-lock-banner";
+import { SubmitReviewDialog } from "@/components/editor/submit-review-dialog";
+import { VersionHistoryDrawer } from "@/components/editor/version-history-drawer";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
-import type { DocNavigationManifest, DocTreeItem } from "@/types/domain";
+import type {
+	DocNavigationManifest,
+	DocTreeItem,
+	ReviewTargetType,
+} from "@/types/domain";
 
 export default function EditorPage() {
+	const queryClient = useQueryClient();
 	const { id } = useParams<{ id: string }>();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const searchParams = new URLSearchParams(location.search);
+	const [searchParams, setSearchParams] = useSearchParams();
 	const projectId = searchParams.get("project") || undefined;
+	const activeLocale = searchParams.get("lang") || "en";
 	const isDoc = location.pathname.startsWith("/editor/doc");
 	const isNewsletter = location.pathname.startsWith("/editor/newsletter");
 	const isNew = id === "new";
 	const loadPost = useEditorStore((s) => s.loadPost);
 	const loadDoc = useEditorStore((s) => s.loadDoc);
 	const loadNewsletter = useEditorStore((s) => s.loadNewsletter);
+	const resetStore = useEditorStore((s) => s.reset);
 	const postId = useEditorStore((s) => s.postId);
 	const activeTitle = useEditorStore((s) => s.title);
 	const [publishOpen, setPublishOpen] = React.useState(false);
+	const [submitReviewOpen, setSubmitReviewOpen] = React.useState(false);
+	const [historyDrawerOpen, setHistoryDrawerOpen] = React.useState(false);
 	const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+	const [docToDelete, setDocToDelete] = React.useState<string | null>(null);
+	const [deletingDoc, setDeletingDoc] = React.useState(false);
 	const creatingRef = React.useRef(false);
+
+	const reviewQueryId = searchParams.get("review") || undefined;
+	const targetType: ReviewTargetType = isDoc ? "doc" : "post";
+
+	// Current active user for RBAC simulation
+	const { data: currentUser } = useQuery({
+		queryKey: ["current-user"],
+		queryFn: () => mockApi.users.current(),
+	});
+
+	// Pending or targeted review query
+	const { data: pendingReview } = useQuery({
+		queryKey: ["reviews", id, reviewQueryId],
+		queryFn: async () => {
+			if (!id || isNew) return null;
+			if (reviewQueryId) {
+				const req = await mockApi.reviews.get(reviewQueryId);
+				if (req) return req;
+			}
+			return mockApi.reviews.getPending(targetType, id);
+		},
+		enabled: !isNew && Boolean(id) && !isNewsletter,
+	});
+
+	const isContributor = currentUser?.role === "contributor";
+	const isReviewLocked = pendingReview?.status === "in_review";
+	const isEditorOrAdmin =
+		currentUser?.role === "admin" ||
+		currentUser?.role === "editor" ||
+		currentUser?.role === "owner";
+
+	// Review lock banner or Editor review action bar
+	const reviewBanner = React.useMemo(() => {
+		if (pendingReview?.status !== "in_review") return null;
+
+		if (isContributor) {
+			return (
+				<ReviewLockBanner
+					review={pendingReview}
+					currentUser={currentUser ?? undefined}
+				/>
+			);
+		}
+
+		if (isEditorOrAdmin) {
+			return (
+				<ReviewActionBar
+					review={pendingReview}
+					onApproved={() => setPublishOpen(false)}
+				/>
+			);
+		}
+
+		return null;
+	}, [pendingReview, isContributor, isEditorOrAdmin, currentUser]);
+
+	// Cleanly reset editor store when transitioning between documents/translations
+	React.useEffect(() => {
+		if (id && postId && id !== postId) {
+			resetStore();
+		}
+	}, [id, postId, resetStore]);
 
 	// Load Post if editing a post
 	const {
@@ -60,14 +153,26 @@ export default function EditorPage() {
 		enabled: isDoc && !isNew && Boolean(id),
 	});
 
-	const docLocale = useEditorStore((s) => s.locale) || "en";
-
-	// Docs Navigation manifest for this project
+	// Docs Navigation manifest for this project and active workspace locale
 	const { data: navData } = useQuery({
-		queryKey: ["docs-navigation", projectId, docLocale],
-		queryFn: () => mockApi.docs.getNavigation(projectId, docLocale),
+		queryKey: ["docs-navigation", projectId, activeLocale],
+		queryFn: () => mockApi.docs.getNavigation(projectId, activeLocale),
 		enabled: isDoc,
 	});
+
+	// Synchronize URL search params if doc has a locale and URL hasn't set one yet
+	React.useEffect(() => {
+		if (isDoc && doc?.locale && !searchParams.get("lang")) {
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					next.set("lang", doc.locale);
+					return next;
+				},
+				{ replace: true },
+			);
+		}
+	}, [isDoc, doc?.locale, searchParams, setSearchParams]);
 
 	const [manifest, setManifest] = React.useState<DocNavigationManifest | null>(
 		null,
@@ -209,25 +314,42 @@ export default function EditorPage() {
 			projectId,
 		});
 		setManifest(navigation);
+		queryClient.setQueryData(
+			["docs-navigation", projectId, activeLocale],
+			navigation,
+		);
 		navigate(
-			`/editor/doc/${page.id}${projectId ? `?project=${projectId}` : ""}`,
+			`/editor/doc/${page.id}?${projectId ? `project=${projectId}&` : ""}lang=${activeLocale}`,
 		);
 	};
 
-	const handleDeleteDoc = async (docId: string) => {
-		if (window.confirm("Delete this document and all sub-pages?")) {
-			const updated = await mockApi.docs.deletePage(docId, projectId);
+	const handleDeleteDoc = (docId: string) => {
+		setDocToDelete(docId);
+	};
+
+	const handleConfirmDeleteDoc = async () => {
+		if (!docToDelete || deletingDoc) return;
+		setDeletingDoc(true);
+		try {
+			const updated = await mockApi.docs.deletePage(docToDelete, projectId);
 			setManifest(updated);
-			if (docId === id) {
+			queryClient.setQueryData(
+				["docs-navigation", projectId, activeLocale],
+				updated,
+			);
+			if (docToDelete === id) {
 				const nextDoc = updated.items[0]?.id;
 				if (nextDoc) {
 					navigate(
-						`/editor/doc/${nextDoc}${projectId ? `?project=${projectId}` : ""}`,
+						`/editor/doc/${nextDoc}?${projectId ? `project=${projectId}&` : ""}lang=${activeLocale}`,
 					);
 				} else {
 					navigate("/docs");
 				}
 			}
+			setDocToDelete(null);
+		} finally {
+			setDeletingDoc(false);
 		}
 	};
 
@@ -252,6 +374,29 @@ export default function EditorPage() {
 		);
 	};
 
+	const handleSelectLocale = async (newLocale: string) => {
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				next.set("lang", newLocale);
+				return next;
+			},
+			{ replace: true },
+		);
+
+		// If current doc has a translation in newLocale, seamlessly switch to it!
+		if (doc) {
+			const groupId = doc.translationGroupId || doc.id;
+			const translations = await mockApi.docs.getTranslations(groupId);
+			const translatedDoc = translations.find((t) => t.locale === newLocale);
+			if (translatedDoc && translatedDoc.id !== id) {
+				navigate(
+					`/editor/doc/${translatedDoc.id}?${projectId ? `project=${projectId}&` : ""}lang=${newLocale}`,
+				);
+			}
+		}
+	};
+
 	const docsSidebar =
 		isDoc && manifest ? (
 			<DocsTree
@@ -259,30 +404,99 @@ export default function EditorPage() {
 				selectedDocId={id || null}
 				onSelectDoc={(docId) =>
 					navigate(
-						`/editor/doc/${docId}${projectId ? `?project=${projectId}` : ""}`,
+						`/editor/doc/${docId}?${projectId ? `project=${projectId}&` : ""}lang=${activeLocale}`,
 					)
 				}
 				onUpdateManifest={async (upd) => {
 					setManifest(upd);
-					await mockApi.docs.updateNavigation(upd.items, projectId);
+					queryClient.setQueryData(
+						["docs-navigation", projectId, activeLocale],
+						upd,
+					);
+					try {
+						const saved = await mockApi.docs.updateNavigation(
+							upd.items,
+							projectId,
+							activeLocale,
+						);
+						setManifest(saved);
+						queryClient.setQueryData(
+							["docs-navigation", projectId, activeLocale],
+							saved,
+						);
+					} catch (_err) {
+						toast.error("Failed to save navigation order");
+					}
 				}}
 				onAddDoc={handleAddDoc}
 				onDeleteDoc={handleDeleteDoc}
 				onRenameDoc={handleRenameDoc}
+				selectedLocale={activeLocale}
+				onSelectLocale={handleSelectLocale}
 			/>
 		) : undefined;
 
 	return (
 		<>
 			<Editor
-				key={id}
+				key={`${id}-${currentUser?.role}-${isReviewLocked && isContributor ? "locked" : "editable"}`}
 				onPublish={() => setPublishOpen(true)}
 				backUrl={isNewsletter ? "/newsletters" : isDoc ? "/docs" : "/posts"}
 				sidebar={docsSidebar}
 				isSidebarOpen={isSidebarOpen}
 				onToggleSidebar={() => setIsSidebarOpen((v) => !v)}
+				readOnly={isReviewLocked && isContributor}
+				isContributor={isContributor}
+				isLocked={isReviewLocked}
+				onSubmitReview={() => setSubmitReviewOpen(true)}
+				onHistory={() => setHistoryDrawerOpen(true)}
+				banner={reviewBanner}
 			/>
 			<PublishPanel open={publishOpen} onOpenChange={setPublishOpen} />
+
+			{/* Contributor Submit for Review Dialog */}
+			<SubmitReviewDialog
+				open={submitReviewOpen}
+				onOpenChange={setSubmitReviewOpen}
+				targetType={targetType}
+				targetId={id as string}
+				title={activeTitle}
+			/>
+
+			{/* Version History Drawer */}
+			<VersionHistoryDrawer
+				open={historyDrawerOpen}
+				onOpenChange={setHistoryDrawerOpen}
+				targetType={targetType}
+				targetId={id as string}
+				currentTitle={activeTitle}
+			/>
+
+			{/* Delete Page Alert Dialog */}
+			<AlertDialog
+				open={Boolean(docToDelete)}
+				onOpenChange={(open) => !open && setDocToDelete(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Document?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Are you sure you want to delete this document and all nested
+							sub-pages? This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deletingDoc}>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							variant="destructive"
+							onClick={handleConfirmDeleteDoc}
+							disabled={deletingDoc}
+						>
+							{deletingDoc ? "Deleting..." : "Delete Document"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</>
 	);
 }

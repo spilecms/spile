@@ -4,7 +4,7 @@ export type PostStatus = "draft" | "published" | "scheduled" | "trashed";
 
 export type PostType = "post";
 
-export type UserRole = "owner" | "admin" | "editor" | "author";
+export type UserRole = "owner" | "admin" | "editor" | "author" | "contributor";
 
 export interface User {
 	id: string;
@@ -177,12 +177,14 @@ export interface DocTreeItem {
 	id: string;
 	parentId?: string | null;
 	translationGroupId?: string;
+	sourceDocId?: string;
 	locale?: string;
 	title?: string;
 	slug?: string;
 	icon?: string;
 	status?: DocPageStatus;
 	children?: DocTreeItem[];
+	hasTranslation?: boolean;
 }
 
 export interface DocNavigationManifest {
@@ -263,5 +265,71 @@ export interface Webhook {
 	url: string;
 	events: string[];
 	active: boolean;
+	createdAt: number;
+}
+
+// --- Editorial Review & Versioning System ---
+export type ReviewTargetType = "post" | "doc";
+
+export type RevisionStatus =
+	| "draft"
+	| "in_review"
+	| "approved"
+	| "published"
+	| "changes_requested";
+
+export interface ContentRevision {
+	id: string;
+	targetType: ReviewTargetType;
+	targetId: string;
+	versionNumber: number; // 1, 2, 3 -> e.g. "v1.0"
+	versionLabel: string; // e.g. "v1.0", "v2.0"
+	title: string;
+	summary?: string; // Change summary / commit note
+	content: OutputData | null;
+	authorId: string;
+	authorName: string;
+	status: RevisionStatus;
+	createdAt: number;
+}
+
+export type ReviewStatus =
+	| "in_review"
+	| "approved"
+	| "changes_requested"
+	| "withdrawn";
+
+export interface ReviewRequest {
+	id: string;
+	targetType: ReviewTargetType;
+	targetId: string;
+	targetTitle: string;
+	revisionId: string;
+	authorId: string;
+	authorName: string;
+	reviewerId?: string;
+	reviewerName?: string;
+	summary: string; // Commit note / change description
+	status: ReviewStatus;
+	reviewNotes?: string; // Feedback from reviewer
+	createdAt: number;
+	updatedAt: number;
+}
+
+export type NotificationType =
+	| "review_requested"
+	| "review_approved"
+	| "changes_requested"
+	| "review_withdrawn";
+
+export interface Notification {
+	id: string;
+	type: NotificationType;
+	title: string;
+	message: string;
+	targetType: ReviewTargetType;
+	targetId: string;
+	reviewId?: string;
+	read: boolean;
 	createdAt: number;
 }

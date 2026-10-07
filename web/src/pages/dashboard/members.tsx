@@ -17,7 +17,6 @@ import { HeaderActions } from "@/components/dashboard/header-actions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -153,6 +152,9 @@ export default function MembersPage() {
 		const unconfirmed = allMembers.filter(
 			(m) => m.status === "unconfirmed",
 		).length;
+		const left = allMembers.filter(
+			(m) => m.status === "unsubscribed" || m.status === "bounced",
+		).length;
 		const openRates = allMembers
 			.filter((m) => m.status === "active" && m.openRate !== undefined)
 			.map((m) => m.openRate || 0);
@@ -162,7 +164,20 @@ export default function MembersPage() {
 				)
 			: 0;
 
-		return { total, active, unconfirmed, avgOpenRate };
+		const activePct = total > 0 ? (active / total) * 100 : 0;
+		const unconfirmedPct = total > 0 ? (unconfirmed / total) * 100 : 0;
+		const leftPct = total > 0 ? (left / total) * 100 : 0;
+
+		return {
+			total,
+			active,
+			unconfirmed,
+			left,
+			avgOpenRate,
+			activePct,
+			unconfirmedPct,
+			leftPct,
+		};
 	}, [allMembers]);
 
 	const createMutation = useMutation({
@@ -267,48 +282,73 @@ export default function MembersPage() {
 				</div>
 			</HeaderActions>
 
-			{/* Stats Cards */}
-			<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-				<Card className="shadow-xs">
-					<CardContent className="p-4">
-						<p className="text-xs font-medium text-muted-foreground">
-							Total Subscribers
-						</p>
-						<p className="mt-1 text-2xl font-bold">
-							{formatNumber(stats.total)}
-						</p>
-					</CardContent>
-				</Card>
-				<Card className="shadow-xs">
-					<CardContent className="p-4">
-						<p className="text-xs font-medium text-muted-foreground">
-							Active Members
-						</p>
-						<p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-							{formatNumber(stats.active)}
-						</p>
-					</CardContent>
-				</Card>
-				<Card className="shadow-xs">
-					<CardContent className="p-4">
-						<p className="text-xs font-medium text-muted-foreground">
-							Average Open Rate
-						</p>
-						<p className="mt-1 text-2xl font-bold text-primary">
-							{stats.avgOpenRate}%
-						</p>
-					</CardContent>
-				</Card>
-				<Card className="shadow-xs">
-					<CardContent className="p-4">
-						<p className="text-xs font-medium text-muted-foreground">
-							Pending Confirmation
-						</p>
-						<p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">
-							{formatNumber(stats.unconfirmed)}
-						</p>
-					</CardContent>
-				</Card>
+			{/* Slim Summary Strip */}
+			<div className="flex flex-col gap-2.5 rounded-lg border border-border/60 bg-muted/30 dark:bg-zinc-900/40 px-4 py-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between shadow-2xs">
+				{/* Left: Total & Engagement */}
+				<div className="flex flex-wrap items-center gap-2">
+					<span className="font-semibold text-foreground text-sm">
+						{formatNumber(stats.total)}{" "}
+						{stats.total === 1 ? "member" : "members"}
+					</span>
+					<span className="text-muted-foreground/40">·</span>
+					<span className="font-semibold text-foreground">
+						{stats.avgOpenRate}%
+					</span>
+					<span>avg open rate</span>
+					<span className="font-medium text-emerald-600 dark:text-emerald-400">
+						+3%
+					</span>
+				</div>
+
+				{/* Right: Segmented Distribution Bar & Breakdown */}
+				<div className="flex flex-wrap items-center gap-3">
+					<div className="flex h-2 w-28 sm:w-44 overflow-hidden rounded-full bg-muted dark:bg-zinc-800">
+						{stats.activePct > 0 && (
+							<div
+								style={{ width: `${stats.activePct}%` }}
+								className="h-full bg-emerald-500 transition-all duration-300"
+								title={`Active: ${stats.active} (${Math.round(stats.activePct)}%)`}
+							/>
+						)}
+						{stats.unconfirmedPct > 0 && (
+							<div
+								style={{ width: `${stats.unconfirmedPct}%` }}
+								className="h-full bg-amber-500 transition-all duration-300"
+								title={`Pending: ${stats.unconfirmed} (${Math.round(stats.unconfirmedPct)}%)`}
+							/>
+						)}
+						{stats.leftPct > 0 && (
+							<div
+								style={{ width: `${stats.leftPct}%` }}
+								className="h-full bg-zinc-400 dark:bg-zinc-600 transition-all duration-300"
+								title={`Left: ${stats.left} (${Math.round(stats.leftPct)}%)`}
+							/>
+						)}
+					</div>
+
+					<div className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+						<span>
+							<strong className="font-semibold text-foreground">
+								{stats.active}
+							</strong>{" "}
+							active
+						</span>
+						<span className="text-muted-foreground/40">·</span>
+						<span>
+							<strong className="font-semibold text-foreground">
+								{stats.unconfirmed}
+							</strong>{" "}
+							pending
+						</span>
+						<span className="text-muted-foreground/40">·</span>
+						<span>
+							<strong className="font-semibold text-foreground">
+								{stats.left}
+							</strong>{" "}
+							left
+						</span>
+					</div>
+				</div>
 			</div>
 
 			{/* Filters & Search */}

@@ -1,7 +1,9 @@
+import type { OutputData } from "@editorjs/editorjs";
 import type {
 	ActivityItem,
 	AiSettings,
 	ApiKey,
+	ContentRevision,
 	DocNavigationManifest,
 	DocPage,
 	DocPagePatch,
@@ -15,13 +17,16 @@ import type {
 	Newsletter,
 	NewsletterListParams,
 	NewsletterPatch,
+	Notification,
 	OverviewStats,
 	Post,
 	PostListParams,
 	PostPatch,
+	ReviewRequest,
 	StorageSettings,
 	Tag,
 	User,
+	UserRole,
 	ViewsPoint,
 	ViewsRange,
 	Webhook,
@@ -34,7 +39,10 @@ import {
 	docProjects as seedDocProjects,
 	members as seedMembers,
 	newsletters as seedNewsletters,
+	notifications as seedNotifications,
 	posts as seedPosts,
+	reviewRequests as seedReviewRequests,
+	revisions as seedRevisions,
 	stats as seedStats,
 	tags as seedTags,
 	users as seedUsers,
@@ -62,6 +70,16 @@ let nextProjectId = docProjectsList.length + 1;
 
 let tagsList: Tag[] = [...seedTags];
 const usersList: User[] = [...seedUsers];
+let activeUser: User = { ...usersList[0] };
+const revisionsList: ContentRevision[] = JSON.parse(
+	JSON.stringify(seedRevisions),
+);
+const reviewRequestsList: ReviewRequest[] = JSON.parse(
+	JSON.stringify(seedReviewRequests),
+);
+const notificationsList: Notification[] = JSON.parse(
+	JSON.stringify(seedNotifications),
+);
 let workspaceLocalesList: WorkspaceLocale[] = [...workspaceLocales];
 
 let storageSettingsData: StorageSettings = {
@@ -129,6 +147,7 @@ function hydrateTreeItem(
 	const directPage = pageMap.get(item.id);
 	// If a specific locale is requested, check if a translation exists for this group
 	let page = directPage;
+	let hasTranslation = false;
 	if (directPage) {
 		const groupId = directPage.translationGroupId || directPage.id;
 		const localized = allPages.find(
@@ -136,17 +155,22 @@ function hydrateTreeItem(
 		);
 		if (localized) {
 			page = localized;
+			hasTranslation = true;
+		} else if (directPage.locale === locale) {
+			hasTranslation = true;
 		}
 	}
 
 	return {
 		id: page?.id ?? item.id,
+		sourceDocId: directPage?.id ?? item.id,
 		translationGroupId:
 			page?.translationGroupId ?? directPage?.translationGroupId,
 		locale: page?.locale ?? directPage?.locale ?? locale,
 		title: page?.title ?? "Untitled Document",
 		slug: page?.slug ?? item.id,
 		status: page?.status ?? "draft",
+		hasTranslation,
 		children: item.children?.map((child) =>
 			hydrateTreeItem(child, pageMap, locale, allPages),
 		),
@@ -347,12 +371,30 @@ export const mockApi = {
 	},
 	users: {
 		async current(): Promise<User> {
-			await delay(50);
-			return { ...currentUser };
+			await delay(20);
+			return { ...activeUser };
 		},
 		async list(): Promise<User[]> {
-			await delay(50);
+			await delay(20);
 			return usersList.map((user) => ({ ...user }));
+		},
+		async switchRole(role: UserRole): Promise<User> {
+			await delay(20);
+			const matchingUser = usersList.find((u) => u.role === role);
+			if (matchingUser) {
+				activeUser = { ...matchingUser };
+			} else {
+				activeUser = { ...activeUser, role };
+			}
+			return { ...activeUser };
+		},
+		async setCurrentUser(userId: string): Promise<User> {
+			await delay(20);
+			const found = usersList.find((u) => u.id === userId);
+			if (found) {
+				activeUser = { ...found };
+			}
+			return { ...activeUser };
 		},
 		async invite(email: string, role: string): Promise<User> {
 			await delay(100);
@@ -804,11 +846,17 @@ export const mockApi = {
 		async updateNavigation(
 			items: DocTreeItem[],
 			projectId?: string,
+			locale: string = "en",
 		): Promise<DocNavigationManifest> {
 			await delay(150);
+			const pageMap = new Map(docPagesList.map((p) => [p.id, p]));
 			function cleanTreeItem(item: DocTreeItem): DocTreeItem {
+				const page = pageMap.get(item.id);
+				// Canonical ID is the default locale / source ID, or translationGroupId
+				const canonicalId =
+					page?.translationSourceId || page?.translationGroupId || item.id;
 				return {
-					id: item.id,
+					id: canonicalId,
 					children: item.children?.map(cleanTreeItem),
 				};
 			}
@@ -824,13 +872,18 @@ export const mockApi = {
 				targetProj.updatedAt = Date.now();
 				return {
 					...targetProj.navigation,
-					items: hydrateTreeItems(targetProj.navigation.items, docPagesList),
+					locale,
+					items: hydrateTreeItems(
+						targetProj.navigation.items,
+						docPagesList,
+						locale,
+					),
 				};
 			}
 
 			return {
 				id: "empty",
-				locale: "en",
+				locale,
 				items: [],
 				updatedAt: Date.now(),
 			};
@@ -1008,18 +1061,6 @@ export const mockApi = {
 
 			docPagesList.push(newDocPage);
 
-			// Also link into the project's navigation if available
-			const proj =
-				source.projectId || options?.projectId
-					? docProjectsList.find(
-							(p) => p.id === (source.projectId || options?.projectId),
-						)
-					: docProjectsList[0];
-			if (proj) {
-				proj.navigation.items.push({ id: newId });
-				proj.updatedAt = Date.now();
-			}
-
 			return { ...newDocPage };
 		},
 		async updatePage(id: string, patch: DocPagePatch): Promise<DocPage> {
@@ -1070,6 +1111,288 @@ export const mockApi = {
 				};
 			}
 			return { id: "empty", locale: "en", items: [], updatedAt: Date.now() };
+		},
+	},
+
+	revisions: {
+		async list(
+			targetType: "post" | "doc",
+			targetId: string,
+		): Promise<ContentRevision[]> {
+			await delay(40);
+			return revisionsList
+				.filter((r) => r.targetType === targetType && r.targetId === targetId)
+				.sort((a, b) => b.createdAt - a.createdAt)
+				.map((r) => ({ ...r }));
+		},
+		async get(id: string): Promise<ContentRevision | null> {
+			await delay(30);
+			const found = revisionsList.find((r) => r.id === id);
+			return found ? { ...found } : null;
+		},
+		async create(data: {
+			targetType: "post" | "doc";
+			targetId: string;
+			title: string;
+			content: OutputData;
+			summary?: string;
+			status?: ContentRevision["status"];
+		}): Promise<ContentRevision> {
+			await delay(50);
+			const targetRevs = revisionsList.filter(
+				(r) => r.targetType === data.targetType && r.targetId === data.targetId,
+			);
+			const nextVer = targetRevs.length + 1;
+			const newRev: ContentRevision = {
+				id: `rev-${Date.now()}`,
+				targetType: data.targetType,
+				targetId: data.targetId,
+				versionNumber: nextVer,
+				versionLabel: `v${nextVer}.0`,
+				title: data.title,
+				summary: data.summary || "Draft revision",
+				content: data.content,
+				authorId: activeUser.id,
+				authorName: activeUser.name,
+				status: data.status || "draft",
+				createdAt: Date.now(),
+			};
+			revisionsList.push(newRev);
+			return { ...newRev };
+		},
+		async restore(revisionId: string): Promise<ContentRevision> {
+			await delay(80);
+			const targetRev = revisionsList.find((r) => r.id === revisionId);
+			if (!targetRev) throw new Error("Revision not found");
+
+			if (targetRev.targetType === "post") {
+				const p = posts.find((item) => item.id === targetRev.targetId);
+				if (p) {
+					p.title = targetRev.title;
+					p.content = targetRev.content;
+					p.updatedAt = Date.now();
+				}
+			} else {
+				const d = docPagesList.find((item) => item.id === targetRev.targetId);
+				if (d) {
+					d.title = targetRev.title;
+					d.content = targetRev.content;
+					d.updatedAt = Date.now();
+				}
+			}
+			return { ...targetRev };
+		},
+	},
+
+	reviews: {
+		async getPending(
+			targetType: "post" | "doc",
+			targetId: string,
+		): Promise<ReviewRequest | null> {
+			await delay(30);
+			const found = reviewRequestsList.find(
+				(r) =>
+					r.targetType === targetType &&
+					r.targetId === targetId &&
+					r.status === "in_review",
+			);
+			return found ? { ...found } : null;
+		},
+		async get(id: string): Promise<ReviewRequest | null> {
+			await delay(30);
+			const found = reviewRequestsList.find((r) => r.id === id);
+			return found ? { ...found } : null;
+		},
+		async list(): Promise<ReviewRequest[]> {
+			await delay(40);
+			return reviewRequestsList
+				.sort((a, b) => b.createdAt - a.createdAt)
+				.map((r) => ({ ...r }));
+		},
+		async submit(data: {
+			targetType: "post" | "doc";
+			targetId: string;
+			targetTitle: string;
+			content: OutputData;
+			summary: string;
+			reviewerId?: string;
+		}): Promise<ReviewRequest> {
+			await delay(80);
+			const targetRevs = revisionsList.filter(
+				(r) => r.targetType === data.targetType && r.targetId === data.targetId,
+			);
+			const nextVer = targetRevs.length + 1;
+			const newRev: ContentRevision = {
+				id: `rev-${Date.now()}`,
+				targetType: data.targetType,
+				targetId: data.targetId,
+				versionNumber: nextVer,
+				versionLabel: `v${nextVer}.0`,
+				title: data.targetTitle,
+				summary: data.summary,
+				content: data.content,
+				authorId: activeUser.id,
+				authorName: activeUser.name,
+				status: "in_review",
+				createdAt: Date.now(),
+			};
+			revisionsList.push(newRev);
+
+			const reviewer =
+				usersList.find((u) => u.id === data.reviewerId) ||
+				usersList.find((u) => u.role === "editor" || u.role === "admin");
+
+			const newReview: ReviewRequest = {
+				id: `review-${Date.now()}`,
+				targetType: data.targetType,
+				targetId: data.targetId,
+				targetTitle: data.targetTitle,
+				revisionId: newRev.id,
+				authorId: activeUser.id,
+				authorName: activeUser.name,
+				reviewerId: reviewer?.id,
+				reviewerName: reviewer?.name,
+				summary: data.summary,
+				status: "in_review",
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+			};
+			reviewRequestsList.push(newReview);
+
+			notificationsList.unshift({
+				id: `notif-${Date.now()}`,
+				type: "review_requested",
+				title: "Review Requested",
+				message: `${activeUser.name} submitted '${data.targetTitle}' for review: "${data.summary}"`,
+				targetType: data.targetType,
+				targetId: data.targetId,
+				reviewId: newReview.id,
+				read: false,
+				createdAt: Date.now(),
+			});
+
+			return { ...newReview };
+		},
+		async approve(
+			reviewId: string,
+			notes?: string,
+		): Promise<{ review: ReviewRequest; revision: ContentRevision }> {
+			await delay(80);
+			const review = reviewRequestsList.find((r) => r.id === reviewId);
+			if (!review) throw new Error("Review request not found");
+
+			review.status = "approved";
+			review.reviewNotes = notes;
+			review.updatedAt = Date.now();
+
+			const rev = revisionsList.find((r) => r.id === review.revisionId);
+			if (rev) {
+				rev.status = "published";
+			}
+
+			if (review.targetType === "post") {
+				const p = posts.find((item) => item.id === review.targetId);
+				if (p && rev) {
+					p.title = rev.title;
+					p.content = rev.content;
+					p.status = "published";
+					p.publishedAt = Date.now();
+					p.updatedAt = Date.now();
+				}
+			} else {
+				const d = docPagesList.find((item) => item.id === review.targetId);
+				if (d && rev) {
+					d.title = rev.title;
+					d.content = rev.content;
+					d.status = "published";
+					d.updatedAt = Date.now();
+				}
+			}
+
+			notificationsList.unshift({
+				id: `notif-${Date.now()}`,
+				type: "review_approved",
+				title: "Review Approved & Published",
+				message: `Your changes to '${review.targetTitle}' were approved and published!`,
+				targetType: review.targetType,
+				targetId: review.targetId,
+				reviewId: review.id,
+				read: false,
+				createdAt: Date.now(),
+			});
+
+			return {
+				review: { ...review },
+				revision: rev ? { ...rev } : ({} as ContentRevision),
+			};
+		},
+		async requestChanges(
+			reviewId: string,
+			notes: string,
+		): Promise<ReviewRequest> {
+			await delay(80);
+			const review = reviewRequestsList.find((r) => r.id === reviewId);
+			if (!review) throw new Error("Review request not found");
+
+			review.status = "changes_requested";
+			review.reviewNotes = notes;
+			review.updatedAt = Date.now();
+
+			const rev = revisionsList.find((r) => r.id === review.revisionId);
+			if (rev) {
+				rev.status = "changes_requested";
+			}
+
+			notificationsList.unshift({
+				id: `notif-${Date.now()}`,
+				type: "changes_requested",
+				title: "Changes Requested",
+				message: `${activeUser.name} requested changes on '${review.targetTitle}': "${notes}"`,
+				targetType: review.targetType,
+				targetId: review.targetId,
+				reviewId: review.id,
+				read: false,
+				createdAt: Date.now(),
+			});
+
+			return { ...review };
+		},
+		async withdraw(reviewId: string): Promise<ReviewRequest> {
+			await delay(60);
+			const review = reviewRequestsList.find((r) => r.id === reviewId);
+			if (!review) throw new Error("Review request not found");
+
+			review.status = "withdrawn";
+			review.updatedAt = Date.now();
+
+			const rev = revisionsList.find((r) => r.id === review.revisionId);
+			if (rev) {
+				rev.status = "draft";
+			}
+
+			return { ...review };
+		},
+	},
+
+	notifications: {
+		async list(): Promise<Notification[]> {
+			await delay(30);
+			return notificationsList.map((n) => ({ ...n }));
+		},
+		async markAsRead(id: string): Promise<void> {
+			await delay(20);
+			const n = notificationsList.find((item) => item.id === id);
+			if (n) n.read = true;
+		},
+		async markAllAsRead(): Promise<void> {
+			await delay(20);
+			for (const n of notificationsList) {
+				n.read = true;
+			}
+		},
+		async countUnread(): Promise<number> {
+			await delay(10);
+			return notificationsList.filter((n) => !n.read).length;
 		},
 	},
 };

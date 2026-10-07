@@ -96,6 +96,13 @@ export default class CodeHighlightTool implements BlockTool {
 		return true;
 	}
 
+	// Prevents Editor.js from treating this block as "empty" when the cursor is on
+	// it and the user picks another block from the toolbox. Without this, EJS falls
+	// back to replacing the current block instead of inserting a new one after it.
+	static get isEmpty(): boolean {
+		return false;
+	}
+
 	private data: CodeBlockData;
 	private readOnly: boolean;
 

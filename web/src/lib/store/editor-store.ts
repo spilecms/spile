@@ -1,6 +1,5 @@
 import type { OutputData } from "@editorjs/editorjs";
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
 import type {
 	DocPage,
 	Newsletter,
@@ -29,6 +28,10 @@ interface EditorState {
 	isDefaultLocale: boolean;
 	translationGroupId: string | null;
 	translationSourceId: string | null;
+	saveContent: (() => Promise<void>) | null;
+	setSaveContent: (fn: (() => Promise<void>) | null) => void;
+	renderContent: ((data: OutputData) => Promise<void>) | null;
+	setRenderContent: (fn: ((data: OutputData) => Promise<void>) | null) => void;
 	setBlocks: (blocks: OutputData) => void;
 	setTitle: (title: string) => void;
 	loadPost: (post: Post) => void;
@@ -39,6 +42,10 @@ interface EditorState {
 }
 
 type EditorActions =
+	| "setSaveContent"
+	| "saveContent"
+	| "setRenderContent"
+	| "renderContent"
 	| "setBlocks"
 	| "setTitle"
 	| "loadPost"
@@ -65,101 +72,78 @@ const emptyState = {
 	isDefaultLocale: true,
 	translationGroupId: null,
 	translationSourceId: null,
+	saveContent: null,
+	renderContent: null,
 };
 
-export const useEditorStore = create<EditorState>()(
-	persist(
-		(set) => ({
-			...emptyState,
-			setBlocks: (blocks) => set({ blocks, updatedAt: Date.now() }),
-			setTitle: (title) => set({ title, updatedAt: Date.now() }),
-			loadPost: (post) =>
-				set({
-					postId: post.id,
-					type: "post",
-					status: post.status,
-					blocks: post.content ?? { blocks: [] },
-					title: post.title,
-					excerpt: post.excerpt,
-					slug: post.slug,
-					featuredImage: post.featuredImage,
-					tagIds: post.tagIds,
-					seo: post.seo,
-					publishedAt: post.publishedAt,
-					scheduledFor: post.scheduledFor,
-					updatedAt: post.updatedAt,
-					locale: post.locale ?? "en",
-					isDefaultLocale:
-						post.isDefaultLocale ?? (post.locale === "en" || !post.locale),
-					translationGroupId: post.translationGroupId ?? post.id,
-					translationSourceId: post.translationSourceId ?? null,
-				}),
-			loadDoc: (doc) =>
-				set({
-					postId: doc.id,
-					type: "doc",
-					status: doc.status,
-					blocks: doc.content ?? { blocks: [] },
-					title: doc.title,
-					excerpt: "",
-					slug: doc.slug,
-					featuredImage: undefined,
-					tagIds: [],
-					seo: {},
-					publishedAt: doc.status === "published" ? doc.updatedAt : null,
-					scheduledFor: null,
-					updatedAt: doc.updatedAt,
-					locale: doc.locale ?? "en",
-					isDefaultLocale:
-						doc.isDefaultLocale ?? (doc.locale === "en" || !doc.locale),
-					translationGroupId: doc.translationGroupId ?? doc.id,
-					translationSourceId: doc.translationSourceId ?? null,
-				}),
-			loadNewsletter: (nl) =>
-				set({
-					postId: nl.id,
-					type: "newsletter",
-					status: (nl.status === "sent" ? "published" : "draft") as PostStatus,
-					blocks: nl.content ?? { blocks: [] },
-					title: nl.subject,
-					excerpt: nl.previewText ?? "",
-					slug: nl.title,
-					featuredImage: undefined,
-					tagIds: [],
-					seo: {},
-					publishedAt: nl.sentAt,
-					scheduledFor: nl.scheduledFor,
-					updatedAt: nl.updatedAt,
-					locale: "en",
-					isDefaultLocale: true,
-					translationGroupId: nl.id,
-					translationSourceId: null,
-				}),
-			patchMeta: (patch) => set({ ...patch, updatedAt: Date.now() }),
-			reset: () => set({ ...emptyState }),
+export const useEditorStore = create<EditorState>()((set) => ({
+	...emptyState,
+	setSaveContent: (saveContent) => set({ saveContent }),
+	setRenderContent: (renderContent) => set({ renderContent }),
+	setBlocks: (blocks) => set({ blocks, updatedAt: Date.now() }),
+	setTitle: (title) => set({ title, updatedAt: Date.now() }),
+	loadPost: (post) =>
+		set({
+			postId: post.id,
+			type: "post",
+			status: post.status,
+			blocks: post.content ?? { blocks: [] },
+			title: post.title,
+			excerpt: post.excerpt,
+			slug: post.slug,
+			featuredImage: post.featuredImage,
+			tagIds: post.tagIds,
+			seo: post.seo,
+			publishedAt: post.publishedAt,
+			scheduledFor: post.scheduledFor,
+			updatedAt: post.updatedAt,
+			locale: post.locale ?? "en",
+			isDefaultLocale:
+				post.isDefaultLocale ?? (post.locale === "en" || !post.locale),
+			translationGroupId: post.translationGroupId ?? post.id,
+			translationSourceId: post.translationSourceId ?? null,
 		}),
-		{
-			name: "spile-editor",
-			storage: createJSONStorage(() => localStorage),
-			partialize: (state) => ({
-				postId: state.postId,
-				type: state.type,
-				status: state.status,
-				blocks: state.blocks,
-				title: state.title,
-				excerpt: state.excerpt,
-				slug: state.slug,
-				featuredImage: state.featuredImage,
-				tagIds: state.tagIds,
-				seo: state.seo,
-				publishedAt: state.publishedAt,
-				scheduledFor: state.scheduledFor,
-				updatedAt: state.updatedAt,
-				locale: state.locale,
-				isDefaultLocale: state.isDefaultLocale,
-				translationGroupId: state.translationGroupId,
-				translationSourceId: state.translationSourceId,
-			}),
-		},
-	),
-);
+	loadDoc: (doc) =>
+		set({
+			postId: doc.id,
+			type: "doc",
+			status: doc.status,
+			blocks: doc.content ?? { blocks: [] },
+			title: doc.title,
+			excerpt: "",
+			slug: doc.slug,
+			featuredImage: undefined,
+			tagIds: [],
+			seo: {},
+			publishedAt: doc.status === "published" ? doc.updatedAt : null,
+			scheduledFor: null,
+			updatedAt: doc.updatedAt,
+			locale: doc.locale ?? "en",
+			isDefaultLocale:
+				doc.isDefaultLocale ?? (doc.locale === "en" || !doc.locale),
+			translationGroupId: doc.translationGroupId ?? doc.id,
+			translationSourceId: doc.translationSourceId ?? null,
+		}),
+	loadNewsletter: (nl) =>
+		set({
+			postId: nl.id,
+			type: "newsletter",
+			status: (nl.status === "sent" ? "published" : "draft") as PostStatus,
+			blocks: nl.content ?? { blocks: [] },
+			title: nl.subject,
+			excerpt: nl.previewText ?? "",
+			slug: nl.title,
+			featuredImage: undefined,
+			tagIds: [],
+			seo: {},
+			publishedAt: nl.sentAt,
+			scheduledFor: nl.scheduledFor,
+			updatedAt: nl.updatedAt,
+			locale: "en",
+			isDefaultLocale: true,
+			translationGroupId: nl.id,
+			translationSourceId: null,
+		}),
+	patchMeta: (patch) => set({ ...patch, updatedAt: Date.now() }),
+	reset: () => set({ ...emptyState }),
+}));

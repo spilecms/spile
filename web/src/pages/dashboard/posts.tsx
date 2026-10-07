@@ -1,10 +1,11 @@
 import { PlusCircleIcon } from "@heroicons/react/24/solid";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SearchIcon, SquarePenIcon } from "lucide-react";
 
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { HeaderActions } from "@/components/dashboard/header-actions";
 import { PostsTable } from "@/components/dashboard/posts-table";
@@ -108,6 +109,29 @@ export default function PostsPage() {
 			{ replace: true },
 		);
 	};
+
+	const queryClient = useQueryClient();
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => mockApi.posts.remove(id),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["posts"] });
+			toast.success(t("posts.toast.deleted", "Post deleted"));
+		},
+		onError: () => {
+			toast.error(t("posts.toast.deleteError", "Failed to delete post"));
+		},
+	});
+
+	const duplicateMutation = useMutation({
+		mutationFn: (id: string) => mockApi.posts.duplicate(id),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["posts"] });
+			toast.success(t("posts.toast.duplicated", "Post duplicated"));
+		},
+		onError: () => {
+			toast.error(t("posts.toast.duplicateError", "Failed to duplicate post"));
+		},
+	});
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 px-4 py-6 lg:px-6">
@@ -227,12 +251,8 @@ export default function PostsPage() {
 				<PostsTable
 					data={posts ?? []}
 					users={users ?? []}
-					onDuplicate={(post) => {
-						void mockApi.posts.duplicate(post.id);
-					}}
-					onDelete={(post) => {
-						void mockApi.posts.remove(post.id);
-					}}
+					onDuplicate={(post) => duplicateMutation.mutate(post.id)}
+					onDelete={(post) => deleteMutation.mutate(post.id)}
 				/>
 			)}
 		</div>

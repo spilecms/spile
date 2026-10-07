@@ -6,8 +6,27 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { HeaderActions } from "@/components/dashboard/header-actions";
 import { DocsTable } from "@/components/docs/docs-table";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { mockApi } from "@/lib/mock/api";
@@ -21,6 +40,16 @@ export default function DocsPage() {
 	const status = (searchParams.get("status") ?? "all") as StatusTab;
 	const [query, setQuery] = React.useState("");
 	const [debouncedQuery, setDebouncedQuery] = React.useState("");
+
+	// Create dialog state
+	const [createOpen, setCreateOpen] = React.useState(false);
+	const [newTitle, setNewTitle] = React.useState("");
+	const [newDescription, setNewDescription] = React.useState("");
+	const [creating, setCreating] = React.useState(false);
+
+	// Delete alert dialog state
+	const [deleteId, setDeleteId] = React.useState<string | null>(null);
+	const [deleting, setDeleting] = React.useState(false);
 
 	React.useEffect(() => {
 		const timer = setTimeout(() => setDebouncedQuery(query), 200);
@@ -71,23 +100,34 @@ export default function DocsPage() {
 		setSearchParams(next, { replace: true });
 	};
 
-	const handleCreateNew = async () => {
-		const title = window.prompt("Documentation Title:", "API Reference");
-		if (!title) return;
-		const desc = window.prompt("Description (optional):", "") || "";
-
-		const { project, initialPage } = await mockApi.docs.createProject({
-			title,
-			description: desc,
-		});
-		refetch();
-		navigate(`/editor/doc/${initialPage.id}?project=${project.id}`);
+	const handleCreateSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!newTitle.trim() || creating) return;
+		setCreating(true);
+		try {
+			const { project, initialPage } = await mockApi.docs.createProject({
+				title: newTitle.trim(),
+				description: newDescription.trim(),
+			});
+			refetch();
+			setCreateOpen(false);
+			setNewTitle("");
+			setNewDescription("");
+			navigate(`/editor/doc/${initialPage.id}?project=${project.id}`);
+		} finally {
+			setCreating(false);
+		}
 	};
 
-	const handleDeleteProject = async (id: string) => {
-		if (window.confirm("Are you sure you want to delete this documentation?")) {
-			await mockApi.docs.deleteProject(id);
+	const handleConfirmDelete = async () => {
+		if (!deleteId || deleting) return;
+		setDeleting(true);
+		try {
+			await mockApi.docs.deleteProject(deleteId);
+			setDeleteId(null);
 			refetch();
+		} finally {
+			setDeleting(false);
 		}
 	};
 
@@ -99,7 +139,7 @@ export default function DocsPage() {
 				<Button
 					size="sm"
 					className="flex items-center gap-2 text-sm font-semibold"
-					onClick={handleCreateNew}
+					onClick={() => setCreateOpen(true)}
 				>
 					<PlusCircleIcon className="size-4" />
 					{t("docs.postButton")}
@@ -166,14 +206,99 @@ export default function DocsPage() {
 							? "No documentation matched your search filter."
 							: "Create your first documentation collection, API reference, or knowledge base."}
 					</p>
-					<Button onClick={handleCreateNew} size="sm" className="gap-2">
+					<Button
+						onClick={() => setCreateOpen(true)}
+						size="sm"
+						className="gap-2"
+					>
 						<PlusCircleIcon className="size-4" />
 						Create Documentation
 					</Button>
 				</div>
 			) : (
-				<DocsTable data={filteredProjects} onDelete={handleDeleteProject} />
+				<DocsTable
+					data={filteredProjects}
+					onDelete={(id: string) => setDeleteId(id)}
+				/>
 			)}
+
+			{/* Create Documentation Project Dialog */}
+			<Dialog open={createOpen} onOpenChange={setCreateOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Create Documentation</DialogTitle>
+						<DialogDescription>
+							Create a new documentation project, knowledge base, or guide
+							collection.
+						</DialogDescription>
+					</DialogHeader>
+					<form onSubmit={handleCreateSubmit} className="space-y-4 pt-2">
+						<div className="space-y-1.5">
+							<Label htmlFor="doc-title" className="text-xs">
+								Title <span className="text-destructive">*</span>
+							</Label>
+							<Input
+								id="doc-title"
+								value={newTitle}
+								onChange={(e) => setNewTitle(e.target.value)}
+								placeholder="e.g. Developer Guides, API Reference"
+								autoFocus
+								required
+							/>
+						</div>
+						<div className="space-y-1.5">
+							<Label htmlFor="doc-desc" className="text-xs">
+								Description (optional)
+							</Label>
+							<Input
+								id="doc-desc"
+								value={newDescription}
+								onChange={(e) => setNewDescription(e.target.value)}
+								placeholder="Short summary of this documentation"
+							/>
+						</div>
+						<DialogFooter className="pt-2">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setCreateOpen(false)}
+								disabled={creating}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" disabled={!newTitle.trim() || creating}>
+								{creating ? "Creating..." : "Create Project"}
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
+
+			{/* Delete Confirmation Alert Dialog */}
+			<AlertDialog
+				open={Boolean(deleteId)}
+				onOpenChange={(open) => !open && setDeleteId(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Documentation?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently delete this documentation project along with
+							all of its pages and articles. This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							variant="destructive"
+							onClick={handleConfirmDelete}
+							disabled={deleting}
+						>
+							{deleting ? "Deleting..." : "Delete Documentation"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

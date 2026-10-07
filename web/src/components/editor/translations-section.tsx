@@ -61,8 +61,9 @@ export function TranslationsSection({
 		if (item.id === currentPostId) return;
 		onNavigate?.();
 		if (isDoc) {
+			const targetLocale = item.locale || "en";
 			navigate(
-				`/editor/doc/${item.id}${projectId ? `?project=${projectId}` : ""}`,
+				`/editor/doc/${item.id}?${projectId ? `project=${projectId}&` : ""}lang=${targetLocale}`,
 			);
 		} else {
 			navigate(`/editor/${item.id}`);
