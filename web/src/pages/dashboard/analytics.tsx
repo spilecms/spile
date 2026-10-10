@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
 								if (val) setTimeRange(val as AnalyticsTimeRange);
 							}}
 						>
-							<SelectTrigger className="w-[140px] text-xs">
+							<SelectTrigger className="w-35 text-xs">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -426,11 +426,11 @@ export default function AnalyticsPage() {
 				</CardHeader>
 				<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
 					{chartLoading ? (
-						<Skeleton className="h-[250px] w-full" />
+						<Skeleton className="h-62.5 w-full" />
 					) : (
 						<ChartContainer
 							config={chartConfig}
-							className="aspect-auto h-[260px] w-full"
+							className="aspect-auto h-65 w-full"
 						>
 							<AreaChart data={timeSeries}>
 								<defs>
@@ -545,7 +545,7 @@ export default function AnalyticsPage() {
 
 						{/* Catalog Search & Project filter */}
 						<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-							<div className="relative min-w-[200px]">
+							<div className="relative min-w-50">
 								<SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
 								<Input
 									type="search"
@@ -563,7 +563,7 @@ export default function AnalyticsPage() {
 										if (val) setSelectedProject(val);
 									}}
 								>
-									<SelectTrigger className="h-8 min-w-[170px] text-xs">
+									<SelectTrigger className="h-8 min-w-42.5 text-xs">
 										<FolderIcon className="mr-1.5 size-3.5 text-muted-foreground" />
 										<SelectValue placeholder="All Documentation" />
 									</SelectTrigger>
@@ -611,7 +611,7 @@ export default function AnalyticsPage() {
 								<Table>
 									<TableHeader>
 										<TableRow>
-											<TableHead className="w-[300px] text-xs">
+											<TableHead className="w-75 text-xs">
 												Doc Page
 											</TableHead>
 											<TableHead className="text-xs">Project</TableHead>
@@ -627,7 +627,7 @@ export default function AnalyticsPage() {
 											<TableHead className="text-right text-xs">
 												Bounce Rate
 											</TableHead>
-											<TableHead className="w-[120px] text-right text-xs">
+											<TableHead className="w-30 text-right text-xs">
 												Action
 											</TableHead>
 										</TableRow>
@@ -774,7 +774,7 @@ export default function AnalyticsPage() {
 											<TableHead className="text-right text-xs">
 												Bounce Rate
 											</TableHead>
-											<TableHead className="w-[120px] text-right text-xs">
+											<TableHead className="w-30 text-right text-xs">
 												Action
 											</TableHead>
 										</TableRow>
