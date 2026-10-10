@@ -366,6 +366,16 @@ export const mockApi = {
 				(l) => l.code !== code,
 			);
 		},
+		async setDefault(code: string): Promise<WorkspaceLocale> {
+			await delay(80);
+			workspaceLocalesList = workspaceLocalesList.map((l) => ({
+				...l,
+				isDefault: l.code === code,
+			}));
+			const target = workspaceLocalesList.find((l) => l.code === code);
+			if (!target) throw new Error(`Locale ${code} not found`);
+			return { ...target };
+		},
 	},
 	overview: {
 		async stats(): Promise<OverviewStats> {

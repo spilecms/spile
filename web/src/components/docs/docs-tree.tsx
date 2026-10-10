@@ -21,13 +21,12 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	FilePlusIcon,
-	FilesIcon,
 	FileTextIcon,
 	Globe,
 	PencilIcon,
@@ -582,6 +581,7 @@ export function DocsTree({
 		[],
 	);
 
+	const queryClient = useQueryClient();
 	const handleConfirmTranslate = async () => {
 		if (!translateItem || !currentLocale) return;
 		setIsTranslating(true);
@@ -594,6 +594,13 @@ export function DocsTree({
 			toast.success(
 				`Created ${currentLocaleObj.name} translation for "${newDoc.title}"`,
 			);
+			const refreshedNav = await mockApi.docs.getNavigation(
+				newDoc.projectId,
+				currentLocale,
+			);
+			onUpdateManifest(refreshedNav);
+			queryClient.invalidateQueries({ queryKey: ["docs-navigation"] });
+			queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
 			setTranslateItem(null);
 			onSelectDoc(newDoc.id);
 		} catch (_err) {
@@ -686,71 +693,62 @@ export function DocsTree({
 
 	return (
 		<div className="flex flex-col h-full bg-sidebar/50 border-r border-border/60">
-			{/* Tree Header Actions */}
-			<div className="flex flex-col gap-2 p-2.5 border-b border-border/50">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-1.5">
-						<FilesIcon className="h-3.5 w-3.5 text-primary" />
-						<span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
-							Documents
-						</span>
-					</div>
-					<Button
-						variant="ghost"
-						size="sm"
-						className="h-6 px-1.5 text-xs gap-1 cursor-pointer"
-						onClick={() => onAddDoc()}
-						title="Add root document"
-					>
-						<FilePlusIcon className="h-3 w-3" />
-						<span>New Page</span>
-					</Button>
-				</div>
-
+			{/* Tree Header Actions (Side-by-side Language Selector and New Page Button) */}
+			<div className="flex items-center justify-between gap-2 p-2.5 border-b border-border/50">
 				{/* Workspace Language Switcher */}
-				{locales && locales.length > 0 && onSelectLocale && (
-					<div className="flex items-center justify-between gap-1 rounded-md border border-border/60 bg-background/50 px-2 py-1 text-xs">
-						<div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
-							<Globe className="h-3 w-3 shrink-0" />
-							<span className="text-[11px] font-medium truncate">Language</span>
-						</div>
-						<DropdownMenu>
-							<DropdownMenuTrigger
-								render={
-									<Button
-										variant="ghost"
-										size="xs"
-										className="h-5 px-1.5 text-xs gap-1 font-normal hover:bg-muted cursor-pointer"
-									/>
-								}
-								aria-label={`Current language: ${currentLocaleObj.name}`}
-							>
-								<span>{currentLocaleObj.flag}</span>
-								<span className="truncate max-w-[80px] font-medium text-[11px]">
-									{currentLocaleObj.name}
-								</span>
-								<ChevronDownIcon className="h-3 w-3 opacity-60" />
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="w-44">
-								{locales.map((loc) => (
-									<DropdownMenuItem
-										key={loc.code}
-										onClick={() => onSelectLocale(loc.code)}
-										className="flex items-center justify-between text-xs cursor-pointer"
-									>
-										<div className="flex items-center gap-2">
-											<span>{loc.flag}</span>
-											<span>{loc.name}</span>
-										</div>
-										{loc.code === currentLocale && (
-											<CheckIcon className="h-3.5 w-3.5 text-primary" />
-										)}
-									</DropdownMenuItem>
-								))}
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</div>
+				{locales && locales.length > 0 && onSelectLocale ? (
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									variant="outline"
+									size="sm"
+									className="h-7 px-2 text-xs gap-1.5 font-normal border-border/60 bg-background/50 hover:bg-muted cursor-pointer shrink-0"
+								/>
+							}
+							aria-label={`Current language: ${currentLocaleObj.name}`}
+						>
+							<span className="text-sm leading-none">
+								{currentLocaleObj.flag}
+							</span>
+							<span className="truncate max-w-[85px] font-medium text-[11px] text-foreground">
+								{currentLocaleObj.name}
+							</span>
+							<ChevronDownIcon className="h-3 w-3 opacity-60 shrink-0" />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start" className="w-44">
+							{locales.map((loc) => (
+								<DropdownMenuItem
+									key={loc.code}
+									onClick={() => onSelectLocale(loc.code)}
+									className="flex items-center justify-between text-xs cursor-pointer"
+								>
+									<div className="flex items-center gap-2">
+										<span>{loc.flag}</span>
+										<span>{loc.name}</span>
+									</div>
+									{loc.code === currentLocale && (
+										<CheckIcon className="h-3.5 w-3.5 text-primary" />
+									)}
+								</DropdownMenuItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				) : (
+					<div />
 				)}
+
+				{/* Add Root Document Button */}
+				<Button
+					variant="ghost"
+					size="sm"
+					className="h-7 px-2 text-xs gap-1.5 cursor-pointer ml-auto font-medium hover:bg-muted"
+					onClick={() => onAddDoc()}
+					title="Add root document"
+				>
+					<FilePlusIcon className="h-3.5 w-3.5 text-primary" />
+					<span>New Page</span>
+				</Button>
 			</div>
 
 			{/* Tree List */}

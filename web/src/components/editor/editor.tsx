@@ -350,8 +350,8 @@ export default function Editor({
 				saving={saving}
 				savedAt={savedAt}
 				backUrl={backUrl}
-				isSidebarOpen={isSidebarOpen}
-				onToggleSidebar={onToggleSidebar}
+				isSidebarOpen={sidebar ? isSidebarOpen : false}
+				onToggleSidebar={sidebar ? onToggleSidebar : undefined}
 				isContributor={isContributor}
 				isLocked={isLocked}
 				onSubmitReview={onSubmitReview}

@@ -98,6 +98,15 @@ export function TeamSection() {
 											Loading team members…
 										</td>
 									</tr>
+								) : (users ?? []).length === 0 ? (
+									<tr>
+										<td
+											colSpan={4}
+											className="py-6 text-center text-muted-foreground"
+										>
+											No team members found.
+										</td>
+									</tr>
 								) : (
 									(users ?? []).map((user) => (
 										<tr

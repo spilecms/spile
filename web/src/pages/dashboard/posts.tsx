@@ -133,6 +133,29 @@ export default function PostsPage() {
 		},
 	});
 
+	const bulkUpdateStatusMutation = useMutation({
+		mutationFn: async ({
+			ids,
+			status: nextStatus,
+		}: {
+			ids: string[];
+			status: PostStatus;
+		}) => {
+			for (const id of ids) {
+				await mockApi.posts.update(id, { status: nextStatus });
+			}
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["posts"] });
+			toast.success(t("posts.toast.statusUpdated", "Post status updated"));
+		},
+		onError: () => {
+			toast.error(
+				t("posts.toast.statusUpdateError", "Failed to update post status"),
+			);
+		},
+	});
+
 	return (
 		<div className="flex flex-1 flex-col gap-4 px-4 py-6 lg:px-6">
 			<HeaderActions>
@@ -253,6 +276,9 @@ export default function PostsPage() {
 					users={users ?? []}
 					onDuplicate={(post) => duplicateMutation.mutate(post.id)}
 					onDelete={(post) => deleteMutation.mutate(post.id)}
+					onBulkUpdateStatus={(ids, status) =>
+						bulkUpdateStatusMutation.mutate({ ids, status })
+					}
 				/>
 			)}
 		</div>

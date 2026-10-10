@@ -14,6 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { mockApi } from "@/lib/mock/api";
+import { useEditorStore } from "@/lib/store/editor-store";
 import type { ReviewRequest } from "@/types/domain";
 
 interface ReviewActionBarProps {
@@ -28,12 +29,26 @@ export function ReviewActionBar({ review, onApproved }: ReviewActionBarProps) {
 
 	const approveMutation = useMutation({
 		mutationFn: () => mockApi.reviews.approve(review.id),
-		onSuccess: () => {
+		onSuccess: async (data) => {
 			qc.invalidateQueries({ queryKey: ["reviews", review.targetId] });
 			qc.invalidateQueries({ queryKey: ["revisions", review.targetId] });
 			qc.invalidateQueries({ queryKey: ["notifications"] });
 			qc.invalidateQueries({ queryKey: ["posts"] });
 			qc.invalidateQueries({ queryKey: ["docs"] });
+			if (data.revision) {
+				const renderContent = useEditorStore.getState().renderContent;
+				if (data.revision.content) {
+					if (renderContent) {
+						await renderContent(data.revision.content);
+					} else {
+						useEditorStore.getState().setBlocks(data.revision.content);
+					}
+				}
+				if (data.revision.title) {
+					useEditorStore.getState().setTitle(data.revision.title);
+				}
+				useEditorStore.getState().patchMeta({ status: "published" });
+			}
 			onApproved?.();
 		},
 	});

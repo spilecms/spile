@@ -121,6 +121,26 @@ i18n
 							title: "Recent activity",
 							description: "What's happening on your site",
 						},
+						pendingReviews: {
+							title: "Editorial Review Queue",
+							reviewerDesc:
+								"Drafts submitted by contributors awaiting editorial sign-off",
+							authorDesc: "Track the review status of your submitted drafts",
+							emptyTitle: "All caught up",
+							emptyReviewer:
+								"No pending drafts awaiting review. You're ready to publish!",
+							emptyAuthor: "You have no drafts waiting in review.",
+							actionReview: "Review",
+							actionOpen: "Open",
+						},
+						scheduledPipeline: {
+							title: "Scheduled Releases",
+							description:
+								"Upcoming posts and email newsletters queued to publish",
+							emptyTitle: "No scheduled releases",
+							emptyDesc:
+								"When you schedule a post or newsletter broadcast, it will appear here.",
+						},
 					},
 					posts: {
 						postButton: "New Post",
@@ -348,6 +368,27 @@ i18n
 						recentActivity: {
 							title: "Actividad reciente",
 							description: "Lo que sucede en tu sitio",
+						},
+						pendingReviews: {
+							title: "Cola de Revisión Editorial",
+							reviewerDesc:
+								"Borradores enviados por colaboradores esperando aprobación editorial",
+							authorDesc:
+								"Sigue el estado de revisión de tus borradores enviados",
+							emptyTitle: "Al día",
+							emptyReviewer:
+								"No hay borradores pendientes de revisión. ¡Listo para publicar!",
+							emptyAuthor: "No tienes borradores pendientes de revisión.",
+							actionReview: "Revisar",
+							actionOpen: "Abrir",
+						},
+						scheduledPipeline: {
+							title: "Lanzamientos Programados",
+							description:
+								"Próximas publicaciones y boletines en cola para publicarse",
+							emptyTitle: "Sin lanzamientos programados",
+							emptyDesc:
+								"Cuando programes una publicación o boletín, aparecerá aquí.",
 						},
 					},
 					posts: {

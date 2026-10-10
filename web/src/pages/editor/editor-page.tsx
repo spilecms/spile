@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mockApi } from "@/lib/mock/api";
+import { usePermissions } from "@/lib/permissions";
 import { useEditorStore } from "@/lib/store/editor-store";
 import type {
 	DocNavigationManifest,
@@ -61,12 +62,6 @@ export default function EditorPage() {
 	const reviewQueryId = searchParams.get("review") || undefined;
 	const targetType: ReviewTargetType = isDoc ? "doc" : "post";
 
-	// Current active user for RBAC simulation
-	const { data: currentUser } = useQuery({
-		queryKey: ["current-user"],
-		queryFn: () => mockApi.users.current(),
-	});
-
 	// Pending or targeted review query
 	const { data: pendingReview } = useQuery({
 		queryKey: ["reviews", id, reviewQueryId],
@@ -81,12 +76,11 @@ export default function EditorPage() {
 		enabled: !isNew && Boolean(id) && !isNewsletter,
 	});
 
+	const { can, user: currentUser } = usePermissions();
+
 	const isContributor = currentUser?.role === "contributor";
 	const isReviewLocked = pendingReview?.status === "in_review";
-	const isEditorOrAdmin =
-		currentUser?.role === "admin" ||
-		currentUser?.role === "editor" ||
-		currentUser?.role === "owner";
+	const canApproveReview = can("review:approve");
 
 	// Review lock banner or Editor review action bar
 	const reviewBanner = React.useMemo(() => {
@@ -101,7 +95,7 @@ export default function EditorPage() {
 			);
 		}
 
-		if (isEditorOrAdmin) {
+		if (canApproveReview) {
 			return (
 				<ReviewActionBar
 					review={pendingReview}
@@ -111,7 +105,7 @@ export default function EditorPage() {
 		}
 
 		return null;
-	}, [pendingReview, isContributor, isEditorOrAdmin, currentUser]);
+	}, [pendingReview, isContributor, canApproveReview, currentUser]);
 
 	// Cleanly reset editor store when transitioning between documents/translations
 	React.useEffect(() => {
@@ -239,11 +233,18 @@ export default function EditorPage() {
 				});
 		} else if (isDoc) {
 			mockApi.docs
-				.createPage({ title: "Untitled Doc" })
+				.createPage({
+					title: "Untitled Doc",
+					projectId,
+					locale: activeLocale,
+				})
 				.then(({ page, navigation }) => {
 					loadDoc(page);
 					setManifest(navigation);
-					navigate(`/editor/doc/${page.id}`, { replace: true });
+					navigate(
+						`/editor/doc/${page.id}?${projectId ? `project=${projectId}&` : ""}lang=${activeLocale}`,
+						{ replace: true },
+					);
 				})
 				.catch(() => {
 					creatingRef.current = false;
@@ -259,7 +260,17 @@ export default function EditorPage() {
 					creatingRef.current = false;
 				});
 		}
-	}, [isNew, isDoc, isNewsletter, loadPost, loadDoc, loadNewsletter, navigate]);
+	}, [
+		isNew,
+		isDoc,
+		isNewsletter,
+		loadPost,
+		loadDoc,
+		loadNewsletter,
+		navigate,
+		activeLocale,
+		projectId,
+	]);
 
 	const isPending = isNewsletter
 		? newsletterPending
@@ -466,8 +477,8 @@ export default function EditorPage() {
 				onPublish={() => setPublishOpen(true)}
 				backUrl={isNewsletter ? "/newsletters" : isDoc ? "/docs" : "/posts"}
 				sidebar={docsSidebar}
-				isSidebarOpen={isSidebarOpen}
-				onToggleSidebar={() => setIsSidebarOpen((v) => !v)}
+				isSidebarOpen={isDoc ? isSidebarOpen : false}
+				onToggleSidebar={isDoc ? () => setIsSidebarOpen((v) => !v) : undefined}
 				readOnly={isReviewLocked && isContributor}
 				isContributor={isContributor}
 				isLocked={isReviewLocked}

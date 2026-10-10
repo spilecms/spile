@@ -89,6 +89,20 @@ export function LocalesSection() {
 		queryFn: () => mockApi.locales.list(),
 	});
 
+	React.useEffect(() => {
+		const def = locales?.find((l) => l.isDefault)?.code;
+		if (def) setDefaultCode(def);
+	}, [locales]);
+
+	const setDefaultMutation = useMutation({
+		mutationFn: (code: string) => mockApi.locales.setDefault(code),
+		onSuccess: (updated) => {
+			queryClient.invalidateQueries({ queryKey: ["workspace", "locales"] });
+			toast.success(`Default locale set to ${updated.flag} ${updated.name}`);
+		},
+		onError: () => toast.error("Failed to update default locale"),
+	});
+
 	const addMutation = useMutation({
 		mutationFn: (newLoc: WorkspaceLocale) => mockApi.locales.add(newLoc),
 		onSuccess: (newLoc) => {
@@ -161,7 +175,10 @@ export function LocalesSection() {
 							<Select
 								value={defaultCode}
 								onValueChange={(val) => {
-									if (typeof val === "string") setDefaultCode(val);
+									if (typeof val === "string") {
+										setDefaultCode(val);
+										setDefaultMutation.mutate(val);
+									}
 								}}
 							>
 								<SelectTrigger className="h-8 text-xs rounded-none">

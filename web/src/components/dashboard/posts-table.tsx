@@ -25,7 +25,6 @@ import {
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -214,11 +213,13 @@ export function PostsTable({
 	users,
 	onDuplicate,
 	onDelete,
+	onBulkUpdateStatus,
 }: {
 	data: Post[];
 	users: User[];
 	onDuplicate: (post: Post) => void;
 	onDelete: (post: Post) => void;
+	onBulkUpdateStatus?: (ids: string[], status: Post["status"]) => void;
 }) {
 	const navigate = useNavigate();
 	const { t } = useTranslation();
@@ -266,15 +267,50 @@ export function PostsTable({
 					<span className="font-medium">
 						{t("posts.table.selectedCount", { count: selectedCount })}
 					</span>
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => {
-							toast.info(t("posts.table.bulkComingSoon"));
-						}}
-					>
-						{t("posts.table.changeStatus")}
-					</Button>
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<Button size="sm" variant="outline" className="gap-1.5" />
+							}
+						>
+							<span>{t("posts.table.changeStatus")}</span>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start">
+							<DropdownMenuItem
+								onClick={() => {
+									const ids = table
+										.getSelectedRowModel()
+										.rows.map((r) => r.original.id);
+									onBulkUpdateStatus?.(ids, "published");
+									setRowSelection({});
+								}}
+							>
+								{t("posts.tabs.published", "Published")}
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onClick={() => {
+									const ids = table
+										.getSelectedRowModel()
+										.rows.map((r) => r.original.id);
+									onBulkUpdateStatus?.(ids, "draft");
+									setRowSelection({});
+								}}
+							>
+								{t("posts.tabs.draft", "Draft")}
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onClick={() => {
+									const ids = table
+										.getSelectedRowModel()
+										.rows.map((r) => r.original.id);
+									onBulkUpdateStatus?.(ids, "trashed");
+									setRowSelection({});
+								}}
+							>
+								{t("posts.tabs.trashed", "Trash")}
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 					<Button
 						size="sm"
 						variant="destructive"

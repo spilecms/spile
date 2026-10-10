@@ -280,9 +280,12 @@ export function PublishPanel({
 						</>
 					) : (
 						<>
-							<TranslationsSection onNavigate={() => onOpenChange(false)} />
-
-							<div className="h-px w-full bg-border/60" />
+							{!isDoc && (
+								<>
+									<TranslationsSection onNavigate={() => onOpenChange(false)} />
+									<div className="h-px w-full bg-border/60" />
+								</>
+							)}
 
 							<div className="flex flex-col gap-2">
 								<Label htmlFor="publish-status">Status</Label>
@@ -465,8 +468,10 @@ export function PublishPanel({
 	);
 }
 
-function toDateTimeLocal(timestamp: number): string {
+function toDateTimeLocal(timestamp?: number | null): string {
+	if (!timestamp || Number.isNaN(timestamp)) return "";
 	const d = new Date(timestamp);
+	if (Number.isNaN(d.getTime())) return "";
 	const pad = (n: number) => String(n).padStart(2, "0");
 	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
