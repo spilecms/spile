@@ -43,6 +43,16 @@
 
 	--font-geist: "Geist Variable", sans-serif;
 	--font-geist-mono: "Geist Mono Variable", monospace;
+	--map-region: oklch(44.3% 0.11 240.79);
+	--map-region-hover: oklch(50% 0.134 242.748);
+	--map-region-selected: oklch(39.1% 0.09 240.875);
+	--map-region-disabled: oklch(55.4% 0.046 257.417);
+	--map-region-stroke: oklch(28.2% 0.091 267.935);
+	--map-region-stroke-hover: oklch(28.2% 0.091 267.935);
+	--map-region-focus-ring: oklch(70.7% 0.165 254.624);
+	--map-label: oklch(100% 0 0);
+	--map-label-hover: oklch(100% 0 0);
+	--map-label-selected: oklch(100% 0 0);
 }
 
 .dark {
@@ -80,6 +90,16 @@
 
 	--font-geist: "Geist Variable", sans-serif;
 	--font-geist-mono: "Geist Mono Variable", monospace;
+	--map-region: oklch(44.3% 0.11 240.79);
+	--map-region-hover: oklch(50% 0.134 242.748);
+	--map-region-selected: oklch(39.1% 0.09 240.875);
+	--map-region-disabled: oklch(55.4% 0.046 257.417);
+	--map-region-stroke: oklch(28.2% 0.091 267.935);
+	--map-region-stroke-hover: oklch(28.2% 0.091 267.935);
+	--map-region-focus-ring: oklch(70.7% 0.165 254.624);
+	--map-label: oklch(100% 0 0);
+	--map-label-hover: oklch(100% 0 0);
+	--map-label-selected: oklch(100% 0 0);
 }
 
 @theme inline {
@@ -127,6 +147,16 @@
 	--radius-2xl: calc(var(--radius) * 1.8);
 	--radius-3xl: calc(var(--radius) * 2.2);
 	--radius-4xl: calc(var(--radius) * 2.6);
+	--color-map-label-selected: var(--map-label-selected);
+	--color-map-label-hover: var(--map-label-hover);
+	--color-map-label: var(--map-label);
+	--color-map-region-focus-ring: var(--map-region-focus-ring);
+	--color-map-region-stroke-hover: var(--map-region-stroke-hover);
+	--color-map-region-stroke: var(--map-region-stroke);
+	--color-map-region-disabled: var(--map-region-disabled);
+	--color-map-region-selected: var(--map-region-selected);
+	--color-map-region-hover: var(--map-region-hover);
+	--color-map-region: var(--map-region);
 }
 
 @layer base {

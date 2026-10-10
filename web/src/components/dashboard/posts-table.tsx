@@ -17,6 +17,7 @@ import {
 } from "@tanstack/react-table";
 import type { TFunction } from "i18next";
 import {
+	ChartLineIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
@@ -186,10 +187,18 @@ function buildColumns(
 						<EllipsisVerticalIcon />
 						<span className="sr-only">{t("posts.table.actionsAria")}</span>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="w-36">
+					<DropdownMenuContent align="end" className="w-40">
 						<DropdownMenuItem onClick={() => onOpen(row.original)}>
 							<FileEditIcon />
 							{t("posts.table.edit")}
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() =>
+								(window.location.href = `/analytics?type=post&id=${row.original.id}`)
+							}
+						>
+							<ChartLineIcon />
+							View Analytics
 						</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => onDuplicate(row.original)}>
 							{t("posts.table.duplicate")}

@@ -47,6 +47,11 @@ export type AppAction =
 	| "review:request_changes"
 	| "review:view_queue"
 	| "review:restore_history"
+	// Media Library
+	| "media:view"
+	| "media:upload"
+	| "media:edit"
+	| "media:delete"
 	// Workspace & Settings
 	| "settings:locales_view"
 	| "settings:locales_manage"
@@ -98,6 +103,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly AppAction[]> = {
 		"review:request_changes",
 		"review:view_queue",
 		"review:restore_history",
+		"media:view",
+		"media:upload",
+		"media:edit",
+		"media:delete",
 		"settings:locales_view",
 		"settings:locales_manage",
 		"settings:tags_manage",
@@ -148,6 +157,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly AppAction[]> = {
 		"review:request_changes",
 		"review:view_queue",
 		"review:restore_history",
+		"media:view",
+		"media:upload",
+		"media:edit",
+		"media:delete",
 		"settings:locales_view",
 		"settings:locales_manage",
 		"settings:tags_manage",
@@ -190,6 +203,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly AppAction[]> = {
 		"review:request_changes",
 		"review:view_queue",
 		"review:restore_history",
+		"media:view",
+		"media:upload",
+		"media:edit",
+		"media:delete",
 		"settings:locales_view",
 		"settings:tags_manage",
 	],
@@ -208,6 +225,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly AppAction[]> = {
 		"review:submit",
 		"review:withdraw",
 		"review:view_queue",
+		"media:view",
+		"media:upload",
+		"media:edit",
 		"settings:locales_view",
 	],
 
@@ -220,6 +240,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly AppAction[]> = {
 		"review:submit",
 		"review:withdraw",
 		"review:view_queue",
+		"media:view",
+		"media:upload",
 		"settings:locales_view",
 	],
 };

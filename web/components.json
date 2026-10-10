@@ -22,6 +22,7 @@
 	"menuColor": "default",
 	"menuAccent": "subtle",
 	"registries": {
-		"@flagcn": "https://flagcn.dev/r/{name}.json"
+		"@flagcn": "https://flagcn.dev/r/{name}.json",
+		"@shadcnmaps": "https://shadcnmaps.com/r/{name}.json"
 	}
 }

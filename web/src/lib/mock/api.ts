@@ -32,6 +32,12 @@ import type {
 	Webhook,
 	WorkspaceLocale,
 } from "@/types/domain";
+import type {
+	MediaItem,
+	MediaListParams,
+	MediaUpdatePayload,
+	MediaUploadPayload,
+} from "@/types/media";
 import {
 	currentUser,
 	activity as seedActivity,
@@ -49,8 +55,12 @@ import {
 	viewsSeries,
 	workspaceLocales,
 } from "./db";
+import { seedMediaItems } from "./media-data";
 
 const delay = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let mediaList: MediaItem[] = JSON.parse(JSON.stringify(seedMediaItems));
+let nextMediaId = mediaList.length + 1;
 
 let posts: Post[] = [...seedPosts];
 let nextId = posts.length + 1;
@@ -1547,6 +1557,239 @@ export const mockApi = {
 		async countUnread(): Promise<number> {
 			await delay(10);
 			return notificationsList.filter((n) => !n.read).length;
+		},
+	},
+
+	analytics: {
+		async getOverview(
+			timeRange: import("@/types/analytics").AnalyticsTimeRange = "30d",
+		): Promise<import("@/types/analytics").AnalyticsOverview> {
+			await delay(100);
+			const { mockOverviewData } = await import("./analytics-data");
+			return mockOverviewData[timeRange] ?? mockOverviewData["30d"];
+		},
+		async getTimeSeries(
+			timeRange: import("@/types/analytics").AnalyticsTimeRange = "30d",
+		): Promise<import("@/types/analytics").AnalyticsTimeSeriesPoint[]> {
+			await delay(120);
+			const { generateAnalyticsTimeSeries } = await import("./analytics-data");
+			return generateAnalyticsTimeSeries(timeRange);
+		},
+		async getDocPages(params?: {
+			projectId?: string;
+			query?: string;
+		}): Promise<import("@/types/analytics").DocPageAnalytics[]> {
+			await delay(150);
+			const { mockDocPagesAnalytics } = await import("./analytics-data");
+			let list = [...mockDocPagesAnalytics];
+			if (params?.projectId && params.projectId !== "all") {
+				list = list.filter((p) => p.projectId === params.projectId);
+			}
+			if (params?.query?.trim()) {
+				const q = params.query.toLowerCase();
+				list = list.filter(
+					(p) =>
+						p.pageTitle.toLowerCase().includes(q) ||
+						p.slug.toLowerCase().includes(q) ||
+						p.projectName.toLowerCase().includes(q),
+				);
+			}
+			return list;
+		},
+		async getPosts(): Promise<import("@/types/analytics").PostAnalytics[]> {
+			await delay(120);
+			const { mockPostsAnalytics } = await import("./analytics-data");
+			return [...mockPostsAnalytics];
+		},
+		async getCountries(): Promise<
+			import("@/types/analytics").CountryTraffic[]
+		> {
+			await delay(120);
+			const { mockCountryTraffic } = await import("./analytics-data");
+			return [...mockCountryTraffic];
+		},
+		async getReferrers(): Promise<
+			import("@/types/analytics").ReferrerSource[]
+		> {
+			await delay(100);
+			const { mockReferrerSources } = await import("./analytics-data");
+			return [...mockReferrerSources];
+		},
+		async getDevices(): Promise<
+			import("@/types/analytics").DeviceDistribution
+		> {
+			await delay(80);
+			const { mockDeviceDistribution } = await import("./analytics-data");
+			return { ...mockDeviceDistribution };
+		},
+		async getEntityDetail(
+			entityType: "post" | "doc",
+			entityId: string,
+			timeRange: import("@/types/analytics").AnalyticsTimeRange = "30d",
+		): Promise<import("@/types/analytics").PageAnalyticsDetail> {
+			await delay(120);
+			const { getEntityAnalyticsDetail } = await import("./analytics-data");
+			return getEntityAnalyticsDetail(entityType, entityId, timeRange);
+		},
+	},
+
+	media: {
+		async list(params?: MediaListParams): Promise<MediaItem[]> {
+			await delay(100);
+			let result = [...mediaList];
+
+			if (params?.type && params.type !== "all") {
+				result = result.filter((item) => {
+					if (params.type === "image")
+						return item.mimeType.startsWith("image/");
+					if (params.type === "video")
+						return item.mimeType.startsWith("video/");
+					if (params.type === "audio")
+						return item.mimeType.startsWith("audio/");
+					if (params.type === "document") {
+						return (
+							item.mimeType.includes("pdf") ||
+							item.mimeType.includes("csv") ||
+							item.mimeType.includes("text") ||
+							item.mimeType.includes("json") ||
+							item.mimeType.includes("zip")
+						);
+					}
+					return true;
+				});
+			}
+
+			if (params?.tag && params.tag !== "all") {
+				result = result.filter((item) =>
+					item.tags?.includes(params.tag as string),
+				);
+			}
+
+			if (params?.query?.trim()) {
+				const q = params.query.toLowerCase().trim();
+				result = result.filter(
+					(item) =>
+						item.name.toLowerCase().includes(q) ||
+						item.title?.toLowerCase().includes(q) ||
+						item.altText?.toLowerCase().includes(q) ||
+						item.tags?.some((t) => t.toLowerCase().includes(q)),
+				);
+			}
+
+			const sortBy = params?.sortBy || "createdAt";
+			const sortOrder = params?.sortOrder || "desc";
+
+			result.sort((a, b) => {
+				let cmp = 0;
+				if (sortBy === "createdAt") cmp = a.createdAt - b.createdAt;
+				else if (sortBy === "name") cmp = a.name.localeCompare(b.name);
+				else if (sortBy === "size") cmp = a.size - b.size;
+
+				return sortOrder === "asc" ? cmp : -cmp;
+			});
+
+			return result;
+		},
+
+		async get(id: string): Promise<MediaItem | null> {
+			await delay(50);
+			const found = mediaList.find((m) => m.id === id);
+			return found ? { ...found } : null;
+		},
+
+		async upload(payload: MediaUploadPayload): Promise<MediaItem> {
+			await delay(150);
+			const newItem: MediaItem = {
+				id: `media-${nextMediaId++}`,
+				name: payload.name,
+				title: payload.name.replace(/\.[^/.]+$/, ""),
+				altText: payload.altText,
+				caption: payload.caption,
+				mimeType: payload.mimeType,
+				size: payload.size,
+				url: payload.url,
+				thumbnailUrl: payload.thumbnailUrl || payload.url,
+				dimensions: payload.dimensions,
+				uploadedBy: {
+					id: activeUser.id,
+					name: activeUser.name,
+				},
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				tags: payload.tags || [],
+			};
+
+			mediaList.unshift(newItem);
+			return { ...newItem };
+		},
+
+		async update(id: string, patch: MediaUpdatePayload): Promise<MediaItem> {
+			await delay(80);
+			const idx = mediaList.findIndex((m) => m.id === id);
+			if (idx === -1) throw new Error("Media item not found");
+
+			mediaList[idx] = {
+				...mediaList[idx],
+				...patch,
+				updatedAt: Date.now(),
+			};
+
+			return { ...mediaList[idx] };
+		},
+
+		async delete(id: string): Promise<void> {
+			await delay(80);
+			mediaList = mediaList.filter((m) => m.id !== id);
+		},
+
+		async bulkDelete(ids: string[]): Promise<void> {
+			await delay(120);
+			const idSet = new Set(ids);
+			mediaList = mediaList.filter((m) => !idSet.has(m.id));
+		},
+
+		async getStats(): Promise<{
+			totalCount: number;
+			totalSize: number;
+			imageCount: number;
+			videoCount: number;
+			audioCount: number;
+			documentCount: number;
+		}> {
+			await delay(60);
+			let totalSize = 0;
+			let imageCount = 0;
+			let videoCount = 0;
+			let audioCount = 0;
+			let documentCount = 0;
+
+			for (const item of mediaList) {
+				totalSize += item.size;
+				if (item.mimeType.startsWith("image/")) imageCount++;
+				else if (item.mimeType.startsWith("video/")) videoCount++;
+				else if (item.mimeType.startsWith("audio/")) audioCount++;
+				else documentCount++;
+			}
+
+			return {
+				totalCount: mediaList.length,
+				totalSize,
+				imageCount,
+				videoCount,
+				audioCount,
+				documentCount,
+			};
+		},
+
+		async getAllTags(): Promise<string[]> {
+			await delay(40);
+			const set = new Set<string>();
+			for (const item of mediaList) {
+				if (item.tags) {
+					for (const tag of item.tags) set.add(tag);
+				}
+			}
+			return Array.from(set).sort();
 		},
 	},
 };

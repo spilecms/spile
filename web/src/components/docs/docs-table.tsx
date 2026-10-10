@@ -17,6 +17,7 @@ import {
 } from "@tanstack/react-table";
 import {
 	BookOpenIcon,
+	ChartLineIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
@@ -193,6 +194,16 @@ function buildProjectColumns(
 								>
 									<FileEditIcon className="mr-2 size-4" />
 									{t("common.edit")}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() =>
+										navigate(
+											`/analytics?type=doc&id=${firstDocId}&project=${row.original.id}`,
+										)
+									}
+								>
+									<ChartLineIcon className="mr-2 size-4" />
+									View Analytics
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									onClick={() =>

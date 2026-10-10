@@ -9,7 +9,9 @@ import {
 } from "react-router-dom";
 import { DashboardShell } from "@/components/dashboard/shell";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import AnalyticsPage from "./pages/dashboard/analytics";
 import DocsPage from "./pages/dashboard/docs";
+import MediaPage from "./pages/dashboard/media";
 import MembersPage from "./pages/dashboard/members";
 import NewslettersPage from "./pages/dashboard/newsletters";
 import Overview from "./pages/dashboard/overview";
@@ -39,8 +41,8 @@ const router = createBrowserRouter([
 			{ path: "members", element: <MembersPage /> },
 			{ path: "docs", element: <DocsPage /> },
 			{ path: "tags", element: <Navigate to="/settings?tab=tags" replace /> },
-			{ path: "media", element: <PlaceholderPage /> },
-			{ path: "analytics", element: <PlaceholderPage /> },
+			{ path: "media", element: <MediaPage /> },
+			{ path: "analytics", element: <AnalyticsPage /> },
 			{ path: "team", element: <Navigate to="/settings?tab=team" replace /> },
 			{ path: "settings", element: <SettingsPage /> },
 			{

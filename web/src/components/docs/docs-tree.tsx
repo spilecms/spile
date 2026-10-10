@@ -23,6 +23,7 @@ import {
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	ChartLineIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -336,6 +337,25 @@ function RecursiveTreeItem({
 									title="Rename document"
 								>
 									<PencilIcon className="size-3" />
+								</Button>
+							)}
+
+							{/* View Analytics */}
+							{!isUntranslated && (
+								<Button
+									variant="ghost"
+									size="icon"
+									className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
+									onClick={(e) => {
+										e.stopPropagation();
+										window.open(
+											`/analytics?type=doc&id=${item.localizedDocId || item.id}`,
+											"_blank",
+										);
+									}}
+									title="View analytics"
+								>
+									<ChartLineIcon className="size-3" />
 								</Button>
 							)}
 

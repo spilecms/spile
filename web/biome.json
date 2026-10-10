@@ -6,7 +6,8 @@
 		"useIgnoreFile": true
 	},
 	"files": {
-		"ignoreUnknown": false
+		"ignoreUnknown": false,
+		"maxSize": 3145728
 	},
 	"formatter": {
 		"enabled": true,
@@ -58,6 +59,30 @@
 				"rules": {
 					"a11y": {
 						"noSvgWithoutTitle": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["src/components/shadcnmaps/map-data/**"],
+			"formatter": {
+				"enabled": false
+			},
+			"linter": {
+				"enabled": false
+			}
+		},
+		{
+			"includes": ["src/components/shadcnmaps/**"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noSvgWithoutTitle": "off",
+						"useSemanticElements": "off",
+						"noAriaHiddenOnFocusable": "off"
+					},
+					"suspicious": {
+						"noShadowRestrictedNames": "off"
 					}
 				}
 			}
