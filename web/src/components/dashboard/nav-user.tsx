@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import {
 	CircleUserRoundIcon,
 	EllipsisVerticalIcon,
@@ -28,7 +27,7 @@ import {
 	SidebarMenuItem,
 	useSidebar,
 } from "@/components/ui/sidebar";
-import { mockApi } from "@/lib/mock/api";
+import { useAuth } from "@/lib/auth-context";
 
 function initials(name: string): string {
 	return name
@@ -44,15 +43,17 @@ export function NavUser() {
 	const { isMobile } = useSidebar();
 	const navigate = useNavigate();
 	const { t } = useTranslation();
-	const { data: user } = useQuery({
-		queryKey: ["users", "current"],
-		queryFn: () => mockApi.users.current(),
-	});
+	const { user, logout } = useAuth();
 
 	const name = user?.name ?? "…";
 	const email = user?.email ?? "";
 	const role = user?.role || "owner";
 	const roleInfo = ROLE_LABELS[role] || ROLE_LABELS.owner;
+
+	const handleSignOut = async () => {
+		await logout();
+		navigate("/login", { replace: true });
+	};
 
 	return (
 		<SidebarMenu>
@@ -128,7 +129,7 @@ export function NavUser() {
 							<UserPersonaSubmenu />
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
-						<DropdownMenuItem>
+						<DropdownMenuItem onClick={handleSignOut}>
 							<LogOutIcon />
 							{t("userMenu.signOut")}
 						</DropdownMenuItem>

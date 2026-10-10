@@ -3,9 +3,11 @@ import type {
 	AiSettings,
 	ApiKey,
 	ContentRevision,
+	DocNavigationManifest,
 	DocPage,
 	DocPagePatch,
 	DocumentationProject,
+	DocumentationProjectPatch,
 	EmailSettings,
 	Member,
 	MemberListParams,
@@ -38,7 +40,10 @@ import { http } from "./http";
 
 export const api = {
 	auth: {
-		async login(email: string, password: string): Promise<{ user: User; token: string }> {
+		async login(
+			email: string,
+			password: string,
+		): Promise<{ user: User; token: string }> {
 			return http.post("/auth/login", { email, password });
 		},
 		async register(
@@ -95,7 +100,11 @@ export const api = {
 		async list(): Promise<Tag[]> {
 			return http.get("/tags");
 		},
-		async create(data: { name: string; slug?: string; color: string }): Promise<Tag> {
+		async create(data: {
+			name: string;
+			slug?: string;
+			color: string;
+		}): Promise<Tag> {
 			return http.post("/tags", data);
 		},
 		async update(
@@ -224,7 +233,10 @@ export const api = {
 		async duplicate(id: string): Promise<Newsletter> {
 			return http.post(`/newsletters/${id}/duplicate`);
 		},
-		async sendTest(id: string, email: string): Promise<{ success: boolean; message: string }> {
+		async sendTest(
+			id: string,
+			email: string,
+		): Promise<{ success: boolean; message: string }> {
 			return http.post(`/newsletters/${id}/test`, { email });
 		},
 		async send(id: string): Promise<Newsletter> {
@@ -249,6 +261,12 @@ export const api = {
 		}): Promise<{ project: DocumentationProject; initialPage: DocPage }> {
 			return http.post("/docs/projects", data);
 		},
+		async updateProject(
+			projectId: string,
+			patch: DocumentationProjectPatch,
+		): Promise<DocumentationProject> {
+			return http.put(`/docs/projects/${projectId}`, patch);
+		},
 		async deleteProject(projectId: string): Promise<void> {
 			await http.delete(`/docs/projects/${projectId}`);
 		},
@@ -259,8 +277,14 @@ export const api = {
 				return null;
 			}
 		},
-		async createPage(data: Partial<DocPage> & { projectId: string; title: string }): Promise<DocPage> {
-			return http.post("/docs/pages", data);
+		async createPage(
+			data: Partial<DocPage> & { projectId?: string; title?: string },
+		): Promise<{ page: DocPage; navigation: DocNavigationManifest }> {
+			const page = await http.post<DocPage>("/docs/pages", data);
+			const proj = await http.get<DocumentationProject>(
+				`/docs/projects/${data.projectId || page.projectId}`,
+			);
+			return { page, navigation: proj.navigation };
 		},
 		async updatePage(pageId: string, patch: DocPagePatch): Promise<DocPage> {
 			return http.put(`/docs/pages/${pageId}`, patch);
@@ -270,37 +294,123 @@ export const api = {
 		},
 	},
 
-	reviews: {
-		async listRevisions(targetType?: string, targetId?: string): Promise<ContentRevision[]> {
+	revisions: {
+		async list(
+			targetType: "post" | "doc",
+			targetId: string,
+		): Promise<ContentRevision[]> {
 			return http.get("/reviews/revisions", { targetType, targetId });
 		},
-		async createRevision(data: Partial<ContentRevision>): Promise<ContentRevision> {
+		async get(id: string): Promise<ContentRevision | null> {
+			try {
+				return await http.get(`/reviews/revisions/${id}`);
+			} catch {
+				return null;
+			}
+		},
+		async create(data: Partial<ContentRevision>): Promise<ContentRevision> {
 			return http.post("/reviews/revisions", data);
 		},
-		async listRequests(status?: string): Promise<ReviewRequest[]> {
-			return http.get("/reviews/requests", { status });
+		async restore(revisionId: string): Promise<ContentRevision> {
+			return http.post(`/reviews/revisions/${revisionId}/restore`);
 		},
-		async submitRequest(data: {
-			targetType: string;
+	},
+
+	reviews: {
+		async getPending(
+			targetType: "post" | "doc",
+			targetId: string,
+		): Promise<ReviewRequest | null> {
+			const list = await http.get<ReviewRequest[]>("/reviews/requests", {
+				status: "in_review",
+			});
+			return (
+				list.find(
+					(r) => r.targetType === targetType && r.targetId === targetId,
+				) ?? null
+			);
+		},
+		async get(id: string): Promise<ReviewRequest | null> {
+			try {
+				return await http.get(`/reviews/requests/${id}`);
+			} catch {
+				return null;
+			}
+		},
+		async list(): Promise<ReviewRequest[]> {
+			return http.get("/reviews/requests");
+		},
+		async submit(data: {
+			targetType: "post" | "doc";
 			targetId: string;
 			targetTitle: string;
-			revisionId: string;
+			content: unknown;
 			summary: string;
+			reviewerId?: string;
 		}): Promise<ReviewRequest> {
-			return http.post("/reviews/requests", data);
+			// First create revision
+			const rev = await http.post<ContentRevision>("/reviews/revisions", {
+				targetType: data.targetType,
+				targetId: data.targetId,
+				title: data.targetTitle,
+				summary: data.summary,
+				content: data.content,
+			});
+			return http.post("/reviews/requests", {
+				targetType: data.targetType,
+				targetId: data.targetId,
+				targetTitle: data.targetTitle,
+				revisionId: rev.id,
+				summary: data.summary,
+			});
 		},
-		async updateRequest(
-			id: string,
-			status: string,
-			reviewNotes?: string,
+		async approve(
+			reviewId: string,
+			notes?: string,
+		): Promise<{ review: ReviewRequest; revision: ContentRevision }> {
+			const review = await http.put<ReviewRequest>(
+				`/reviews/requests/${reviewId}`,
+				{
+					status: "approved",
+					reviewNotes: notes,
+				},
+			);
+			return { review, revision: {} as ContentRevision };
+		},
+		async requestChanges(
+			reviewId: string,
+			notes: string,
 		): Promise<ReviewRequest> {
-			return http.put(`/reviews/requests/${id}`, { status, reviewNotes });
+			return http.put(`/reviews/requests/${reviewId}`, {
+				status: "changes_requested",
+				reviewNotes: notes,
+			});
 		},
-		async listNotifications(): Promise<Notification[]> {
+		async withdraw(reviewId: string): Promise<ReviewRequest> {
+			return http.put(`/reviews/requests/${reviewId}`, {
+				status: "withdrawn",
+			});
+		},
+	},
+
+	notifications: {
+		async list(): Promise<Notification[]> {
 			return http.get("/notifications");
 		},
-		async markNotificationRead(id: string): Promise<void> {
+		async markAsRead(id: string): Promise<void> {
 			await http.put(`/notifications/${id}/read`);
+		},
+		async markAllAsRead(): Promise<void> {
+			const list = await http.get<Notification[]>("/notifications");
+			await Promise.all(
+				list
+					.filter((n) => !n.read)
+					.map((n) => http.put(`/notifications/${n.id}/read`)),
+			);
+		},
+		async countUnread(): Promise<number> {
+			const list = await http.get<Notification[]>("/notifications");
+			return list.filter((n) => !n.read).length;
 		},
 	},
 
@@ -308,7 +418,9 @@ export const api = {
 		async getStorage(): Promise<StorageSettings> {
 			return http.get("/settings/storage");
 		},
-		async updateStorage(patch: Partial<StorageSettings>): Promise<StorageSettings> {
+		async updateStorage(
+			patch: Partial<StorageSettings>,
+		): Promise<StorageSettings> {
 			return http.put("/settings/storage", patch);
 		},
 		async getEmail(): Promise<EmailSettings> {
@@ -326,7 +438,10 @@ export const api = {
 		async listApiKeys(): Promise<ApiKey[]> {
 			return http.get("/settings/api-keys");
 		},
-		async createApiKey(name: string, type: "public_read" | "admin_secret"): Promise<ApiKey> {
+		async createApiKey(
+			name: string,
+			type: "public_read" | "admin_secret",
+		): Promise<ApiKey> {
 			return http.post("/settings/api-keys", { name, type });
 		},
 		async deleteApiKey(id: string): Promise<void> {
@@ -335,7 +450,11 @@ export const api = {
 		async listWebhooks(): Promise<Webhook[]> {
 			return http.get("/settings/webhooks");
 		},
-		async createWebhook(data: { name: string; url: string; events: string[] }): Promise<Webhook> {
+		async createWebhook(data: {
+			name: string;
+			url: string;
+			events: string[];
+		}): Promise<Webhook> {
 			return http.post("/settings/webhooks", data);
 		},
 		async deleteWebhook(id: string): Promise<void> {
@@ -352,6 +471,57 @@ export const api = {
 		},
 		async activity(): Promise<ActivityItem[]> {
 			return http.get("/overview/activity");
+		},
+	},
+
+	analytics: {
+		async getOverview(
+			timeRange: import("@/types/analytics").AnalyticsTimeRange = "30d",
+		) {
+			const { mockOverviewData } = await import("@/lib/mock/analytics-data");
+			return mockOverviewData[timeRange] ?? mockOverviewData["30d"];
+		},
+		async getTimeSeries(
+			timeRange: import("@/types/analytics").AnalyticsTimeRange = "30d",
+		) {
+			const { generateAnalyticsTimeSeries } = await import(
+				"@/lib/mock/analytics-data"
+			);
+			return generateAnalyticsTimeSeries(timeRange);
+		},
+		async getDocPages() {
+			const { mockDocPagesAnalytics } = await import(
+				"@/lib/mock/analytics-data"
+			);
+			return mockDocPagesAnalytics;
+		},
+		async getPosts() {
+			const { mockPostsAnalytics } = await import("@/lib/mock/analytics-data");
+			return mockPostsAnalytics;
+		},
+		async getCountries() {
+			const { mockCountryTraffic } = await import("@/lib/mock/analytics-data");
+			return mockCountryTraffic;
+		},
+		async getReferrers() {
+			const { mockReferrerSources } = await import("@/lib/mock/analytics-data");
+			return mockReferrerSources;
+		},
+		async getDevices() {
+			const { mockDeviceDistribution } = await import(
+				"@/lib/mock/analytics-data"
+			);
+			return mockDeviceDistribution;
+		},
+		async getEntityDetail(
+			entityType: "post" | "doc",
+			entityId: string,
+			timeRange: import("@/types/analytics").AnalyticsTimeRange = "30d",
+		) {
+			const { getEntityAnalyticsDetail } = await import(
+				"@/lib/mock/analytics-data"
+			);
+			return getEntityAnalyticsDetail(entityType, entityId, timeRange);
 		},
 	},
 };

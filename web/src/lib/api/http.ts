@@ -4,7 +4,7 @@ export class ApiError extends Error {
 	constructor(
 		message: string,
 		public status: number,
-		public data?: any,
+		public data?: unknown,
 	) {
 		super(message);
 		this.name = "ApiError";
@@ -35,11 +35,16 @@ async function request<T>(
 
 	if (!response.ok) {
 		let errorMsg = `Request failed with status ${response.status}`;
-		let errorData: any;
+		let errorData: unknown;
 		try {
 			errorData = await response.json();
-			if (errorData?.error) {
-				errorMsg = errorData.error;
+			if (
+				errorData &&
+				typeof errorData === "object" &&
+				"error" in errorData &&
+				typeof (errorData as { error: unknown }).error === "string"
+			) {
+				errorMsg = (errorData as { error: string }).error;
 			}
 		} catch {
 			// Non-JSON response
@@ -55,7 +60,7 @@ async function request<T>(
 }
 
 export const http = {
-	get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+	get<T>(endpoint: string, params?: Record<string, unknown>): Promise<T> {
 		let query = "";
 		if (params) {
 			const searchParams = new URLSearchParams();
@@ -70,21 +75,21 @@ export const http = {
 		return request<T>(`${endpoint}${query}`, { method: "GET" });
 	},
 
-	post<T>(endpoint: string, body?: any): Promise<T> {
+	post<T>(endpoint: string, body?: unknown): Promise<T> {
 		return request<T>(endpoint, {
 			method: "POST",
 			body: body instanceof FormData ? body : JSON.stringify(body ?? {}),
 		});
 	},
 
-	put<T>(endpoint: string, body?: any): Promise<T> {
+	put<T>(endpoint: string, body?: unknown): Promise<T> {
 		return request<T>(endpoint, {
 			method: "PUT",
 			body: JSON.stringify(body ?? {}),
 		});
 	},
 
-	patch<T>(endpoint: string, body?: any): Promise<T> {
+	patch<T>(endpoint: string, body?: unknown): Promise<T> {
 		return request<T>(endpoint, {
 			method: "PATCH",
 			body: JSON.stringify(body ?? {}),

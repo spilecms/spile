@@ -611,9 +611,7 @@ export default function AnalyticsPage() {
 								<Table>
 									<TableHeader>
 										<TableRow>
-											<TableHead className="w-75 text-xs">
-												Doc Page
-											</TableHead>
+											<TableHead className="w-75 text-xs">Doc Page</TableHead>
 											<TableHead className="text-xs">Project</TableHead>
 											<TableHead className="text-right text-xs">
 												Views

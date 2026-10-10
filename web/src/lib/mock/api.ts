@@ -227,7 +227,7 @@ function matches(post: Post, params: PostListParams): boolean {
 	return true;
 }
 
-export const mockApi = {
+const inMemoryMockApi = {
 	posts: {
 		async list(params: PostListParams = {}): Promise<Post[]> {
 			await delay();
@@ -1793,3 +1793,11 @@ export const mockApi = {
 		},
 	},
 };
+
+import { api } from "@/lib/api";
+
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+
+export const mockApi = (
+	USE_MOCK ? inMemoryMockApi : api
+) as typeof inMemoryMockApi;

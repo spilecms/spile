@@ -7,8 +7,11 @@ import {
 	Navigate,
 	RouterProvider,
 } from "react-router-dom";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import { DashboardShell } from "@/components/dashboard/shell";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { AuthProvider } from "@/lib/auth-context";
+import LoginPage from "./pages/auth/login-page";
 import AnalyticsPage from "./pages/dashboard/analytics";
 import DocsPage from "./pages/dashboard/docs";
 import MediaPage from "./pages/dashboard/media";
@@ -33,7 +36,15 @@ const queryClient = new QueryClient({
 
 const router = createBrowserRouter([
 	{
-		element: <DashboardShell />,
+		path: "/login",
+		element: <LoginPage />,
+	},
+	{
+		element: (
+			<ProtectedRoute>
+				<DashboardShell />
+			</ProtectedRoute>
+		),
 		children: [
 			{ index: true, element: <Overview /> },
 			{ path: "posts", element: <PostsPage /> },
@@ -52,10 +63,38 @@ const router = createBrowserRouter([
 			{ path: "help", element: <PlaceholderPage /> },
 		],
 	},
-	{ path: "/editor/new", element: <EditorPage /> },
-	{ path: "/editor/:id", element: <EditorPage /> },
-	{ path: "/editor/doc/:id", element: <EditorPage /> },
-	{ path: "/editor/newsletter/:id", element: <EditorPage /> },
+	{
+		path: "/editor/new",
+		element: (
+			<ProtectedRoute>
+				<EditorPage />
+			</ProtectedRoute>
+		),
+	},
+	{
+		path: "/editor/:id",
+		element: (
+			<ProtectedRoute>
+				<EditorPage />
+			</ProtectedRoute>
+		),
+	},
+	{
+		path: "/editor/doc/:id",
+		element: (
+			<ProtectedRoute>
+				<EditorPage />
+			</ProtectedRoute>
+		),
+	},
+	{
+		path: "/editor/newsletter/:id",
+		element: (
+			<ProtectedRoute>
+				<EditorPage />
+			</ProtectedRoute>
+		),
+	},
 	{ path: "*", element: <Navigate to="/" replace /> },
 ]);
 
@@ -67,9 +106,11 @@ if (!rootElement) {
 createRoot(rootElement).render(
 	<StrictMode>
 		<QueryClientProvider client={queryClient}>
-			<ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-				<RouterProvider router={router} />
-			</ThemeProvider>
+			<AuthProvider>
+				<ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+					<RouterProvider router={router} />
+				</ThemeProvider>
+			</AuthProvider>
 		</QueryClientProvider>
 	</StrictMode>,
 );
