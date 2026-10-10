@@ -3,6 +3,8 @@ package testutils
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 )
@@ -74,4 +76,20 @@ func (c *RequestClient) PutJSON(path string, payload any) *httptest.ResponseReco
 
 func (c *RequestClient) Delete(path string) *httptest.ResponseRecorder {
 	return c.Do(http.MethodDelete, path, nil)
+}
+
+func (c *RequestClient) PostMultipart(path, fieldName, fileName string, fileContent []byte, extraFields map[string]string) *httptest.ResponseRecorder {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, _ := writer.CreateFormFile(fieldName, fileName)
+	_, _ = io.Copy(part, bytes.NewReader(fileContent))
+
+	for k, v := range extraFields {
+		_ = writer.WriteField(k, v)
+	}
+	_ = writer.Close()
+
+	c.headers["Content-Type"] = writer.FormDataContentType()
+	return c.Do(http.MethodPost, path, body.Bytes())
 }

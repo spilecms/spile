@@ -39,5 +39,16 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.Tag{},
 		&models.WorkspaceLocale{},
 		&models.Post{},
+		&models.MediaItem{},
+		&models.DocumentationProject{},
+		&models.DocPage{},
+		&models.Member{},
+		&models.Newsletter{},
+		&models.ContentRevision{},
+		&models.ReviewRequest{},
+		&models.Notification{},
+		&models.ApiKey{},
+		&models.Webhook{},
+		&models.SystemSetting{},
 	)
 }

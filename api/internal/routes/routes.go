@@ -7,13 +7,19 @@ import (
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/handlers"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/storage"
 	"gorm.io/gorm"
 )
 
 // SetupRouter initializes Gin engine with all routes and middlewares
-func SetupRouter(db *gorm.DB) *gin.Engine {
+func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
+
+	// Static serving of uploaded files if using local disk
+	if local, ok := storageProvider.(*storage.LocalStorageProvider); ok {
+		r.Static(local.PublicURL, local.BaseDir)
+	}
 
 	// Attach authentication context to every request
 	r.Use(auth.AuthenticateMiddleware(db))
@@ -82,6 +88,105 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			postGroup.POST("/:id/duplicate", postHandler.Duplicate)
 			postGroup.GET("/translations/:groupId", postHandler.GetTranslations)
 			postGroup.POST("/:id/translations", postHandler.CreateTranslation)
+		}
+
+		// Media routes
+		if storageProvider != nil {
+			mediaHandler := handlers.NewMediaHandler(db, storageProvider)
+			mediaGroup := v1.Group("/media")
+			mediaGroup.Use(auth.RequireAuth())
+			{
+				mediaGroup.GET("", mediaHandler.List)
+				mediaGroup.GET("/stats", mediaHandler.Stats)
+				mediaGroup.GET("/tags", mediaHandler.Tags)
+				mediaGroup.GET("/:id", mediaHandler.Get)
+				mediaGroup.POST("/upload", mediaHandler.Upload)
+				mediaGroup.PUT("/:id", mediaHandler.Update)
+				mediaGroup.DELETE("/:id", mediaHandler.Delete)
+				mediaGroup.POST("/bulk-delete", mediaHandler.BulkDelete)
+			}
+		}
+
+		// Docs routes
+		docHandler := handlers.NewDocHandler(db)
+		docGroup := v1.Group("/docs")
+		docGroup.Use(auth.RequireAuth())
+		{
+			docGroup.GET("/projects", docHandler.ListProjects)
+			docGroup.GET("/projects/:id", docHandler.GetProject)
+			docGroup.POST("/projects", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.CreateProject)
+			docGroup.DELETE("/projects/:id", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), docHandler.DeleteProject)
+			docGroup.GET("/pages/:id", docHandler.GetPage)
+			docGroup.POST("/pages", auth.RequireRoles(models.RoleAuthor, models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.CreatePage)
+			docGroup.PUT("/pages/:id", auth.RequireRoles(models.RoleAuthor, models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.UpdatePage)
+			docGroup.DELETE("/pages/:id", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.DeletePage)
+		}
+
+		// Members (Subscribers) routes
+		memberHandler := handlers.NewMemberHandler(db)
+		memberGroup := v1.Group("/members")
+		memberGroup.Use(auth.RequireAuth())
+		{
+			memberGroup.GET("", memberHandler.List)
+			memberGroup.GET("/:id", memberHandler.Get)
+			memberGroup.POST("", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), memberHandler.Create)
+			memberGroup.PUT("/:id", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), memberHandler.Update)
+			memberGroup.DELETE("/:id", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), memberHandler.Delete)
+		}
+
+		// Newsletters routes
+		newsletterHandler := handlers.NewNewsletterHandler(db)
+		newsletterGroup := v1.Group("/newsletters")
+		newsletterGroup.Use(auth.RequireAuth())
+		{
+			newsletterGroup.GET("", newsletterHandler.List)
+			newsletterGroup.GET("/:id", newsletterHandler.Get)
+			newsletterGroup.POST("", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), newsletterHandler.Create)
+			newsletterGroup.PUT("/:id", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), newsletterHandler.Update)
+			newsletterGroup.DELETE("/:id", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), newsletterHandler.Delete)
+			newsletterGroup.POST("/:id/duplicate", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), newsletterHandler.Duplicate)
+			newsletterGroup.POST("/:id/test", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), newsletterHandler.SendTest)
+			newsletterGroup.POST("/:id/send", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), newsletterHandler.Send)
+		}
+
+		// Editorial Review & Notifications routes
+		reviewHandler := handlers.NewReviewHandler(db)
+		reviewGroup := v1.Group("/reviews")
+		reviewGroup.Use(auth.RequireAuth())
+		{
+			reviewGroup.GET("/revisions", reviewHandler.ListRevisions)
+			reviewGroup.POST("/revisions", reviewHandler.CreateRevision)
+			reviewGroup.GET("/requests", reviewHandler.ListReviewRequests)
+			reviewGroup.POST("/requests", reviewHandler.CreateReviewRequest)
+			reviewGroup.PUT("/requests/:id", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), reviewHandler.UpdateReviewRequest)
+		}
+
+		notificationGroup := v1.Group("/notifications")
+		notificationGroup.Use(auth.RequireAuth())
+		{
+			notificationGroup.GET("", reviewHandler.ListNotifications)
+			notificationGroup.PUT("/:id/read", reviewHandler.MarkNotificationRead)
+		}
+
+		// Overview Analytics & Settings routes
+		settingsHandler := handlers.NewSettingsHandler(db)
+		v1.GET("/overview/stats", auth.RequireAuth(), settingsHandler.OverviewStats)
+
+		settingsGroup := v1.Group("/settings")
+		settingsGroup.Use(auth.RequireAuth())
+		{
+			settingsGroup.GET("/storage", settingsHandler.GetStorage)
+			settingsGroup.PUT("/storage", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.UpdateStorage)
+			settingsGroup.GET("/email", settingsHandler.GetEmail)
+			settingsGroup.PUT("/email", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.UpdateEmail)
+			settingsGroup.GET("/ai", settingsHandler.GetAI)
+			settingsGroup.PUT("/ai", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.UpdateAI)
+			settingsGroup.GET("/api-keys", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.ListApiKeys)
+			settingsGroup.POST("/api-keys", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.CreateApiKey)
+			settingsGroup.DELETE("/api-keys/:id", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.DeleteApiKey)
+			settingsGroup.GET("/webhooks", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.ListWebhooks)
+			settingsGroup.POST("/webhooks", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.CreateWebhook)
+			settingsGroup.DELETE("/webhooks/:id", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.DeleteWebhook)
 		}
 
 		// Example role-restricted endpoints for RBAC verification

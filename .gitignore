@@ -1,2 +1,18 @@
-
+# Environment & Secrets
 .env
+.env.local
+
+# SQLite Database & Write-Ahead Logs
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Local Uploaded Media
+uploads/*
+!uploads/.gitkeep
+
+# Compiled Binaries
+*.exe
+spile
+dist/

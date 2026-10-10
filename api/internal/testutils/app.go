@@ -11,6 +11,7 @@ import (
 	"github.com/spilecms/spile/api/internal/database"
 	"github.com/spilecms/spile/api/internal/models"
 	"github.com/spilecms/spile/api/internal/routes"
+	"github.com/spilecms/spile/api/internal/storage"
 	"gorm.io/gorm"
 )
 
@@ -20,9 +21,10 @@ func init() {
 
 // TestApp provides an isolated in-memory test environment
 type TestApp struct {
-	T      *testing.T
-	DB     *gorm.DB
-	Router *gin.Engine
+	T               *testing.T
+	DB              *gorm.DB
+	Router          *gin.Engine
+	StorageProvider storage.Provider
 }
 
 // NewTestApp bootstraps a clean in-memory database and router for testing
@@ -33,12 +35,18 @@ func NewTestApp(t *testing.T) *TestApp {
 		t.Fatalf("failed to initialize test in-memory database: %v", err)
 	}
 
-	router := routes.SetupRouter(db)
+	storageProv, err := storage.NewLocalStorageProvider(t.TempDir(), "/uploads")
+	if err != nil {
+		t.Fatalf("failed to initialize test storage provider: %v", err)
+	}
+
+	router := routes.SetupRouter(db, storageProv)
 
 	return &TestApp{
-		T:      t,
-		DB:     db,
-		Router: router,
+		T:               t,
+		DB:              db,
+		Router:          router,
+		StorageProvider: storageProv,
 	}
 }
 
