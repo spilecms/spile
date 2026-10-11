@@ -14,7 +14,7 @@ export function slugifyGitHub(
 	const clean = text
 		.replace(/<[^>]*>/g, " ")
 		.toLowerCase()
-		.replace(/[^\p{L}\p{N}\s-_]/gu, "")
+		.replace(/[^\p{L}\p{N}\s_-]/gu, "")
 		.trim()
 		.replace(/[-_\s]+/g, "-")
 		.replace(/^-+|-+$/g, "");
