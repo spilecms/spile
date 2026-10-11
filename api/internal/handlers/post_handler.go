@@ -11,16 +11,24 @@ import (
 	"github.com/google/uuid"
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/search"
 	"github.com/spilecms/spile/api/internal/webhook"
 	"gorm.io/gorm"
 )
 
 type PostHandler struct {
-	db *gorm.DB
+	db       *gorm.DB
+	searcher search.Searcher
 }
 
-func NewPostHandler(db *gorm.DB) *PostHandler {
-	return &PostHandler{db: db}
+func NewPostHandler(db *gorm.DB, searchers ...search.Searcher) *PostHandler {
+	var s search.Searcher
+	if len(searchers) > 0 && searchers[0] != nil {
+		s = searchers[0]
+	} else {
+		s, _ = search.NewSQLiteSearcher(db)
+	}
+	return &PostHandler{db: db, searcher: s}
 }
 
 type CreatePostRequest struct {
@@ -242,6 +250,9 @@ func (h *PostHandler) Create(c *gin.Context) {
 
 	// Reload with associations
 	h.db.Preload("Authors").Preload("Tags").First(&post, "id = ?", post.ID)
+	if h.searcher != nil {
+		_ = h.searcher.IndexPost(&post)
+	}
 	resp := post.ToResponse()
 	if post.Status == models.PostStatusPublished {
 		webhook.Dispatch(h.db, "post.published", resp)
@@ -331,6 +342,9 @@ func (h *PostHandler) Update(c *gin.Context) {
 	h.refreshTagCounts()
 
 	h.db.Preload("Authors").Preload("Tags").First(&post, "id = ?", post.ID)
+	if h.searcher != nil {
+		_ = h.searcher.IndexPost(&post)
+	}
 	resp := post.ToResponse()
 	if post.Status == models.PostStatusPublished {
 		webhook.Dispatch(h.db, "post.published", resp)
@@ -350,6 +364,9 @@ func (h *PostHandler) Delete(c *gin.Context) {
 	_ = h.db.Model(&post).Association("Authors").Clear()
 	_ = h.db.Model(&post).Association("Tags").Clear()
 	_ = h.db.Delete(&post).Error
+	if h.searcher != nil {
+		_ = h.searcher.DeleteEntity("post", id)
+	}
 
 	h.refreshTagCounts()
 	c.JSON(http.StatusOK, gin.H{"message": "Post deleted successfully"})

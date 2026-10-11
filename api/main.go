@@ -9,13 +9,14 @@ import (
 	"github.com/spilecms/spile/api/internal/email"
 	"github.com/spilecms/spile/api/internal/models"
 	"github.com/spilecms/spile/api/internal/routes"
+	"github.com/spilecms/spile/api/internal/search"
 	"github.com/spilecms/spile/api/internal/storage"
 	"github.com/spilecms/spile/api/internal/webhook"
 	"github.com/spilecms/spile/web"
 	"gorm.io/gorm"
 )
 
-func startScheduler(db *gorm.DB) {
+func startScheduler(db *gorm.DB, searcher search.Searcher) {
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		for range ticker.C {
@@ -31,6 +32,9 @@ func startScheduler(db *gorm.DB) {
 				post.PublishedAt = &now
 				post.UpdatedAt = now
 				if err := db.Save(&post).Error; err == nil {
+					if searcher != nil {
+						_ = searcher.IndexPost(&post)
+					}
 					webhook.Dispatch(db, "post.published", post.ToResponse())
 				}
 			}
@@ -72,7 +76,14 @@ func main() {
 		log.Fatalf("Database initialization failed: %v", err)
 	}
 
-	startScheduler(db)
+	searcher, err := search.NewSQLiteSearcher(db)
+	if err != nil {
+		log.Printf("Warning: search index initialization failed: %v", err)
+	} else if err := searcher.SyncAllPublished(); err != nil {
+		log.Printf("Warning: initial search index sync failed: %v", err)
+	}
+
+	startScheduler(db, searcher)
 
 	storageProv, err := storage.NewLocalStorageProvider("./uploads", "/uploads")
 	if err != nil {

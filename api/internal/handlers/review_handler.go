@@ -9,15 +9,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/search"
 	"gorm.io/gorm"
 )
 
 type ReviewHandler struct {
-	db *gorm.DB
+	db       *gorm.DB
+	searcher search.Searcher
 }
 
-func NewReviewHandler(db *gorm.DB) *ReviewHandler {
-	return &ReviewHandler{db: db}
+func NewReviewHandler(db *gorm.DB, searchers ...search.Searcher) *ReviewHandler {
+	var s search.Searcher
+	if len(searchers) > 0 && searchers[0] != nil {
+		s = searchers[0]
+	} else {
+		s, _ = search.NewSQLiteSearcher(db)
+	}
+	return &ReviewHandler{db: db, searcher: s}
 }
 
 type CreateRevisionRequest struct {
@@ -149,6 +157,9 @@ func (h *ReviewHandler) RestoreRevision(c *gin.Context) {
 		post.Title = revision.Title
 		post.UpdatedAt = time.Now()
 		_ = h.db.Save(&post).Error
+		if h.searcher != nil {
+			_ = h.searcher.IndexPost(&post)
+		}
 	} else if revision.TargetType == models.ReviewTargetDoc {
 		var doc models.DocPage
 		if err := h.db.First(&doc, "id = ?", revision.TargetID).Error; err != nil {
@@ -159,6 +170,9 @@ func (h *ReviewHandler) RestoreRevision(c *gin.Context) {
 		doc.Title = revision.Title
 		doc.UpdatedAt = time.Now()
 		_ = h.db.Save(&doc).Error
+		if h.searcher != nil {
+			_ = h.searcher.IndexDocPage(&doc)
+		}
 	}
 
 	var maxVersion int
@@ -327,6 +341,12 @@ func (h *ReviewHandler) UpdateReviewRequest(c *gin.Context) {
 				"published_at": &now,
 				"updated_at":   now,
 			})
+			if h.searcher != nil {
+				var updatedPost models.Post
+				if err := h.db.First(&updatedPost, "id = ?", reviewReq.TargetID).Error; err == nil {
+					_ = h.searcher.IndexPost(&updatedPost)
+				}
+			}
 		} else if reviewReq.TargetType == models.ReviewTargetDoc {
 			var doc models.DocPage
 			if err := h.db.First(&doc, "id = ?", reviewReq.TargetID).Error; err == nil {
@@ -340,6 +360,12 @@ func (h *ReviewHandler) UpdateReviewRequest(c *gin.Context) {
 					"status":     "published",
 					"updated_at": now,
 				})
+				if h.searcher != nil {
+					var updatedDoc models.DocPage
+					if err := h.db.First(&updatedDoc, "id = ?", reviewReq.TargetID).Error; err == nil {
+						_ = h.searcher.IndexDocPage(&updatedDoc)
+					}
+				}
 			}
 		}
 	}

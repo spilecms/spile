@@ -25,6 +25,7 @@ const openAPISpecJSON = `{
     }
   ],
   "tags": [
+    { "name": "Search", "description": "Full-text section-level search and client search index" },
     { "name": "Posts", "description": "Published blog posts and articles" },
     { "name": "Docs", "description": "Published documentation projects, navigation trees, and pages" },
     { "name": "Taxonomy", "description": "Tags and workspace locales" },
@@ -32,6 +33,62 @@ const openAPISpecJSON = `{
     { "name": "System", "description": "Service health check" }
   ],
   "paths": {
+    "/search": {
+      "get": {
+        "tags": ["Search"],
+        "operationId": "searchContent",
+        "summary": "Full-text search across published docs and posts",
+        "description": "Searches pre-chunked published sections using SQLite FTS5 with bm25 per-column weights (params > pageTitle > sectionTitle > body > code), prefix matching, GitHub-style heading anchors, and XSS-safe character match ranges.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search query string (supports prefixes and hyphenated/underscored identifiers like X-Spile-Signature or pk_live)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "Filter by content type: all, docs, or posts",
+            "schema": { "type": "string", "enum": ["all", "docs", "posts"], "default": "all" }
+          },
+          {
+            "name": "projectId",
+            "in": "query",
+            "required": false,
+            "description": "Filter documentation results by project UUID or slug",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "description": "Filter results by locale code (e.g. 'en')",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of ranked sections to return (1-50, default 20)",
+            "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 50 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ranked section search results with highlight ranges",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SearchResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+        }
+      }
+    },
     "/posts": {
       "get": {
         "tags": ["Posts"],
@@ -217,6 +274,58 @@ const openAPISpecJSON = `{
             }
           },
           "401": { "$ref": "#/components/responses/UnauthorizedError" }
+        }
+      }
+    },
+    "/docs/projects/{idOrSlug}/search-index": {
+      "get": {
+        "tags": ["Search", "Docs"],
+        "operationId": "getDocProjectSearchIndex",
+        "summary": "Get compact client-side search index for a documentation project",
+        "description": "Returns pre-chunked published sections (titles, heading hierarchy, anchors, API parameter names, and truncated body without code blocks) for instant client-side search (MiniSearch / cmdk). Supports ETag caching (304 Not Modified) and Gzip compression.",
+        "parameters": [
+          {
+            "name": "idOrSlug",
+            "in": "path",
+            "required": true,
+            "description": "Documentation project UUID or URL slug",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "description": "Locale code (defaults to 'en')",
+            "schema": { "type": "string", "default": "en" }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from previous response to receive 304 Not Modified if unchanged",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compact client search index",
+            "headers": {
+              "ETag": {
+                "description": "Entity tag for conditional caching",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ClientSearchIndexResponse" }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified (index unchanged since If-None-Match ETag)"
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "404": { "$ref": "#/components/responses/NotFoundError" }
         }
       }
     },
@@ -617,6 +726,131 @@ const openAPISpecJSON = `{
           "device": { "type": "string", "enum": ["desktop", "mobile", "tablet"] },
           "readTimeSeconds": { "type": "integer", "example": 180 },
           "bounced": { "type": "boolean", "example": false }
+        }
+      },
+      "MatchRange": {
+        "type": "object",
+        "required": ["start", "end"],
+        "properties": {
+          "start": { "type": "integer", "description": "Inclusive start character offset" },
+          "end": { "type": "integer", "description": "Exclusive end character offset" }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "required": [
+          "id",
+          "entityId",
+          "type",
+          "locale",
+          "pageTitle",
+          "pageSlug",
+          "sectionTitle",
+          "headingPath",
+          "anchor",
+          "kind",
+          "snippet",
+          "titleMatches",
+          "snippetMatches",
+          "score",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "entityId": { "type": "string" },
+          "type": { "type": "string", "enum": ["doc", "post"] },
+          "projectId": { "type": "string" },
+          "projectSlug": { "type": "string" },
+          "projectTitle": { "type": "string" },
+          "locale": { "type": "string", "example": "en" },
+          "pageTitle": { "type": "string" },
+          "pageSlug": { "type": "string" },
+          "sectionTitle": { "type": "string" },
+          "headingPath": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "anchor": { "type": "string", "description": "GitHub-style deduplicated heading anchor slug (empty for intro section)" },
+          "blockId": { "type": "string", "description": "Internal Editor.js block ID" },
+          "kind": { "type": "string", "enum": ["intro", "section"] },
+          "paramNames": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "snippet": { "type": "string" },
+          "titleMatches": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MatchRange" }
+          },
+          "snippetMatches": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MatchRange" }
+          },
+          "score": { "type": "number", "format": "double" },
+          "updatedAt": { "type": "integer", "format": "int64" }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": ["query", "total", "results"],
+        "properties": {
+          "query": { "type": "string" },
+          "total": { "type": "integer" },
+          "results": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SearchResult" }
+          }
+        }
+      },
+      "ClientSearchIndexItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "pageId",
+          "locale",
+          "pageTitle",
+          "pageSlug",
+          "sectionTitle",
+          "headingPath",
+          "anchor",
+          "kind",
+          "text",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "pageId": { "type": "string" },
+          "locale": { "type": "string" },
+          "pageTitle": { "type": "string" },
+          "pageSlug": { "type": "string" },
+          "sectionTitle": { "type": "string" },
+          "headingPath": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "anchor": { "type": "string" },
+          "kind": { "type": "string", "enum": ["intro", "section"] },
+          "paramNames": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "text": { "type": "string", "description": "Plain text body capped at ~300 characters (code blocks excluded)" },
+          "updatedAt": { "type": "integer", "format": "int64" }
+        }
+      },
+      "ClientSearchIndexResponse": {
+        "type": "object",
+        "required": ["projectId", "projectSlug", "locale", "updatedAt", "total", "items"],
+        "properties": {
+          "projectId": { "type": "string" },
+          "projectSlug": { "type": "string" },
+          "locale": { "type": "string" },
+          "updatedAt": { "type": "integer", "format": "int64" },
+          "total": { "type": "integer" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ClientSearchIndexItem" }
+          }
         }
       }
     }

@@ -10,16 +10,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/search"
 	"github.com/spilecms/spile/api/internal/webhook"
 	"gorm.io/gorm"
 )
 
 type DocHandler struct {
-	db *gorm.DB
+	db       *gorm.DB
+	searcher search.Searcher
 }
 
-func NewDocHandler(db *gorm.DB) *DocHandler {
-	return &DocHandler{db: db}
+func NewDocHandler(db *gorm.DB, searchers ...search.Searcher) *DocHandler {
+	var s search.Searcher
+	if len(searchers) > 0 && searchers[0] != nil {
+		s = searchers[0]
+	} else {
+		s, _ = search.NewSQLiteSearcher(db)
+	}
+	return &DocHandler{db: db, searcher: s}
 }
 
 type CreateProjectRequest struct {
@@ -369,6 +377,9 @@ func (h *DocHandler) UpdatePage(c *gin.Context) {
 	if req.Status != nil {
 		h.syncProjectStatus(page.ProjectID)
 	}
+	if h.searcher != nil {
+		_ = h.searcher.IndexDocPage(&page)
+	}
 
 	resp := page.ToResponse()
 	webhook.Dispatch(h.db, "doc.updated", resp)
@@ -413,6 +424,10 @@ func (h *DocHandler) UpdateProject(c *gin.Context) {
 		return
 	}
 
+	if h.searcher != nil {
+		_ = h.searcher.IndexProjectPages(p.ID)
+	}
+
 	var pageCount int64
 	h.db.Model(&models.DocPage{}).Where("project_id = ?", p.ID).Count(&pageCount)
 
@@ -447,6 +462,9 @@ func (h *DocHandler) DeletePage(c *gin.Context) {
 		return
 	}
 
+	if h.searcher != nil {
+		_ = h.searcher.DeleteEntity("doc", id)
+	}
 	if page.ProjectID != "" {
 		h.syncProjectStatus(page.ProjectID)
 	}
@@ -456,6 +474,14 @@ func (h *DocHandler) DeletePage(c *gin.Context) {
 
 func (h *DocHandler) DeleteProject(c *gin.Context) {
 	id := c.Param("id")
+	if h.searcher != nil {
+		var pages []models.DocPage
+		if err := h.db.Select("id").Where("project_id = ?", id).Find(&pages).Error; err == nil {
+			for _, pg := range pages {
+				_ = h.searcher.DeleteEntity("doc", pg.ID)
+			}
+		}
+	}
 	_ = h.db.Where("project_id = ?", id).Delete(&models.DocPage{}).Error
 	if err := h.db.Delete(&models.DocumentationProject{}, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete project"})
@@ -517,6 +543,10 @@ func (h *DocHandler) UpdateNavigation(c *gin.Context) {
 	}
 
 	walkItems(req.Items, nil)
+
+	if h.searcher != nil {
+		_ = h.searcher.IndexProjectPages(projectID)
+	}
 
 	manifest := models.DocNavigationManifest{
 		ID:        projectID + "-manifest",
