@@ -44,7 +44,11 @@ export default function EditorPage() {
 	const activeLocale = searchParams.get("lang") || "en";
 	const isDoc = location.pathname.startsWith("/editor/doc");
 	const isNewsletter = location.pathname.startsWith("/editor/newsletter");
-	const isNew = id === "new";
+	const isNew =
+		id === "new" ||
+		location.pathname === "/editor/new" ||
+		location.pathname === "/editor/doc/new" ||
+		location.pathname === "/editor/newsletter/new";
 	const loadPost = useEditorStore((s) => s.loadPost);
 	const loadDoc = useEditorStore((s) => s.loadDoc);
 	const loadNewsletter = useEditorStore((s) => s.loadNewsletter);
@@ -147,26 +151,36 @@ export default function EditorPage() {
 		enabled: isDoc && !isNew && Boolean(id),
 	});
 
+	const effectiveProjectId = projectId || doc?.projectId;
+
 	// Docs Navigation manifest for this project and active workspace locale
 	const { data: navData } = useQuery({
-		queryKey: ["docs-navigation", projectId, activeLocale],
-		queryFn: () => mockApi.docs.getNavigation(projectId, activeLocale),
-		enabled: isDoc,
+		queryKey: ["docs-navigation", effectiveProjectId, activeLocale],
+		queryFn: () => mockApi.docs.getNavigation(effectiveProjectId, activeLocale),
+		enabled: isDoc && Boolean(effectiveProjectId),
 	});
 
-	// Synchronize URL search params if doc has a locale and URL hasn't set one yet
+	// Synchronize URL search params if doc has a locale or project and URL hasn't set one yet
 	React.useEffect(() => {
-		if (isDoc && doc?.locale && !searchParams.get("lang")) {
+		if (isDoc && (doc?.locale || doc?.projectId)) {
 			setSearchParams(
 				(prev) => {
+					let changed = false;
 					const next = new URLSearchParams(prev);
-					next.set("lang", doc.locale);
-					return next;
+					if (doc.locale && !prev.get("lang")) {
+						next.set("lang", doc.locale);
+						changed = true;
+					}
+					if (doc.projectId && !prev.get("project")) {
+						next.set("project", doc.projectId);
+						changed = true;
+					}
+					return changed ? next : prev;
 				},
 				{ replace: true },
 			);
 		}
-	}, [isDoc, doc?.locale, searchParams, setSearchParams]);
+	}, [isDoc, doc?.locale, doc?.projectId, setSearchParams]);
 
 	const [manifest, setManifest] = React.useState<DocNavigationManifest | null>(
 		null,
@@ -178,10 +192,10 @@ export default function EditorPage() {
 
 	// Live sync active editing title to sidebar tree
 	React.useEffect(() => {
-		if (!isDoc || !id) return;
+		if (!isDoc || !id || postId !== id) return;
 		function updateTitleRecursive(items: DocTreeItem[]): DocTreeItem[] {
 			return items.map((item) => {
-				if (item.id === id) {
+				if (item.id === id || item.localizedDocId === id) {
 					return { ...item, title: activeTitle || "Untitled" };
 				}
 				if (item.children) {
@@ -193,7 +207,7 @@ export default function EditorPage() {
 		setManifest((prev) =>
 			prev ? { ...prev, items: updateTitleRecursive(prev.items) } : null,
 		);
-	}, [activeTitle, id, isDoc]);
+	}, [activeTitle, id, postId, isDoc]);
 
 	// Load post, doc, or newsletter into editor store
 	React.useEffect(() => {
@@ -320,20 +334,21 @@ export default function EditorPage() {
 
 	const handleAddDoc = async (parentId?: string) => {
 		try {
+			const targetProjId = effectiveProjectId;
 			const { page, navigation } = await mockApi.docs.createPage({
 				title: "Untitled",
 				parentId,
-				projectId,
+				projectId: targetProjId,
 				locale: activeLocale,
 			});
 			setManifest(navigation);
 			queryClient.setQueryData(
-				["docs-navigation", projectId, activeLocale],
+				["docs-navigation", targetProjId, activeLocale],
 				navigation,
 			);
 			queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
 			navigate(
-				`/editor/doc/${page.id}?${projectId ? `project=${projectId}&` : ""}lang=${activeLocale}`,
+				`/editor/doc/${page.id}?${targetProjId ? `project=${targetProjId}&` : ""}lang=${activeLocale}`,
 			);
 		} catch (_err) {
 			toast.error("Failed to create document");
@@ -379,13 +394,9 @@ export default function EditorPage() {
 	};
 
 	const handleRenameDoc = async (docId: string, newTitle: string) => {
-		if (docId === id) {
-			useEditorStore.getState().setTitle(newTitle);
-		}
-		await mockApi.docs.updatePage(docId, { title: newTitle });
 		function updateTitleRecursive(items: DocTreeItem[]): DocTreeItem[] {
 			return items.map((item) => {
-				if (item.id === docId) {
+				if (item.id === docId || item.localizedDocId === docId) {
 					return { ...item, title: newTitle };
 				}
 				if (item.children) {
@@ -394,9 +405,32 @@ export default function EditorPage() {
 				return item;
 			});
 		}
+
 		setManifest((prev) =>
 			prev ? { ...prev, items: updateTitleRecursive(prev.items) } : null,
 		);
+		queryClient.setQueryData<DocNavigationManifest>(
+			["docs-navigation", effectiveProjectId, activeLocale],
+			(old) => (old ? { ...old, items: updateTitleRecursive(old.items) } : old),
+		);
+		queryClient.setQueryData(["docs", docId], (old: typeof doc) =>
+			old ? { ...old, title: newTitle } : old,
+		);
+
+		if (docId === id) {
+			useEditorStore.getState().setTitle(newTitle);
+		}
+
+		try {
+			const updated = await mockApi.docs.updatePage(docId, {
+				title: newTitle,
+			});
+			queryClient.setQueryData(["docs", docId], updated);
+			queryClient.invalidateQueries({ queryKey: ["docs-navigation"] });
+			queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
+		} catch (_err) {
+			toast.error("Failed to rename document");
+		}
 	};
 
 	const handleSelectLocale = async (newLocale: string) => {

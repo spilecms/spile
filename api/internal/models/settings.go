@@ -10,8 +10,7 @@ import (
 type ApiKeyType string
 
 const (
-	ApiKeyTypePublicRead  ApiKeyType = "public_read"
-	ApiKeyTypeAdminSecret ApiKeyType = "admin_secret"
+	ApiKeyTypePublicRead ApiKeyType = "public_read"
 )
 
 type ApiKey struct {

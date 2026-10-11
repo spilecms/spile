@@ -2,13 +2,67 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/spilecms/spile/api/internal/config"
 	"github.com/spilecms/spile/api/internal/database"
+	"github.com/spilecms/spile/api/internal/email"
+	"github.com/spilecms/spile/api/internal/models"
 	"github.com/spilecms/spile/api/internal/routes"
 	"github.com/spilecms/spile/api/internal/storage"
+	"github.com/spilecms/spile/api/internal/webhook"
 	"github.com/spilecms/spile/web"
+	"gorm.io/gorm"
 )
+
+func startScheduler(db *gorm.DB) {
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		for range ticker.C {
+			now := time.Now()
+
+			// 1. Auto-publish scheduled posts
+			var duePosts []models.Post
+			db.Preload("Authors").Preload("Tags").
+				Where("status = ? AND scheduled_for IS NOT NULL AND scheduled_for <= ?", models.PostStatusScheduled, now).
+				Find(&duePosts)
+			for _, post := range duePosts {
+				post.Status = models.PostStatusPublished
+				post.PublishedAt = &now
+				post.UpdatedAt = now
+				if err := db.Save(&post).Error; err == nil {
+					webhook.Dispatch(db, "post.published", post.ToResponse())
+				}
+			}
+
+			// 2. Auto-send scheduled newsletters
+			var dueNewsletters []models.Newsletter
+			db.Where("status = ? AND scheduled_for IS NOT NULL AND scheduled_for <= ?", models.NewsletterStatusScheduled, now).
+				Find(&dueNewsletters)
+			if len(dueNewsletters) > 0 {
+				var members []models.Member
+				db.Where("status = ?", models.MemberStatusActive).Find(&members)
+				for _, nl := range dueNewsletters {
+					htmlBody := "<h1>" + nl.Title + "</h1><p>" + nl.PreviewText + "</p>"
+					delivered := 0
+					for _, m := range members {
+						if m.Email != "" && email.Send(db, m.Email, nl.Subject, htmlBody, nl.SenderName, nl.SenderEmail) == nil {
+							delivered++
+						}
+					}
+					nl.Status = models.NewsletterStatusSent
+					nl.SentAt = &now
+					nl.RecipientsCount = len(members)
+					nl.DeliveredCount = delivered
+					nl.UpdatedAt = now
+					if err := db.Save(&nl).Error; err == nil {
+						webhook.Dispatch(db, "newsletter.sent", nl.ToResponse())
+					}
+				}
+			}
+		}
+	}()
+}
 
 func main() {
 	cfg := config.Load()
@@ -17,6 +71,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Database initialization failed: %v", err)
 	}
+
+	startScheduler(db)
 
 	storageProv, err := storage.NewLocalStorageProvider("./uploads", "/uploads")
 	if err != nil {

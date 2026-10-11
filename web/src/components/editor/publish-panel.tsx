@@ -151,6 +151,9 @@ export function PublishPanel({
 					await queryClient.invalidateQueries({
 						queryKey: ["docs-navigation"],
 					});
+					await queryClient.invalidateQueries({
+						queryKey: ["docs-projects"],
+					});
 					toast.success(
 						localStatus === "published"
 							? "Document published"

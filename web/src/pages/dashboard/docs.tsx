@@ -1,9 +1,10 @@
 import { PlusCircleIcon } from "@heroicons/react/24/solid";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, SearchIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { HeaderActions } from "@/components/dashboard/header-actions";
 import { DocsTable } from "@/components/docs/docs-table";
 import {
@@ -30,12 +31,14 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { mockApi } from "@/lib/mock/api";
+import type { DocumentationProject } from "@/types/domain";
 
 const STATUS_TABS = ["all", "draft", "published"] as const;
 type StatusTab = (typeof STATUS_TABS)[number];
 
 export default function DocsPage() {
 	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const status = (searchParams.get("status") ?? "all") as StatusTab;
 	const [query, setQuery] = React.useState("");
@@ -131,6 +134,27 @@ export default function DocsPage() {
 		}
 	};
 
+	const handleToggleStatus = async (project: DocumentationProject) => {
+		const nextStatus = project.status === "published" ? "draft" : "published";
+		try {
+			await mockApi.docs.updateProject(project.id, { status: nextStatus });
+			await Promise.all([
+				refetch(),
+				queryClient.invalidateQueries({ queryKey: ["docs"] }),
+				queryClient.invalidateQueries({ queryKey: ["docs-navigation"] }),
+			]);
+			toast.success(
+				nextStatus === "published"
+					? `"${project.title}" and all its pages are now published`
+					: `"${project.title}" set to draft`,
+			);
+		} catch (err) {
+			toast.error(
+				err instanceof Error ? err.message : "Failed to update project status",
+			);
+		}
+	};
+
 	const { t } = useTranslation();
 	return (
 		<div className="flex flex-1 flex-col gap-4 px-4 py-6 lg:px-6">
@@ -219,6 +243,7 @@ export default function DocsPage() {
 				<DocsTable
 					data={filteredProjects}
 					onDelete={(id: string) => setDeleteId(id)}
+					onToggleStatus={handleToggleStatus}
 				/>
 			)}
 

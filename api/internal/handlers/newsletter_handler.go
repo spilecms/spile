@@ -8,7 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/spilecms/spile/api/internal/email"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/webhook"
 	"gorm.io/gorm"
 )
 
@@ -233,6 +235,12 @@ func (h *NewsletterHandler) SendTest(c *gin.Context) {
 		return
 	}
 
+	htmlBody := "<h1>" + n.Title + "</h1><p>" + n.PreviewText + "</p>"
+	if err := email.Send(h.db, req.Email, n.Subject, htmlBody, n.SenderName, n.SenderEmail); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to send test email: " + err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Test email for \"" + n.Subject + "\" sent to " + req.Email,
@@ -247,19 +255,32 @@ func (h *NewsletterHandler) Send(c *gin.Context) {
 		return
 	}
 
-	var activeMembers int64
-	h.db.Model(&models.Member{}).Where("status = ?", models.MemberStatusActive).Count(&activeMembers)
+	var members []models.Member
+	h.db.Where("status = ?", models.MemberStatusActive).Find(&members)
+
+	htmlBody := "<h1>" + n.Title + "</h1><p>" + n.PreviewText + "</p>"
+	delivered := 0
+	for _, m := range members {
+		if m.Email == "" {
+			continue
+		}
+		if err := email.Send(h.db, m.Email, n.Subject, htmlBody, n.SenderName, n.SenderEmail); err == nil {
+			delivered++
+		}
+	}
 
 	now := time.Now()
 	n.Status = models.NewsletterStatusSent
 	n.SentAt = &now
-	n.RecipientsCount = int(activeMembers)
-	n.DeliveredCount = int(activeMembers)
+	n.RecipientsCount = len(members)
+	n.DeliveredCount = delivered
 
 	if err := h.db.Save(&n).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send newsletter"})
 		return
 	}
 
-	c.JSON(http.StatusOK, n.ToResponse())
+	resp := n.ToResponse()
+	webhook.Dispatch(h.db, "newsletter.sent", resp)
+	c.JSON(http.StatusOK, resp)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/webhook"
 	"gorm.io/gorm"
 )
 
@@ -101,7 +102,9 @@ func (h *PostHandler) List(c *gin.Context) {
 		Preload("Tags").
 		Order("updated_at desc")
 
-	if status != "" && status != "all" {
+	if auth.IsPublicReadKey(c) {
+		dbQuery = dbQuery.Where("status = ?", models.PostStatusPublished)
+	} else if status != "" && status != "all" {
 		dbQuery = dbQuery.Where("status = ?", status)
 	}
 
@@ -137,7 +140,11 @@ func (h *PostHandler) List(c *gin.Context) {
 func (h *PostHandler) Get(c *gin.Context) {
 	id := c.Param("id")
 	var post models.Post
-	if err := h.db.Preload("Authors").Preload("Tags").First(&post, "id = ?", id).Error; err != nil {
+	query := h.db.Preload("Authors").Preload("Tags")
+	if auth.IsPublicReadKey(c) {
+		query = query.Where("status = ?", models.PostStatusPublished)
+	}
+	if err := query.First(&post, "id = ? OR slug = ?", id, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
 		return
 	}
@@ -235,7 +242,11 @@ func (h *PostHandler) Create(c *gin.Context) {
 
 	// Reload with associations
 	h.db.Preload("Authors").Preload("Tags").First(&post, "id = ?", post.ID)
-	c.JSON(http.StatusCreated, post.ToResponse())
+	resp := post.ToResponse()
+	if post.Status == models.PostStatusPublished {
+		webhook.Dispatch(h.db, "post.published", resp)
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 func (h *PostHandler) Update(c *gin.Context) {
@@ -320,7 +331,11 @@ func (h *PostHandler) Update(c *gin.Context) {
 	h.refreshTagCounts()
 
 	h.db.Preload("Authors").Preload("Tags").First(&post, "id = ?", post.ID)
-	c.JSON(http.StatusOK, post.ToResponse())
+	resp := post.ToResponse()
+	if post.Status == models.PostStatusPublished {
+		webhook.Dispatch(h.db, "post.published", resp)
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *PostHandler) Delete(c *gin.Context) {

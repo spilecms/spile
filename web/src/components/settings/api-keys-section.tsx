@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Key, Plus, Trash2, Webhook as WebhookIcon } from "lucide-react";
+import {
+	Copy,
+	ExternalLink,
+	FileJson2,
+	Key,
+	Plus,
+	Trash2,
+	Webhook as WebhookIcon,
+} from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -21,22 +29,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { mockApi } from "@/lib/mock/api";
 
 export function ApiKeysSection() {
 	const queryClient = useQueryClient();
 	const [keyDialogOpen, setKeyDialogOpen] = React.useState(false);
 	const [keyName, setKeyName] = React.useState("");
-	const [keyType, setKeyType] = React.useState<"public_read" | "admin_secret">(
-		"public_read",
-	);
 
 	const [webhookDialogOpen, setWebhookDialogOpen] = React.useState(false);
 	const [webhookName, setWebhookName] = React.useState("");
@@ -56,10 +54,17 @@ export function ApiKeysSection() {
 	});
 
 	const createKeyMutation = useMutation({
-		mutationFn: () => mockApi.settings.createApiKey(keyName, keyType),
+		mutationFn: () => mockApi.settings.createApiKey(keyName, "public_read"),
 		onSuccess: (newKey) => {
 			queryClient.invalidateQueries({ queryKey: ["settings", "api-keys"] });
-			toast.success(`Generated ${newKey.name}`);
+			if (newKey.key) {
+				navigator.clipboard.writeText(newKey.key);
+				toast.success(
+					`Generated "${newKey.name}" and copied token to clipboard`,
+				);
+			} else {
+				toast.success(`Generated ${newKey.name}`);
+			}
 			setKeyDialogOpen(false);
 			setKeyName("");
 		},
@@ -106,8 +111,59 @@ export function ApiKeysSection() {
 		toast.success("Copied to clipboard");
 	};
 
+	const openApiUrl = `${window.location.origin}/api/v1/openapi.json`;
+	const sdkCommand = `npx @hey-api/openapi-ts -i ${openApiUrl} -o src/spile-client`;
+
 	return (
 		<div className="flex flex-col gap-6">
+			{/* OpenAPI 3.0 & SDK Generator */}
+			<Card>
+				<CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
+					<div>
+						<CardTitle className="text-base font-semibold flex items-center gap-2">
+							<FileJson2 className="size-4 text-primary" />
+							<span>OpenAPI 3.0 Spec & SDK Generator</span>
+						</CardTitle>
+						<CardDescription className="text-xs mt-1">
+							Generate strongly-typed JavaScript/TypeScript client SDKs or
+							explore interactive API docs using the OpenAPI 3.0 specification.
+						</CardDescription>
+					</div>
+					<div className="flex items-center gap-2 shrink-0">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => copyToClipboard(openApiUrl)}
+							className="gap-1.5 h-8 text-xs"
+						>
+							<Copy className="size-3.5" />
+							<span>Copy Spec URL</span>
+						</Button>
+						<Button
+							size="sm"
+							onClick={() => window.open("/api/v1/openapi", "_blank")}
+							className="gap-1.5 h-8 text-xs"
+						>
+							<ExternalLink className="size-3.5" />
+							<span>Interactive API Docs</span>
+						</Button>
+					</div>
+				</CardHeader>
+				<CardContent>
+					<div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2 font-mono text-xs text-muted-foreground">
+						<span className="truncate">{sdkCommand}</span>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							onClick={() => copyToClipboard(sdkCommand)}
+							title="Copy SDK generator command"
+						>
+							<Copy className="size-3.5" />
+						</Button>
+					</div>
+				</CardContent>
+			</Card>
+
 			{/* API Keys */}
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
@@ -187,21 +243,12 @@ export function ApiKeysSection() {
 												</div>
 											</td>
 											<td className="py-2.5 px-3">
-												{key.type === "public_read" ? (
-													<Badge
-														variant="secondary"
-														className="text-[10px] h-5 px-1.5 font-normal"
-													>
-														Public Read
-													</Badge>
-												) : (
-													<Badge
-														variant="destructive"
-														className="text-[10px] h-5 px-1.5 font-normal"
-													>
-														Admin Secret
-													</Badge>
-												)}
+												<Badge
+													variant="secondary"
+													className="text-[10px] h-5 px-1.5 font-normal"
+												>
+													Public Read
+												</Badge>
 											</td>
 											<td className="py-2.5 px-3 text-muted-foreground">
 												{key.lastUsedAt ? "Recently" : "Never used"}
@@ -341,11 +388,11 @@ export function ApiKeysSection() {
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							<Key className="size-4 text-primary" />
-							<span>Generate API Token</span>
+							<span>Generate Content Delivery Token</span>
 						</DialogTitle>
 						<DialogDescription className="text-xs">
-							Create a new API token for client headless sites or backend
-							administrative scripts.
+							Create a read-only <code>pk_live_</code> token for fetching
+							published content from your headless frontend.
 						</DialogDescription>
 					</DialogHeader>
 
@@ -358,28 +405,6 @@ export function ApiKeysSection() {
 								onChange={(e) => setKeyName(e.target.value)}
 								className="h-8 text-xs"
 							/>
-						</div>
-
-						<div className="flex flex-col gap-1.5">
-							<Label className="text-xs">Token Permission Scope</Label>
-							<Select
-								value={keyType}
-								onValueChange={(val) =>
-									setKeyType(val as "public_read" | "admin_secret")
-								}
-							>
-								<SelectTrigger className="h-8 text-xs">
-									<SelectValue placeholder="Select permission scope" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="public_read" className="text-xs">
-										Public Read-Only (Safe for frontend static sites)
-									</SelectItem>
-									<SelectItem value="admin_secret" className="text-xs">
-										Admin Full Access (Read/Write for backend servers)
-									</SelectItem>
-								</SelectContent>
-							</Select>
 						</div>
 					</div>
 

@@ -197,55 +197,65 @@ export function AudienceMapCard({
 					</div>
 
 					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-						{isLoading
-							? [
-									"sk-geo-1",
-									"sk-geo-2",
-									"sk-geo-3",
-									"sk-geo-4",
-									"sk-geo-5",
-									"sk-geo-6",
-									"sk-geo-7",
-									"sk-geo-8",
-								].map((skId) => (
-									<div
-										key={skId}
-										className="flex items-center justify-between p-2 rounded-md border"
-									>
-										<Skeleton className="h-4 w-28" />
-										<Skeleton className="h-4 w-12" />
+						{isLoading ? (
+							[
+								"sk-geo-1",
+								"sk-geo-2",
+								"sk-geo-3",
+								"sk-geo-4",
+								"sk-geo-5",
+								"sk-geo-6",
+								"sk-geo-7",
+								"sk-geo-8",
+							].map((skId) => (
+								<div
+									key={skId}
+									className="flex items-center justify-between p-2 rounded-md border"
+								>
+									<Skeleton className="h-4 w-28" />
+									<Skeleton className="h-4 w-12" />
+								</div>
+							))
+						) : sortedCountries.length === 0 ? (
+							<div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+								No reader geography tracked yet. Pageviews sent to{" "}
+								<code className="font-mono text-[11px]">
+									POST /api/v1/analytics/track
+								</code>{" "}
+								will appear here.
+							</div>
+						) : (
+							sortedCountries.slice(0, 12).map((c) => (
+								<button
+									type="button"
+									key={c.countryCode}
+									onClick={() => setSelectedCode(c.countryCode)}
+									className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all text-left ${
+										selectedCode === c.countryCode
+											? "border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary/30"
+											: "hover:bg-muted/50 border-border/60 bg-muted/20"
+									}`}
+								>
+									<div className="flex items-center gap-2 truncate">
+										<CountryFlag
+											countryCode={c.countryCode}
+											className="size-4 shrink-0 shadow-xs"
+										/>
+										<span className="truncate font-medium">
+											{c.countryName}
+										</span>
 									</div>
-								))
-							: sortedCountries.slice(0, 12).map((c) => (
-									<button
-										type="button"
-										key={c.countryCode}
-										onClick={() => setSelectedCode(c.countryCode)}
-										className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all text-left ${
-											selectedCode === c.countryCode
-												? "border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary/30"
-												: "hover:bg-muted/50 border-border/60 bg-muted/20"
-										}`}
-									>
-										<div className="flex items-center gap-2 truncate">
-											<CountryFlag
-												countryCode={c.countryCode}
-												className="size-4 shrink-0 shadow-xs"
-											/>
-											<span className="truncate font-medium">
-												{c.countryName}
-											</span>
-										</div>
-										<div className="flex items-center gap-1.5 font-mono text-[11px] shrink-0">
-											<span className="text-muted-foreground">
-												{formatNumber(c.views)}
-											</span>
-											<span className="font-semibold text-foreground">
-												{c.percentage.toFixed(1)}%
-											</span>
-										</div>
-									</button>
-								))}
+									<div className="flex items-center gap-1.5 font-mono text-[11px] shrink-0">
+										<span className="text-muted-foreground">
+											{formatNumber(c.views)}
+										</span>
+										<span className="font-semibold text-foreground">
+											{c.percentage.toFixed(1)}%
+										</span>
+									</div>
+								</button>
+							))
+						)}
 					</div>
 				</div>
 			</CardContent>

@@ -32,6 +32,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useAuth } from "@/lib/auth-context";
 import { mockApi } from "@/lib/mock/api";
 import { SaveStatus } from "./save-status";
 
@@ -79,6 +80,7 @@ export default function Navbar({
 	onSubmitReview,
 }: NavbarProps) {
 	const navigate = useNavigate();
+	const { logout } = useAuth();
 	const { data: currentUser } = useQuery({
 		queryKey: ["users", "current"],
 		queryFn: () => mockApi.users.current(),
@@ -133,6 +135,8 @@ export default function Navbar({
 				<input
 					value={title}
 					onChange={(e) => onTitleChange(e.target.value)}
+					onKeyDown={(e) => e.stopPropagation()}
+					onKeyUp={(e) => e.stopPropagation()}
 					placeholder="Untitled"
 					aria-label="Post title"
 					className="min-w-0 max-w-md flex-1 truncate rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-medium outline-none transition-colors hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -276,7 +280,15 @@ export default function Navbar({
 							<UserPersonaSubmenu />
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
-						<DropdownMenuItem variant="destructive">Sign out</DropdownMenuItem>
+						<DropdownMenuItem
+							variant="destructive"
+							onClick={async () => {
+								await logout();
+								navigate("/login", { replace: true });
+							}}
+						>
+							Sign out
+						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</nav>

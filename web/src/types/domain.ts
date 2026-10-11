@@ -257,9 +257,10 @@ export interface ApiKey {
 	id: string;
 	name: string;
 	prefix: string;
-	type: "public_read" | "admin_secret";
+	type: "public_read";
 	createdAt: number;
 	lastUsedAt: number | null;
+	key?: string;
 }
 
 export interface Webhook {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spilecms/spile/api/internal/auth"
@@ -33,6 +34,7 @@ type CreateReviewRequestPayload struct {
 	TargetTitle string                  `json:"targetTitle" binding:"required"`
 	RevisionID  string                  `json:"revisionId" binding:"required"`
 	Summary     string                  `json:"summary"`
+	ReviewerID  string                  `json:"reviewerId"`
 }
 
 type UpdateReviewStatusRequest struct {
@@ -113,6 +115,74 @@ func (h *ReviewHandler) CreateRevision(c *gin.Context) {
 	c.JSON(http.StatusCreated, revision.ToResponse())
 }
 
+func (h *ReviewHandler) GetRevision(c *gin.Context) {
+	id := c.Param("id")
+	var revision models.ContentRevision
+	if err := h.db.First(&revision, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Revision not found"})
+		return
+	}
+	c.JSON(http.StatusOK, revision.ToResponse())
+}
+
+func (h *ReviewHandler) RestoreRevision(c *gin.Context) {
+	id := c.Param("id")
+	var revision models.ContentRevision
+	if err := h.db.First(&revision, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Revision not found"})
+		return
+	}
+
+	currentUser, ok := auth.GetCurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	if revision.TargetType == models.ReviewTargetPost {
+		var post models.Post
+		if err := h.db.First(&post, "id = ?", revision.TargetID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Target post not found"})
+			return
+		}
+		post.Content = revision.Content
+		post.Title = revision.Title
+		post.UpdatedAt = time.Now()
+		_ = h.db.Save(&post).Error
+	} else if revision.TargetType == models.ReviewTargetDoc {
+		var doc models.DocPage
+		if err := h.db.First(&doc, "id = ?", revision.TargetID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Target doc page not found"})
+			return
+		}
+		doc.Content = revision.Content
+		doc.Title = revision.Title
+		doc.UpdatedAt = time.Now()
+		_ = h.db.Save(&doc).Error
+	}
+
+	var maxVersion int
+	h.db.Model(&models.ContentRevision{}).
+		Where("target_type = ? AND target_id = ?", revision.TargetType, revision.TargetID).
+		Select("COALESCE(MAX(version_number), 0)").Scan(&maxVersion)
+
+	newRev := models.ContentRevision{
+		TargetType:    revision.TargetType,
+		TargetID:      revision.TargetID,
+		VersionNumber: maxVersion + 1,
+		VersionLabel:  fmt.Sprintf("v%d.0", maxVersion+1),
+		Title:         revision.Title,
+		Summary:       fmt.Sprintf("Restored from %s", revision.VersionLabel),
+		Content:       revision.Content,
+		AuthorID:      currentUser.ID,
+		AuthorName:    currentUser.Name,
+		Status:        models.RevisionStatusDraft,
+	}
+	_ = h.db.Create(&newRev).Error
+
+	c.JSON(http.StatusOK, newRev.ToResponse())
+}
+
 func (h *ReviewHandler) ListReviewRequests(c *gin.Context) {
 	status := c.Query("status")
 
@@ -130,6 +200,16 @@ func (h *ReviewHandler) ListReviewRequests(c *gin.Context) {
 	c.JSON(http.StatusOK, requests)
 }
 
+func (h *ReviewHandler) GetReviewRequest(c *gin.Context) {
+	id := c.Param("id")
+	var reviewReq models.ReviewRequest
+	if err := h.db.First(&reviewReq, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Review request not found"})
+		return
+	}
+	c.JSON(http.StatusOK, reviewReq)
+}
+
 func (h *ReviewHandler) CreateReviewRequest(c *gin.Context) {
 	var req CreateReviewRequestPayload
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -143,15 +223,25 @@ func (h *ReviewHandler) CreateReviewRequest(c *gin.Context) {
 		return
 	}
 
+	var reviewerName string
+	if req.ReviewerID != "" {
+		var reviewer models.User
+		if err := h.db.First(&reviewer, "id = ?", req.ReviewerID).Error; err == nil {
+			reviewerName = reviewer.Name
+		}
+	}
+
 	reviewReq := models.ReviewRequest{
-		TargetType:  req.TargetType,
-		TargetID:    req.TargetID,
-		TargetTitle: req.TargetTitle,
-		RevisionID:  req.RevisionID,
-		AuthorID:    currentUser.ID,
-		AuthorName:  currentUser.Name,
-		Summary:     req.Summary,
-		Status:      models.ReviewStatusInReview,
+		TargetType:   req.TargetType,
+		TargetID:     req.TargetID,
+		TargetTitle:  req.TargetTitle,
+		RevisionID:   req.RevisionID,
+		AuthorID:     currentUser.ID,
+		AuthorName:   currentUser.Name,
+		ReviewerID:   req.ReviewerID,
+		ReviewerName: reviewerName,
+		Summary:      req.Summary,
+		Status:       models.ReviewStatusInReview,
 	}
 
 	if err := h.db.Create(&reviewReq).Error; err != nil {
@@ -170,6 +260,7 @@ func (h *ReviewHandler) CreateReviewRequest(c *gin.Context) {
 		TargetType: req.TargetType,
 		TargetID:   req.TargetID,
 		ReviewID:   reviewReq.ID,
+		UserID:     req.ReviewerID,
 	}
 	_ = h.db.Create(&notification).Error
 
@@ -223,6 +314,36 @@ func (h *ReviewHandler) UpdateReviewRequest(c *gin.Context) {
 
 	h.db.Model(&models.ContentRevision{}).Where("id = ?", reviewReq.RevisionID).Update("status", revStatus)
 
+	var rev models.ContentRevision
+	_ = h.db.First(&rev, "id = ?", reviewReq.RevisionID).Error
+
+	if req.Status == models.ReviewStatusApproved && rev.ID != "" {
+		now := time.Now()
+		if reviewReq.TargetType == models.ReviewTargetPost {
+			h.db.Model(&models.Post{}).Where("id = ?", reviewReq.TargetID).Updates(map[string]any{
+				"content":      rev.Content,
+				"title":        rev.Title,
+				"status":       models.PostStatusPublished,
+				"published_at": &now,
+				"updated_at":   now,
+			})
+		} else if reviewReq.TargetType == models.ReviewTargetDoc {
+			var doc models.DocPage
+			if err := h.db.First(&doc, "id = ?", reviewReq.TargetID).Error; err == nil {
+				h.db.Model(&models.DocPage{}).Where("id = ?", reviewReq.TargetID).Updates(map[string]any{
+					"content":    rev.Content,
+					"title":      rev.Title,
+					"status":     "published",
+					"updated_at": now,
+				})
+				h.db.Model(&models.DocumentationProject{}).Where("id = ?", doc.ProjectID).Updates(map[string]any{
+					"status":     "published",
+					"updated_at": now,
+				})
+			}
+		}
+	}
+
 	// Create notification for original author
 	notification := models.Notification{
 		Type:       notifType,
@@ -234,6 +355,14 @@ func (h *ReviewHandler) UpdateReviewRequest(c *gin.Context) {
 		UserID:     reviewReq.AuthorID,
 	}
 	_ = h.db.Create(&notification).Error
+
+	if req.Status == models.ReviewStatusApproved {
+		c.JSON(http.StatusOK, gin.H{
+			"review":   reviewReq,
+			"revision": rev.ToResponse(),
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, reviewReq)
 }

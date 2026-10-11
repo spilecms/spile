@@ -14,6 +14,7 @@ import Quote from "@editorjs/quote";
 import Table from "@editorjs/table";
 import Underline from "@editorjs/underline";
 import Warning from "@editorjs/warning";
+import { useQueryClient } from "@tanstack/react-query";
 import DragDrop from "editorjs-dnd";
 import Undo from "editorjs-undo";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -65,6 +66,7 @@ export default function Editor({
 	onHistory?: () => void;
 	banner?: React.ReactNode;
 }) {
+	const queryClient = useQueryClient();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const undoRef = useRef<Undo | null>(null);
@@ -110,20 +112,22 @@ export default function Editor({
 			} = useEditorStore.getState();
 
 			if (itemType === "doc") {
-				await mockApi.docs.updatePage(postId, {
+				const updated = await mockApi.docs.updatePage(postId, {
 					title: currentTitle,
 					content: data,
 					slug,
 					status: status === "published" ? "published" : "draft",
 				});
+				queryClient.setQueryData(["docs", postId], updated);
 			} else if (itemType === "newsletter") {
-				await mockApi.newsletters.update(postId, {
+				const updated = await mockApi.newsletters.update(postId, {
 					subject: currentTitle,
 					previewText: excerpt,
 					content: data,
 				});
+				queryClient.setQueryData(["newsletters", postId], updated);
 			} else {
-				await mockApi.posts.update(postId, {
+				const updated = await mockApi.posts.update(postId, {
 					title: currentTitle,
 					content: data,
 					excerpt,
@@ -134,6 +138,7 @@ export default function Editor({
 					scheduledFor,
 					featuredImage,
 				});
+				queryClient.setQueryData(["posts", postId], updated);
 			}
 			if (!cancelledRef.current) {
 				setSavedAt(Date.now());
@@ -143,7 +148,7 @@ export default function Editor({
 		} finally {
 			if (!cancelledRef.current) setSaving(false);
 		}
-	}, [setBlocks, readOnly]);
+	}, [setBlocks, readOnly, queryClient]);
 
 	const flushSaveRef = useRef(flushSave);
 	flushSaveRef.current = flushSave;
@@ -204,31 +209,58 @@ export default function Editor({
 						config: {
 							uploader: {
 								async uploadByFile(file: File) {
-									// TODO: upload to your backend and return this shape
-									// const url = await upload(file);
+									const formData = new FormData();
+									formData.append("file", file);
+									const item = await mockApi.media.upload(formData);
 									return {
 										success: 1,
-										file: { url: URL.createObjectURL(file) },
+										file: { url: item.url },
 									};
 								},
 							},
 						},
 					},
-					video: createMediaTool("video"),
-					audio: createMediaTool("audio"),
+					video: {
+						class: createMediaTool("video"),
+						config: {
+							uploader: {
+								async uploadByFile(file: File) {
+									const formData = new FormData();
+									formData.append("file", file);
+									const item = await mockApi.media.upload(formData);
+									return { url: item.url, name: item.name };
+								},
+							},
+						},
+					},
+					audio: {
+						class: createMediaTool("audio"),
+						config: {
+							uploader: {
+								async uploadByFile(file: File) {
+									const formData = new FormData();
+									formData.append("file", file);
+									const item = await mockApi.media.upload(formData);
+									return { url: item.url, name: item.name };
+								},
+							},
+						},
+					},
 					attaches: {
 						class: AttachesTool,
 						config: {
 							uploader: {
 								async uploadByFile(file: File) {
-									// TODO: upload to your backend and return this shape
+									const formData = new FormData();
+									formData.append("file", file);
+									const item = await mockApi.media.upload(formData);
 									return {
 										success: 1,
 										file: {
-											url: URL.createObjectURL(file),
-											name: file.name,
-											size: file.size,
-											extension: file.name.split(".").pop() ?? "",
+											url: item.url,
+											name: item.name,
+											size: item.size,
+											extension: item.name.split(".").pop() ?? "",
 										},
 									};
 								},
@@ -260,10 +292,18 @@ export default function Editor({
 					underline: Underline,
 					inlineFormula: { class: InlineFormulaTool },
 				},
-				autofocus: true,
+				autofocus: false,
 				onReady: () => {
 					if (!cancelledRef.current && editor) {
 						editorRef.current = editor;
+						const activeTag = document.activeElement?.tagName;
+						if (
+							!readOnly &&
+							activeTag !== "INPUT" &&
+							activeTag !== "TEXTAREA"
+						) {
+							editor.caret?.focus();
+						}
 						cleanupOrganizer = setupToolboxOrganizer(holder);
 						undoRef.current = new Undo({ editor });
 						undoRef.current.initialize(blocks);

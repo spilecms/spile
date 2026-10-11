@@ -4,10 +4,15 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/spilecms/spile/api/internal/auth"
+	"github.com/spilecms/spile/api/internal/email"
 	"github.com/spilecms/spile/api/internal/models"
 	"gorm.io/gorm"
 )
@@ -22,7 +27,7 @@ func NewSettingsHandler(db *gorm.DB) *SettingsHandler {
 
 type CreateApiKeyRequest struct {
 	Name string            `json:"name" binding:"required"`
-	Type models.ApiKeyType `json:"type" binding:"required"`
+	Type models.ApiKeyType `json:"type"`
 }
 
 type CreateWebhookRequest struct {
@@ -79,6 +84,26 @@ func (h *SettingsHandler) UpdateStorage(c *gin.Context) {
 	c.JSON(http.StatusOK, existing)
 }
 
+func (h *SettingsHandler) TestStorage(c *gin.Context) {
+	var cfg map[string]any
+	h.getSetting("storage", &cfg, map[string]any{
+		"provider":  "local",
+		"localPath": "./uploads",
+	})
+	localPath, _ := cfg["localPath"].(string)
+	if localPath == "" {
+		localPath = "./uploads"
+	}
+	if err := os.MkdirAll(localPath, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Storage path is not writable: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Storage directory is accessible and writable!",
+	})
+}
+
 func (h *SettingsHandler) GetEmail(c *gin.Context) {
 	var data map[string]any
 	h.getSetting("email", &data, map[string]any{
@@ -103,6 +128,30 @@ func (h *SettingsHandler) UpdateEmail(c *gin.Context) {
 	}
 	_ = h.saveSetting("email", existing)
 	c.JSON(http.StatusOK, existing)
+}
+
+func (h *SettingsHandler) TestEmail(c *gin.Context) {
+	currentUser, ok := auth.GetCurrentUser(c)
+	toEmail := "admin@spile.dev"
+	if ok && currentUser.Email != "" {
+		toEmail = currentUser.Email
+	}
+	err := email.Send(
+		h.db,
+		toEmail,
+		"Spile CMS — Test Email Configuration",
+		"<p>Your Spile CMS email integration is configured and working properly.</p>",
+		"",
+		"",
+	)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to send test email: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Test email sent to " + toEmail,
+	})
 }
 
 func (h *SettingsHandler) GetAI(c *gin.Context) {
@@ -150,16 +199,13 @@ func (h *SettingsHandler) CreateApiKey(c *gin.Context) {
 	secret := hex.EncodeToString(randBytes)
 
 	prefix := "pk_live_"
-	if req.Type == models.ApiKeyTypeAdminSecret {
-		prefix = "sk_live_"
-	}
 	fullPrefix := prefix + secret[:6] + "..."
 
 	apiKey := models.ApiKey{
 		Name:       req.Name,
 		Prefix:     fullPrefix,
 		SecretHash: secret,
-		Type:       req.Type,
+		Type:       models.ApiKeyTypePublicRead,
 	}
 
 	if err := h.db.Create(&apiKey).Error; err != nil {
@@ -173,7 +219,7 @@ func (h *SettingsHandler) CreateApiKey(c *gin.Context) {
 		"prefix":    apiKey.Prefix,
 		"type":      apiKey.Type,
 		"createdAt": apiKey.CreatedAt.UnixMilli(),
-		"key":       prefix + secret, // Full key shown once upon creation
+		"key":       prefix + secret,
 	})
 }
 
@@ -254,21 +300,135 @@ func (h *SettingsHandler) OverviewStats(c *gin.Context) {
 	h.db.Model(&models.Post{}).Where("status = ?", models.PostStatusPublished).Count(&publishedCount)
 	h.db.Model(&models.Post{}).Where("status = ?", models.PostStatusDraft).Count(&draftCount)
 	h.db.Model(&models.Member{}).Where("status = ?", models.MemberStatusActive).Count(&memberCount)
+	h.db.Model(&models.PageView{}).Count(&totalViews)
 
-	type Result struct {
-		TotalViews int64
-	}
-	var res Result
-	h.db.Model(&models.Post{}).Select("COALESCE(SUM(views), 0) as total_views").Scan(&res)
-	totalViews = res.TotalViews
+	now := time.Now()
+	thirtyDaysAgo := now.AddDate(0, 0, -30)
+	sixtyDaysAgo := now.AddDate(0, 0, -60)
+
+	var currViews, prevViews int64
+	h.db.Model(&models.PageView{}).Where("created_at >= ?", thirtyDaysAgo).Count(&currViews)
+	h.db.Model(&models.PageView{}).Where("created_at >= ? AND created_at < ?", sixtyDaysAgo, thirtyDaysAgo).Count(&prevViews)
+
+	var currMembers, prevMembers int64
+	h.db.Model(&models.Member{}).Where("created_at >= ?", thirtyDaysAgo).Count(&currMembers)
+	h.db.Model(&models.Member{}).Where("created_at >= ? AND created_at < ?", sixtyDaysAgo, thirtyDaysAgo).Count(&prevMembers)
+
+	var avgReadSeconds float64
+	h.db.Model(&models.PageView{}).Select("COALESCE(AVG(read_time_seconds), 0)").Scan(&avgReadSeconds)
 
 	c.JSON(http.StatusOK, gin.H{
 		"totalViews":   totalViews,
-		"viewsTrend":   12.4,
+		"viewsTrend":   calcTrend(float64(currViews), float64(prevViews)),
 		"published":    publishedCount,
 		"drafts":       draftCount,
 		"members":      memberCount,
-		"membersTrend": 8.2,
-		"avgReadTime":  4.2,
+		"membersTrend": calcTrend(float64(currMembers), float64(prevMembers)),
+		"avgReadTime":  roundOneDecimal(avgReadSeconds / 60.0),
 	})
+}
+
+func (h *SettingsHandler) OverviewViews(c *gin.Context) {
+	rangeParam := c.DefaultQuery("range", "30d")
+	days := 30
+	if rangeParam == "7d" {
+		days = 7
+	} else if rangeParam == "90d" {
+		days = 90
+	}
+
+	type ViewsPoint struct {
+		Date     string `json:"date"`
+		Views    int    `json:"views"`
+		Visitors int    `json:"visitors"`
+	}
+
+	now := time.Now()
+	since := now.AddDate(0, 0, -days)
+	var pvs []models.PageView
+	h.db.Where("created_at >= ?", since).Find(&pvs)
+
+	type dayBucket struct {
+		date     string
+		views    int
+		visitors map[string]struct{}
+	}
+	buckets := make([]dayBucket, days)
+	dateIdx := make(map[string]int, days)
+	for i := 0; i < days; i++ {
+		t := now.AddDate(0, 0, -(days - 1 - i))
+		d := t.Format("2006-01-02")
+		buckets[i] = dayBucket{date: d, visitors: make(map[string]struct{})}
+		dateIdx[d] = i
+	}
+
+	for _, pv := range pvs {
+		d := pv.CreatedAt.Format("2006-01-02")
+		if idx, ok := dateIdx[d]; ok {
+			buckets[idx].views++
+			buckets[idx].visitors[pv.VisitorHash] = struct{}{}
+		}
+	}
+
+	points := make([]ViewsPoint, days)
+	for i, b := range buckets {
+		points[i] = ViewsPoint{
+			Date:     b.date,
+			Views:    b.views,
+			Visitors: len(b.visitors),
+		}
+	}
+
+	c.JSON(http.StatusOK, points)
+}
+
+func (h *SettingsHandler) OverviewActivity(c *gin.Context) {
+	type ActivityItem struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+		Text string `json:"text"`
+		At   int64  `json:"at"`
+	}
+
+	activities := make([]ActivityItem, 0)
+
+	var posts []models.Post
+	h.db.Order("updated_at desc").Limit(5).Find(&posts)
+	for _, p := range posts {
+		actType := "created"
+		text := fmt.Sprintf("Created post \"%s\"", p.Title)
+		if p.Status == models.PostStatusPublished {
+			actType = "published"
+			text = fmt.Sprintf("Published post \"%s\"", p.Title)
+		} else if p.Status == models.PostStatusScheduled {
+			actType = "scheduled"
+			text = fmt.Sprintf("Scheduled post \"%s\"", p.Title)
+		}
+		activities = append(activities, ActivityItem{
+			ID:   "post-" + p.ID,
+			Type: actType,
+			Text: text,
+			At:   p.UpdatedAt.UnixMilli(),
+		})
+	}
+
+	var members []models.Member
+	h.db.Order("created_at desc").Limit(3).Find(&members)
+	for _, m := range members {
+		activities = append(activities, ActivityItem{
+			ID:   "member-" + m.ID,
+			Type: "member",
+			Text: fmt.Sprintf("New subscriber %s", m.Email),
+			At:   m.CreatedAt.UnixMilli(),
+		})
+	}
+
+	sort.Slice(activities, func(i, j int) bool {
+		return activities[i].At > activities[j].At
+	})
+	if len(activities) > 10 {
+		activities = activities[:10]
+	}
+
+	c.JSON(http.StatusOK, activities)
 }

@@ -128,14 +128,6 @@ let apiKeysList: ApiKey[] = [
 		createdAt: Date.now() - 86400000 * 20,
 		lastUsedAt: Date.now() - 3600000,
 	},
-	{
-		id: "key-2",
-		name: "CI/CD Auto Publisher Token",
-		prefix: "sk_live_199d0...",
-		type: "admin_secret",
-		createdAt: Date.now() - 86400000 * 10,
-		lastUsedAt: Date.now() - 7200000,
-	},
 ];
 
 let webhooksList: Webhook[] = [
@@ -491,6 +483,16 @@ const inMemoryMockApi = {
 			storageSettingsData = { ...storageSettingsData, ...patch };
 			return { ...storageSettingsData };
 		},
+		async testStorage(): Promise<{ success: boolean; message: string }> {
+			await delay(120);
+			return {
+				success: true,
+				message:
+					storageSettingsData.provider === "local"
+						? "Local disk storage directory is accessible and writable!"
+						: "Successfully connected to S3/R2 storage bucket!",
+			};
+		},
 		async getEmail(): Promise<EmailSettings> {
 			await delay(50);
 			return { ...emailSettingsData };
@@ -499,6 +501,13 @@ const inMemoryMockApi = {
 			await delay(100);
 			emailSettingsData = { ...emailSettingsData, ...patch };
 			return { ...emailSettingsData };
+		},
+		async testEmail(): Promise<{ success: boolean; message: string }> {
+			await delay(150);
+			return {
+				success: true,
+				message: `Test email sent to ${activeUser.email}!`,
+			};
 		},
 		async getAi(): Promise<AiSettings> {
 			await delay(50);
@@ -515,17 +524,21 @@ const inMemoryMockApi = {
 		},
 		async createApiKey(
 			name: string,
-			type: "public_read" | "admin_secret",
+			type: "public_read" = "public_read",
 		): Promise<ApiKey> {
 			await delay(80);
-			const prefix = type === "public_read" ? "pk_live_" : "sk_live_";
+			const secret =
+				Math.random().toString(36).substring(2, 12) +
+				Math.random().toString(36).substring(2, 12);
+			const prefix = "pk_live_";
 			const newKey: ApiKey = {
 				id: `key-${Date.now()}`,
 				name,
-				prefix: `${prefix}${Math.random().toString(36).substring(2, 8)}...`,
+				prefix: `${prefix}${secret.slice(0, 6)}...`,
 				type,
 				createdAt: Date.now(),
 				lastUsedAt: null,
+				key: `${prefix}${secret}`,
 			};
 			apiKeysList.unshift(newKey);
 			return newKey;
@@ -846,6 +859,30 @@ const inMemoryMockApi = {
 			const idx = docProjectsList.findIndex((p) => p.id === projectId);
 			if (idx === -1) throw new Error("Project not found");
 			const existing = docProjectsList[idx];
+
+			if (patch.status === "published" || patch.status === "draft") {
+				const projectPageIds = new Set<string>();
+				function gatherIds(items?: DocTreeItem[]) {
+					if (!items) return;
+					for (const item of items) {
+						projectPageIds.add(item.id);
+						gatherIds(item.children);
+					}
+				}
+				gatherIds(existing.navigation.items);
+				const targetStatus = patch.status;
+				docPagesList = docPagesList.map((p) => {
+					if (
+						p.projectId === projectId ||
+						projectPageIds.has(p.id) ||
+						(p.translationGroupId && projectPageIds.has(p.translationGroupId))
+					) {
+						return { ...p, status: targetStatus, updatedAt: Date.now() };
+					}
+					return p;
+				});
+			}
+
 			const updated: DocumentationProject = {
 				...existing,
 				...patch,
@@ -1176,6 +1213,35 @@ const inMemoryMockApi = {
 				updatedAt: Date.now(),
 			};
 			docPagesList[index] = updated;
+
+			if (patch.status !== undefined) {
+				const proj = docProjectsList.find(
+					(p) =>
+						p.id === updated.projectId ||
+						JSON.stringify(p.navigation.items).includes(updated.id),
+				);
+				if (proj) {
+					const projIds = new Set<string>();
+					function collectIds(items?: DocTreeItem[]) {
+						if (!items) return;
+						for (const it of items) {
+							projIds.add(it.id);
+							collectIds(it.children);
+						}
+					}
+					collectIds(proj.navigation.items);
+					const hasPublished = docPagesList.some(
+						(p) =>
+							(p.projectId === proj.id ||
+								projIds.has(p.id) ||
+								(p.translationGroupId && projIds.has(p.translationGroupId))) &&
+							p.status === "published",
+					);
+					proj.status = hasPublished ? "published" : "draft";
+					proj.updatedAt = Date.now();
+				}
+			}
+
 			return { ...updated };
 		},
 		async deletePage(
@@ -1263,6 +1329,24 @@ const inMemoryMockApi = {
 				targetProj.navigation.items = removeFromItems(
 					targetProj.navigation.items,
 				);
+				const remainingIds = new Set<string>();
+				function collectRemaining(items?: DocTreeItem[]) {
+					if (!items) return;
+					for (const it of items) {
+						remainingIds.add(it.id);
+						collectRemaining(it.children);
+					}
+				}
+				collectRemaining(targetProj.navigation.items);
+				const hasPublished = docPagesList.some(
+					(p) =>
+						(p.projectId === targetProj.id ||
+							remainingIds.has(p.id) ||
+							(p.translationGroupId &&
+								remainingIds.has(p.translationGroupId))) &&
+						p.status === "published",
+				);
+				targetProj.status = hasPublished ? "published" : "draft";
 				targetProj.updatedAt = Date.now();
 				return {
 					...targetProj.navigation,
@@ -1697,8 +1781,53 @@ const inMemoryMockApi = {
 			return found ? { ...found } : null;
 		},
 
-		async upload(payload: MediaUploadPayload): Promise<MediaItem> {
+		async upload(payload: MediaUploadPayload | FormData): Promise<MediaItem> {
 			await delay(150);
+			if (payload instanceof FormData) {
+				const file = payload.get("file") as File | null;
+				const altText = (payload.get("altText") as string) || undefined;
+				const caption = (payload.get("caption") as string) || undefined;
+				const fileName = file?.name || "upload.bin";
+				const mimeType = file?.type || "application/octet-stream";
+				const size = file?.size || 0;
+				const mockUrl =
+					file && typeof URL !== "undefined"
+						? URL.createObjectURL(file)
+						: "/placeholder.png";
+				let tags: string[] = [];
+				const rawTags = payload.get("tags") as string | null;
+				if (rawTags) {
+					try {
+						tags = JSON.parse(rawTags);
+					} catch {
+						tags = rawTags
+							.split(",")
+							.map((t) => t.trim())
+							.filter(Boolean);
+					}
+				}
+				const newItem: MediaItem = {
+					id: `media-${nextMediaId++}`,
+					name: fileName,
+					title: fileName.replace(/\.[^/.]+$/, ""),
+					altText,
+					caption,
+					mimeType,
+					size,
+					url: mockUrl,
+					thumbnailUrl: mockUrl,
+					uploadedBy: {
+						id: activeUser.id,
+						name: activeUser.name,
+					},
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					tags,
+				};
+				mediaList.unshift(newItem);
+				return { ...newItem };
+			}
+
 			const newItem: MediaItem = {
 				id: `media-${nextMediaId++}`,
 				name: payload.name,

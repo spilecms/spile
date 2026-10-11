@@ -16,7 +16,7 @@ import type { MediaUploadPayload } from "@/types/media";
 interface MediaUploaderProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onUpload: (payload: MediaUploadPayload) => Promise<void>;
+	onUpload: (payload: MediaUploadPayload | FormData) => Promise<void>;
 }
 
 export function MediaUploader({
@@ -105,34 +105,13 @@ export function MediaUploader({
 				.map((t) => t.trim().toLowerCase())
 				.filter(Boolean);
 
-			// In a browser environment, create an object URL or fallback mock CDN URL
-			const mockCdnUrl = previewUrl || URL.createObjectURL(selectedFile);
+			const formData = new FormData();
+			formData.append("file", selectedFile);
+			if (altText.trim()) formData.append("altText", altText.trim());
+			if (caption.trim()) formData.append("caption", caption.trim());
+			if (tags.length > 0) formData.append("tags", JSON.stringify(tags));
 
-			let dimensions: { width: number; height: number } | undefined;
-			if (selectedFile.type.startsWith("image/")) {
-				dimensions = await new Promise((resolve) => {
-					const img = new Image();
-					img.onload = () => {
-						resolve({ width: img.naturalWidth, height: img.naturalHeight });
-					};
-					img.onerror = () => resolve({ width: 1200, height: 800 });
-					img.src = mockCdnUrl;
-				});
-			}
-
-			await onUpload({
-				name: selectedFile.name,
-				mimeType: selectedFile.type || "application/octet-stream",
-				size: selectedFile.size,
-				url: mockCdnUrl,
-				thumbnailUrl: selectedFile.type.startsWith("image/")
-					? mockCdnUrl
-					: undefined,
-				dimensions,
-				altText: altText.trim() || undefined,
-				caption: caption.trim() || undefined,
-				tags,
-			});
+			await onUpload(formData);
 
 			resetForm();
 			onOpenChange(false);

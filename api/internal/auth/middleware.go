@@ -3,6 +3,7 @@ package auth
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spilecms/spile/api/internal/models"
@@ -10,8 +11,9 @@ import (
 )
 
 const (
-	ContextUserKey    = "currentUser"
-	ContextSessionKey = "currentSession"
+	ContextUserKey       = "currentUser"
+	ContextSessionKey    = "currentSession"
+	ContextPublicReadKey = "isPublicReadKey"
 )
 
 // ExtractToken retrieves the session token from cookies or Bearer header
@@ -30,11 +32,33 @@ func ExtractToken(c *gin.Context) string {
 	return ""
 }
 
-// AuthenticateMiddleware parses and loads user session into context (optional/non-blocking)
+// AuthenticateMiddleware parses and loads user session or pk_live_ API key into context (optional/non-blocking)
 func AuthenticateMiddleware(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := ExtractToken(c)
 		if token != "" {
+			if strings.HasPrefix(token, "pk_live_") {
+				if c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead {
+					c.Next()
+					return
+				}
+				secret := strings.TrimPrefix(token, "pk_live_")
+				var apiKey models.ApiKey
+				if err := db.First(&apiKey, "secret_hash = ?", secret).Error; err == nil {
+					now := time.Now()
+					db.Model(&apiKey).Update("last_used_at", &now)
+
+					c.Set(ContextPublicReadKey, true)
+					c.Set(ContextUserKey, &models.User{
+						ID:   "apikey-" + apiKey.ID,
+						Name: apiKey.Name,
+						Role: models.RoleContributor,
+					})
+					c.Next()
+					return
+				}
+			}
+
 			user, session, err := ValidateSession(db, token)
 			if err == nil && user != nil {
 				c.Set(ContextUserKey, user)
@@ -43,6 +67,16 @@ func AuthenticateMiddleware(db *gorm.DB) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// IsPublicReadKey returns true if the request is authenticated via a pk_live_ read-only token
+func IsPublicReadKey(c *gin.Context) bool {
+	val, exists := c.Get(ContextPublicReadKey)
+	if !exists {
+		return false
+	}
+	b, ok := val.(bool)
+	return ok && b
 }
 
 // RequireAuth blocks requests that lack a valid authenticated user

@@ -6,6 +6,7 @@ import type {
 	DocNavigationManifest,
 	DocPage,
 	DocPagePatch,
+	DocTreeItem,
 	DocumentationProject,
 	DocumentationProjectPatch,
 	EmailSettings,
@@ -289,8 +290,68 @@ export const api = {
 		async updatePage(pageId: string, patch: DocPagePatch): Promise<DocPage> {
 			return http.put(`/docs/pages/${pageId}`, patch);
 		},
-		async deletePage(pageId: string): Promise<void> {
+		async deletePage(
+			pageId: string,
+			projectId?: string,
+			locale: string = "en",
+		): Promise<DocNavigationManifest> {
 			await http.delete(`/docs/pages/${pageId}`);
+			return this.getNavigation(projectId, locale);
+		},
+		async getNavigation(
+			projectId?: string,
+			locale: string = "en",
+		): Promise<DocNavigationManifest> {
+			let targetId = projectId;
+			if (!targetId) {
+				const projs = await http.get<DocumentationProject[]>("/docs/projects");
+				if (projs.length === 0) {
+					return { id: "empty", locale, items: [], updatedAt: Date.now() };
+				}
+				targetId = projs[0].id;
+			}
+			return http.get<DocNavigationManifest>(
+				`/docs/projects/${targetId}/navigation?locale=${encodeURIComponent(locale)}`,
+			);
+		},
+		async updateNavigation(
+			items: DocTreeItem[],
+			projectId?: string,
+			locale: string = "en",
+		): Promise<DocNavigationManifest> {
+			let targetId = projectId;
+			if (!targetId) {
+				const projs = await http.get<DocumentationProject[]>("/docs/projects");
+				if (projs.length > 0) targetId = projs[0].id;
+			}
+			if (targetId) {
+				return http.put(`/docs/projects/${targetId}/navigation`, {
+					items,
+					locale,
+				});
+			}
+			return { id: "empty", locale, items: [], updatedAt: Date.now() };
+		},
+		async getTranslations(translationGroupId: string): Promise<DocPage[]> {
+			return http.get(`/docs/translations/${translationGroupId}`);
+		},
+		async createTranslation(
+			sourceDocId: string,
+			targetLocale: string,
+			options?: {
+				title?: string;
+				slug?: string;
+				copyContent?: boolean;
+				projectId?: string;
+			},
+		): Promise<DocPage> {
+			return http.post(`/docs/pages/${sourceDocId}/translations`, {
+				locale: targetLocale,
+				title: options?.title,
+				slug: options?.slug,
+				copyContent: options?.copyContent ?? true,
+				projectId: options?.projectId,
+			});
 		},
 	},
 
@@ -362,20 +423,20 @@ export const api = {
 				targetTitle: data.targetTitle,
 				revisionId: rev.id,
 				summary: data.summary,
+				reviewerId: data.reviewerId,
 			});
 		},
 		async approve(
 			reviewId: string,
 			notes?: string,
 		): Promise<{ review: ReviewRequest; revision: ContentRevision }> {
-			const review = await http.put<ReviewRequest>(
+			return http.put<{ review: ReviewRequest; revision: ContentRevision }>(
 				`/reviews/requests/${reviewId}`,
 				{
 					status: "approved",
 					reviewNotes: notes,
 				},
 			);
-			return { review, revision: {} as ContentRevision };
 		},
 		async requestChanges(
 			reviewId: string,
@@ -423,11 +484,17 @@ export const api = {
 		): Promise<StorageSettings> {
 			return http.put("/settings/storage", patch);
 		},
+		async testStorage(): Promise<{ success: boolean; message: string }> {
+			return http.post("/settings/storage/test");
+		},
 		async getEmail(): Promise<EmailSettings> {
 			return http.get("/settings/email");
 		},
 		async updateEmail(patch: Partial<EmailSettings>): Promise<EmailSettings> {
 			return http.put("/settings/email", patch);
+		},
+		async testEmail(): Promise<{ success: boolean; message: string }> {
+			return http.post("/settings/email/test");
 		},
 		async getAi(): Promise<AiSettings> {
 			return http.get("/settings/ai");
@@ -440,7 +507,7 @@ export const api = {
 		},
 		async createApiKey(
 			name: string,
-			type: "public_read" | "admin_secret",
+			type: "public_read" = "public_read",
 		): Promise<ApiKey> {
 			return http.post("/settings/api-keys", { name, type });
 		},
@@ -477,51 +544,63 @@ export const api = {
 	analytics: {
 		async getOverview(
 			timeRange: import("@/types/analytics").AnalyticsTimeRange = "30d",
-		) {
-			const { mockOverviewData } = await import("@/lib/mock/analytics-data");
-			return mockOverviewData[timeRange] ?? mockOverviewData["30d"];
+		): Promise<import("@/types/analytics").AnalyticsOverview> {
+			return http.get("/analytics/overview", { timeRange });
 		},
 		async getTimeSeries(
 			timeRange: import("@/types/analytics").AnalyticsTimeRange = "30d",
-		) {
-			const { generateAnalyticsTimeSeries } = await import(
-				"@/lib/mock/analytics-data"
-			);
-			return generateAnalyticsTimeSeries(timeRange);
+		): Promise<import("@/types/analytics").AnalyticsTimeSeriesPoint[]> {
+			return http.get("/analytics/timeseries", { timeRange });
 		},
-		async getDocPages() {
-			const { mockDocPagesAnalytics } = await import(
-				"@/lib/mock/analytics-data"
-			);
-			return mockDocPagesAnalytics;
+		async getDocPages(params?: {
+			projectId?: string;
+			query?: string;
+		}): Promise<import("@/types/analytics").DocPageAnalytics[]> {
+			const list =
+				await http.get<import("@/types/analytics").DocPageAnalytics[]>(
+					"/analytics/docs",
+				);
+			let filtered = list;
+			if (params?.projectId && params.projectId !== "all") {
+				filtered = filtered.filter((p) => p.projectId === params.projectId);
+			}
+			if (params?.query?.trim()) {
+				const q = params.query.toLowerCase();
+				filtered = filtered.filter(
+					(p) =>
+						p.pageTitle.toLowerCase().includes(q) ||
+						p.slug.toLowerCase().includes(q) ||
+						p.projectName.toLowerCase().includes(q),
+				);
+			}
+			return filtered;
 		},
-		async getPosts() {
-			const { mockPostsAnalytics } = await import("@/lib/mock/analytics-data");
-			return mockPostsAnalytics;
+		async getPosts(): Promise<import("@/types/analytics").PostAnalytics[]> {
+			return http.get("/analytics/posts");
 		},
-		async getCountries() {
-			const { mockCountryTraffic } = await import("@/lib/mock/analytics-data");
-			return mockCountryTraffic;
+		async getCountries(): Promise<
+			import("@/types/analytics").CountryTraffic[]
+		> {
+			return http.get("/analytics/countries");
 		},
-		async getReferrers() {
-			const { mockReferrerSources } = await import("@/lib/mock/analytics-data");
-			return mockReferrerSources;
+		async getReferrers(): Promise<
+			import("@/types/analytics").ReferrerSource[]
+		> {
+			return http.get("/analytics/referrers");
 		},
-		async getDevices() {
-			const { mockDeviceDistribution } = await import(
-				"@/lib/mock/analytics-data"
-			);
-			return mockDeviceDistribution;
+		async getDevices(): Promise<
+			import("@/types/analytics").DeviceDistribution
+		> {
+			return http.get("/analytics/devices");
 		},
 		async getEntityDetail(
 			entityType: "post" | "doc",
 			entityId: string,
 			timeRange: import("@/types/analytics").AnalyticsTimeRange = "30d",
-		) {
-			const { getEntityAnalyticsDetail } = await import(
-				"@/lib/mock/analytics-data"
-			);
-			return getEntityAnalyticsDetail(entityType, entityId, timeRange);
+		): Promise<import("@/types/analytics").PageAnalyticsDetail> {
+			return http.get(`/analytics/entity/${entityType}/${entityId}`, {
+				timeRange,
+			});
 		},
 	},
 };

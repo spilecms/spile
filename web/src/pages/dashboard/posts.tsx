@@ -156,16 +156,34 @@ export default function PostsPage() {
 		},
 	});
 
+	const createPostMutation = useMutation({
+		mutationFn: () =>
+			mockApi.posts.create({
+				title: "Untitled",
+				type: "post",
+				status: "draft",
+			}),
+		onSuccess: (created) => {
+			navigate(`/editor/${created.id}`);
+		},
+		onError: () => {
+			toast.error(t("posts.toast.createError", "Failed to create post"));
+		},
+	});
+
 	return (
 		<div className="flex flex-1 flex-col gap-4 px-4 py-6 lg:px-6">
 			<HeaderActions>
 				<Button
 					size="sm"
 					className="flex items-center gap-2 text-sm font-semibold"
-					onClick={() => navigate("/editor/new")}
+					disabled={createPostMutation.isPending}
+					onClick={() => createPostMutation.mutate()}
 				>
 					<PlusCircleIcon className="size-4" />
-					{t("posts.postButton")}
+					{createPostMutation.isPending
+						? t("common.creating", "Creating...")
+						: t("posts.postButton")}
 				</Button>
 			</HeaderActions>
 

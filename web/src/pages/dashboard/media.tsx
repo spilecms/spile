@@ -105,7 +105,8 @@ export default function MediaPage() {
 
 	// Mutations
 	const uploadMutation = useMutation({
-		mutationFn: (payload: MediaUploadPayload) => mockApi.media.upload(payload),
+		mutationFn: (payload: MediaUploadPayload | FormData) =>
+			mockApi.media.upload(payload),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["media"] });
 			toast.success("Media asset uploaded successfully");

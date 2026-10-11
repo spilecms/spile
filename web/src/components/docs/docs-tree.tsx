@@ -143,28 +143,36 @@ function RecursiveTreeItem({
 		prevChildrenCountRef.current = currentCount;
 	}, [item.children?.length]);
 
+	const ignoreBlurRef = React.useRef(false);
+
 	React.useEffect(() => {
-		setEditTitle(item.title || "Untitled");
-	}, [item.title]);
+		if (!isEditing) {
+			setEditTitle(item.title || "Untitled");
+		}
+	}, [item.title, isEditing]);
 
 	React.useEffect(() => {
 		if (isEditing) {
+			ignoreBlurRef.current = false;
 			inputRef.current?.focus();
 			inputRef.current?.select();
 		}
 	}, [isEditing]);
 
 	const handleCommitRename = () => {
+		if (!isEditing) return;
 		const trimmed = editTitle.trim();
 		const finalTitle = trimmed || "Untitled";
+		const targetId = item.localizedDocId || item.id;
 		if (finalTitle !== item.title && onRenameDoc) {
-			onRenameDoc(item.id, finalTitle);
+			onRenameDoc(targetId, finalTitle);
 		}
 		setIsEditing(false);
 	};
 
 	const { attributes, listeners, setNodeRef, isDragging } = useSortable({
 		id: item.id,
+		disabled: isEditing,
 	});
 
 	return (
@@ -176,11 +184,12 @@ function RecursiveTreeItem({
 			<div
 				ref={setNodeRef}
 				{...attributes}
-				{...listeners}
+				{...(isEditing ? {} : listeners)}
 				role="treeitem"
 				aria-selected={isSelected}
 				tabIndex={0}
 				onClick={() => {
+					if (isEditing) return;
 					if (isUntranslated && onRequestTranslate) {
 						onRequestTranslate(item);
 					} else {
@@ -188,6 +197,7 @@ function RecursiveTreeItem({
 					}
 				}}
 				onKeyDown={(e) => {
+					if (isEditing || e.target !== e.currentTarget) return;
 					if (e.key === "Enter" || e.key === " ") {
 						e.preventDefault();
 						if (isUntranslated && onRequestTranslate) {
@@ -260,8 +270,14 @@ function RecursiveTreeItem({
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
+							e.stopPropagation();
+							ignoreBlurRef.current = true;
 							handleCommitRename();
 						}}
+						onClick={(e) => e.stopPropagation()}
+						onDoubleClick={(e) => e.stopPropagation()}
+						onKeyDown={(e) => e.stopPropagation()}
+						onPointerDown={(e) => e.stopPropagation()}
 						className="flex items-center gap-1 flex-1 min-w-0 pr-1 cursor-default"
 					>
 						<input
@@ -270,17 +286,32 @@ function RecursiveTreeItem({
 							value={editTitle}
 							onChange={(e) => setEditTitle(e.target.value)}
 							onKeyDown={(e) => {
+								e.stopPropagation();
 								if (e.key === "Escape") {
+									e.preventDefault();
+									ignoreBlurRef.current = true;
 									setEditTitle(item.title || "Untitled");
 									setIsEditing(false);
 								}
 							}}
-							onBlur={handleCommitRename}
-							className="flex-1 bg-background border border-primary/50 rounded px-1.5 py-0.5 text-xs text-foreground outline-none font-medium"
+							onKeyUp={(e) => e.stopPropagation()}
+							onBlur={() => {
+								if (ignoreBlurRef.current) {
+									ignoreBlurRef.current = false;
+									return;
+								}
+								handleCommitRename();
+							}}
+							className="flex-1 bg-background border border-primary/50 rounded px-1.5 py-0.5 text-xs text-foreground outline-none font-medium select-text"
 						/>
 						<button
 							type="submit"
-							className="text-primary hover:text-primary/80 p-0.5"
+							onMouseDown={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+							}}
+							onClick={(e) => e.stopPropagation()}
+							className="text-primary hover:text-primary/80 p-0.5 cursor-pointer"
 							title="Save title"
 							aria-label="Save title"
 						>
@@ -300,7 +331,10 @@ function RecursiveTreeItem({
 
 				{/* Status & Actions */}
 				{!isEditing && (
-					<div className="flex items-center gap-1 shrink-0">
+					<div
+						className="flex items-center gap-1 shrink-0"
+						onPointerDown={(e) => e.stopPropagation()}
+					>
 						{isUntranslated ? (
 							<button
 								type="button"
@@ -544,6 +578,11 @@ export function DocsTree({
 		}),
 		useSensor(KeyboardSensor, {
 			coordinateGetter: sortableKeyboardCoordinates,
+			keyboardCodes: {
+				start: ["Enter"],
+				cancel: ["Escape"],
+				end: ["Enter"],
+			},
 		}),
 	);
 
@@ -731,7 +770,7 @@ export function DocsTree({
 							<span className="text-sm leading-none">
 								{currentLocaleObj.flag}
 							</span>
-							<span className="truncate max-w-[85px] font-medium text-[11px] text-foreground">
+							<span className="truncate max-w-21.25 font-medium text-[11px] text-foreground">
 								{currentLocaleObj.name}
 							</span>
 							<ChevronDownIcon className="h-3 w-3 opacity-60 shrink-0" />

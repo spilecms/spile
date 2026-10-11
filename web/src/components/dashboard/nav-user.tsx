@@ -94,7 +94,7 @@ export function NavUser() {
 						<DropdownMenuGroup>
 							<DropdownMenuLabel className="p-0 font-normal">
 								<div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-									<Avatar className="size-8">
+									<Avatar className="size-6">
 										<AvatarFallback className="rounded-lg">
 											{user ? initials(name) : "?"}
 										</AvatarFallback>
@@ -118,7 +118,7 @@ export function NavUser() {
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
 						<DropdownMenuGroup>
-							<DropdownMenuItem>
+							<DropdownMenuItem onClick={() => navigate("/settings")}>
 								<CircleUserRoundIcon />
 								{t("userMenu.profile")}
 							</DropdownMenuItem>

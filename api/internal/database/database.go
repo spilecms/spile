@@ -50,5 +50,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.ApiKey{},
 		&models.Webhook{},
 		&models.SystemSetting{},
+		&models.PageView{},
 	)
 }

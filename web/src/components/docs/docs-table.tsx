@@ -20,15 +20,18 @@ import {
 	ChartLineIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	CopyIcon,
 	EllipsisVerticalIcon,
-	ExternalLinkIcon,
+	EyeOffIcon,
 	FileEditIcon,
+	GlobeIcon,
 	LayersIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -69,6 +72,7 @@ const columnHelper = createColumnHelper<
 function buildProjectColumns(
 	navigate: (path: string) => void,
 	onDelete: (id: string) => void,
+	onToggleStatus: (project: DocumentationProject) => void,
 	t: (key: string) => string,
 ) {
 	return columnHelper.columns([
@@ -206,12 +210,26 @@ function buildProjectColumns(
 									View Analytics
 								</DropdownMenuItem>
 								<DropdownMenuItem
-									onClick={() =>
-										window.open(`/docs/${row.original.slug}`, "_blank")
-									}
+									onClick={() => {
+										navigator.clipboard.writeText(row.original.slug);
+										toast.success(`Copied slug "${row.original.slug}"`);
+									}}
 								>
-									<ExternalLinkIcon className="mr-2 size-4" />
-									Preview
+									<CopyIcon className="mr-2 size-4" />
+									Copy Slug
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => onToggleStatus(row.original)}>
+									{row.original.status === "published" ? (
+										<>
+											<EyeOffIcon className="mr-2 size-4" />
+											Set to Draft
+										</>
+									) : (
+										<>
+											<GlobeIcon className="mr-2 size-4" />
+											Publish All Pages
+										</>
+									)}
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem
@@ -233,9 +251,11 @@ function buildProjectColumns(
 export function DocsTable({
 	data,
 	onDelete,
+	onToggleStatus,
 }: {
 	data: DocumentationProject[];
 	onDelete: (id: string) => void;
+	onToggleStatus: (project: DocumentationProject) => void;
 }) {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
@@ -249,8 +269,8 @@ export function DocsTable({
 	});
 
 	const columns = useMemo(
-		() => buildProjectColumns(navigate, onDelete, t),
-		[navigate, onDelete, t],
+		() => buildProjectColumns(navigate, onDelete, onToggleStatus, t),
+		[navigate, onDelete, onToggleStatus, t],
 	);
 
 	const table = useTable({

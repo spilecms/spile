@@ -16,6 +16,24 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 
+	// Enable CORS for headless frontend clients and local dev servers
+	r.Use(func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Credentials", "true")
+		} else {
+			c.Header("Access-Control-Allow-Origin", "*")
+		}
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With")
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	})
+
 	// Static serving of uploaded files if using local disk
 	if local, ok := storageProvider.(*storage.LocalStorageProvider); ok {
 		r.Static(local.PublicURL, local.BaseDir)
@@ -26,10 +44,12 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		// Health check
+		// Health check & OpenAPI specification
 		v1.GET("/health", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
+		v1.GET("/openapi.json", handlers.ServeOpenAPISpec)
+		v1.GET("/openapi", handlers.ServeOpenAPIDocs)
 
 		// Auth routes
 		authHandler := handlers.NewAuthHandler(db)
@@ -115,11 +135,16 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 			docGroup.GET("/projects", docHandler.ListProjects)
 			docGroup.GET("/projects/:id", docHandler.GetProject)
 			docGroup.POST("/projects", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.CreateProject)
+			docGroup.PUT("/projects/:id", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.UpdateProject)
 			docGroup.DELETE("/projects/:id", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), docHandler.DeleteProject)
+			docGroup.GET("/projects/:id/navigation", docHandler.GetNavigation)
+			docGroup.PUT("/projects/:id/navigation", auth.RequireRoles(models.RoleAuthor, models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.UpdateNavigation)
 			docGroup.GET("/pages/:id", docHandler.GetPage)
 			docGroup.POST("/pages", auth.RequireRoles(models.RoleAuthor, models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.CreatePage)
 			docGroup.PUT("/pages/:id", auth.RequireRoles(models.RoleAuthor, models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.UpdatePage)
 			docGroup.DELETE("/pages/:id", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.DeletePage)
+			docGroup.GET("/translations/:groupId", docHandler.GetTranslations)
+			docGroup.POST("/pages/:id/translations", auth.RequireRoles(models.RoleAuthor, models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.CreateTranslation)
 		}
 
 		// Members (Subscribers) routes
@@ -155,8 +180,11 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 		reviewGroup.Use(auth.RequireAuth())
 		{
 			reviewGroup.GET("/revisions", reviewHandler.ListRevisions)
+			reviewGroup.GET("/revisions/:id", reviewHandler.GetRevision)
 			reviewGroup.POST("/revisions", reviewHandler.CreateRevision)
+			reviewGroup.POST("/revisions/:id/restore", reviewHandler.RestoreRevision)
 			reviewGroup.GET("/requests", reviewHandler.ListReviewRequests)
+			reviewGroup.GET("/requests/:id", reviewHandler.GetReviewRequest)
 			reviewGroup.POST("/requests", reviewHandler.CreateReviewRequest)
 			reviewGroup.PUT("/requests/:id", auth.RequireRoles(models.RoleEditor, models.RoleAdmin, models.RoleOwner), reviewHandler.UpdateReviewRequest)
 		}
@@ -171,14 +199,33 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 		// Overview Analytics & Settings routes
 		settingsHandler := handlers.NewSettingsHandler(db)
 		v1.GET("/overview/stats", auth.RequireAuth(), settingsHandler.OverviewStats)
+		v1.GET("/overview/views", auth.RequireAuth(), settingsHandler.OverviewViews)
+		v1.GET("/overview/activity", auth.RequireAuth(), settingsHandler.OverviewActivity)
+
+		analyticsHandler := handlers.NewAnalyticsHandler(db)
+		v1.POST("/analytics/track", analyticsHandler.Track)
+		analyticsGroup := v1.Group("/analytics")
+		analyticsGroup.Use(auth.RequireAuth())
+		{
+			analyticsGroup.GET("/overview", analyticsHandler.GetOverview)
+			analyticsGroup.GET("/timeseries", analyticsHandler.GetTimeSeries)
+			analyticsGroup.GET("/docs", analyticsHandler.GetDocPages)
+			analyticsGroup.GET("/posts", analyticsHandler.GetPosts)
+			analyticsGroup.GET("/countries", analyticsHandler.GetCountries)
+			analyticsGroup.GET("/referrers", analyticsHandler.GetReferrers)
+			analyticsGroup.GET("/devices", analyticsHandler.GetDevices)
+			analyticsGroup.GET("/entity/:type/:id", analyticsHandler.GetEntityDetail)
+		}
 
 		settingsGroup := v1.Group("/settings")
 		settingsGroup.Use(auth.RequireAuth())
 		{
 			settingsGroup.GET("/storage", settingsHandler.GetStorage)
 			settingsGroup.PUT("/storage", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.UpdateStorage)
+			settingsGroup.POST("/storage/test", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.TestStorage)
 			settingsGroup.GET("/email", settingsHandler.GetEmail)
 			settingsGroup.PUT("/email", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.UpdateEmail)
+			settingsGroup.POST("/email/test", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.TestEmail)
 			settingsGroup.GET("/ai", settingsHandler.GetAI)
 			settingsGroup.PUT("/ai", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.UpdateAI)
 			settingsGroup.GET("/api-keys", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), settingsHandler.ListApiKeys)

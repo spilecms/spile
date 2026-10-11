@@ -109,15 +109,25 @@ export function IntegrationsSection() {
 		onError: () => toast.error("Failed to save AI settings"),
 	});
 
-	const handleTestEmail = () => {
-		toast.success("Test email sent to your current account address!");
+	const handleTestEmail = async () => {
+		try {
+			const res = await mockApi.settings.testEmail();
+			toast.success(res.message);
+		} catch (err) {
+			toast.error(
+				err instanceof Error ? err.message : "Failed to send test email",
+			);
+		}
 	};
 
-	const handleTestStorage = () => {
-		if (localStorage?.provider === "local") {
-			toast.success("Local disk storage directory is accessible and writable!");
-		} else {
-			toast.success("Successfully connected to S3/R2 storage bucket!");
+	const handleTestStorage = async () => {
+		try {
+			const res = await mockApi.settings.testStorage();
+			toast.success(res.message);
+		} catch (err) {
+			toast.error(
+				err instanceof Error ? err.message : "Storage connection test failed",
+			);
 		}
 	};
 

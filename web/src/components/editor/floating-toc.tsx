@@ -59,11 +59,14 @@ export function FloatingToc({
 		updateHeadings();
 
 		const observer = new MutationObserver((mutations) => {
-			// Ignore mutations caused by our own id assignments
-			const isOnlyIdChange = mutations.every(
-				(m) => m.type === "attributes" && m.attributeName === "id",
-			);
-			if (isOnlyIdChange) return;
+			const isRelevant = mutations.some((m) => {
+				if (m.type === "attributes" && m.attributeName === "id") return false;
+				if (m.type === "characterData") {
+					return Boolean(m.target.parentElement?.closest(".ce-header"));
+				}
+				return true;
+			});
+			if (!isRelevant) return;
 
 			debouncedUpdate();
 		});
@@ -71,9 +74,7 @@ export function FloatingToc({
 		observer.observe(container, {
 			childList: true,
 			subtree: true,
-			// characterData:true removed — it fired on every keystroke, triggering
-			// heading scans on each character. childList+subtree is enough to catch
-			// heading blocks being added, removed, or reordered.
+			characterData: true,
 		});
 
 		return () => {
@@ -109,7 +110,7 @@ export function FloatingToc({
 	}, [headings]);
 
 	// Don't render if there are no headings in the post
-	if (headings.length < 2) return null;
+	if (headings.length === 0) return null;
 
 	const minLevel = Math.min(...headings.map((h) => h.level));
 
@@ -121,7 +122,7 @@ export function FloatingToc({
 		<aside
 			aria-label="Table of contents"
 			className={cn(
-				"fixed right-6 top-20 z-20 hidden 2xl:flex flex-col transition-all duration-200 select-none",
+				"fixed right-6 top-20 z-20 hidden lg:flex flex-col transition-all duration-200 select-none",
 				isExpanded ? "w-60" : "w-10 items-end",
 			)}
 		>
