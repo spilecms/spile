@@ -7,6 +7,7 @@ import (
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/handlers"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/search"
 	"github.com/spilecms/spile/api/internal/storage"
 	"gorm.io/gorm"
 )
@@ -26,7 +27,8 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 			c.Header("Access-Control-Allow-Origin", "*")
 		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With, If-None-Match")
+		c.Header("Access-Control-Expose-Headers", "ETag")
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
@@ -42,6 +44,8 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 	// Attach authentication context to every request
 	r.Use(auth.AuthenticateMiddleware(db))
 
+	searcher, _ := search.NewSQLiteSearcher(db)
+
 	v1 := r.Group("/api/v1")
 	{
 		// Health check & OpenAPI specification
@@ -50,6 +54,10 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 		})
 		v1.GET("/openapi.json", handlers.ServeOpenAPISpec)
 		v1.GET("/openapi", handlers.ServeOpenAPIDocs)
+
+		// Full-Text Search route (supports both pk_live_... and admin JWT)
+		searchHandler := handlers.NewSearchHandler(db, searcher)
+		v1.GET("/search", auth.RequireAuth(), searchHandler.Search)
 
 		// Auth routes
 		authHandler := handlers.NewAuthHandler(db)
@@ -96,7 +104,7 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 		}
 
 		// Posts routes
-		postHandler := handlers.NewPostHandler(db)
+		postHandler := handlers.NewPostHandler(db, searcher)
 		postGroup := v1.Group("/posts")
 		postGroup.Use(auth.RequireAuth())
 		{
@@ -128,7 +136,7 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 		}
 
 		// Docs routes
-		docHandler := handlers.NewDocHandler(db)
+		docHandler := handlers.NewDocHandler(db, searcher)
 		docGroup := v1.Group("/docs")
 		docGroup.Use(auth.RequireAuth())
 		{
@@ -139,6 +147,7 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 			docGroup.DELETE("/projects/:id", auth.RequireRoles(models.RoleAdmin, models.RoleOwner), docHandler.DeleteProject)
 			docGroup.GET("/projects/:id/navigation", docHandler.GetNavigation)
 			docGroup.PUT("/projects/:id/navigation", auth.RequireRoles(models.RoleAuthor, models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.UpdateNavigation)
+			docGroup.GET("/projects/:id/search-index", searchHandler.GetProjectSearchIndex)
 			docGroup.GET("/pages/:id", docHandler.GetPage)
 			docGroup.POST("/pages", auth.RequireRoles(models.RoleAuthor, models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.CreatePage)
 			docGroup.PUT("/pages/:id", auth.RequireRoles(models.RoleAuthor, models.RoleEditor, models.RoleAdmin, models.RoleOwner), docHandler.UpdatePage)
@@ -175,7 +184,7 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 		}
 
 		// Editorial Review & Notifications routes
-		reviewHandler := handlers.NewReviewHandler(db)
+		reviewHandler := handlers.NewReviewHandler(db, searcher)
 		reviewGroup := v1.Group("/reviews")
 		reviewGroup.Use(auth.RequireAuth())
 		{

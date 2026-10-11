@@ -51,5 +51,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.Webhook{},
 		&models.SystemSetting{},
 		&models.PageView{},
+		&models.SearchSection{},
 	)
 }

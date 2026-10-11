@@ -1,5 +1,6 @@
 import { ChevronRight, ListCollapse } from "lucide-react";
 import { useEffect, useState } from "react";
+import { slugifyGitHub } from "@/lib/slug";
 import { cn } from "@/lib/utils";
 
 interface HeadingItem {
@@ -30,15 +31,18 @@ export function FloatingToc({
 				),
 			);
 
+			const seenAnchors = new Map<string, number>();
 			const items: HeadingItem[] = elements
-				.map((el, i) => {
-					// Ensure each heading has an anchor ID
-					if (!el.id)
-						el.id = `heading-${i}-${el.textContent?.slice(0, 15).replace(/\s+/g, "-") || i}`;
+				.map((el) => {
+					const text = el.textContent?.trim() || "";
+					const anchor = slugifyGitHub(text, seenAnchors);
+					if (el.id !== anchor) {
+						el.id = anchor;
+					}
 					return {
-						id: el.id,
+						id: anchor,
 						el,
-						text: el.textContent?.trim() || "",
+						text,
 						level: Number(el.tagName.replace("H", "")) || 2,
 					};
 				})
