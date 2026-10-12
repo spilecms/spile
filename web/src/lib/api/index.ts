@@ -282,10 +282,11 @@ export const api = {
 			data: Partial<DocPage> & { projectId?: string; title?: string },
 		): Promise<{ page: DocPage; navigation: DocNavigationManifest }> {
 			const page = await http.post<DocPage>("/docs/pages", data);
-			const proj = await http.get<DocumentationProject>(
-				`/docs/projects/${data.projectId || page.projectId}`,
+			const navigation = await this.getNavigation(
+				data.projectId || page.projectId,
+				data.locale || page.locale || "en",
 			);
-			return { page, navigation: proj.navigation };
+			return { page, navigation };
 		},
 		async updatePage(pageId: string, patch: DocPagePatch): Promise<DocPage> {
 			return http.put(`/docs/pages/${pageId}`, patch);

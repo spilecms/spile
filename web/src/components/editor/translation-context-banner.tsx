@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
 
 export function TranslationContextBanner() {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const projectId = searchParams.get("project");
 	const locale = useEditorStore((s) => s.locale);
 	const isDefaultLocale = useEditorStore((s) => s.isDefaultLocale);
 	const translationGroupId = useEditorStore((s) => s.translationGroupId);
@@ -28,10 +30,17 @@ export function TranslationContextBanner() {
 	const currentLocaleObj = locales?.find((l) => l.code === locale);
 	const targetOriginalId = translationSourceId || translationGroupId;
 
-	const handleSwitchToOriginal = () => {
+	const handleSwitchToOriginal = async () => {
 		if (targetOriginalId) {
+			try {
+				await useEditorStore.getState().saveContent?.();
+			} catch {
+				// Ignore save error before switching
+			}
 			if (isDoc) {
-				navigate(`/editor/doc/${targetOriginalId}?lang=en`);
+				navigate(
+					`/editor/doc/${targetOriginalId}?${projectId ? `project=${projectId}&` : ""}lang=en`,
+				);
 			} else {
 				navigate(`/editor/${targetOriginalId}`);
 			}

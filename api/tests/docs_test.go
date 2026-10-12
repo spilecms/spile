@@ -76,7 +76,43 @@ func TestDocs_Lifecycle(t *testing.T) {
 	upPageRes := app.Client().WithToken(token).PutJSON("/api/v1/docs/pages/"+childPage.ID, updatePayload)
 	assert.Equal(t, http.StatusOK, upPageRes.Code)
 
-	// 5. Delete page and project
+	// 5. Check navigation for Spanish (es) before translation exists -> HasTranslation should be false
+	navEsBeforeRes := app.Client().WithToken(token).Get("/api/v1/docs/projects/" + projResp.Project.ID + "/navigation?locale=es")
+	assert.Equal(t, http.StatusOK, navEsBeforeRes.Code)
+	var navEsBefore models.DocNavigationManifest
+	require.NoError(t, json.Unmarshal(navEsBeforeRes.Body.Bytes(), &navEsBefore))
+	require.Len(t, navEsBefore.Items, 1)
+	assert.False(t, navEsBefore.Items[0].HasTranslation)
+	assert.Equal(t, projResp.InitialPage.ID, navEsBefore.Items[0].ID)
+
+	// 6. Create Spanish translation for initial page
+	transPayload := map[string]any{
+		"locale":      "es",
+		"title":       "Introducción",
+		"copyContent": true,
+	}
+	transRes := app.Client().WithToken(token).PostJSON("/api/v1/docs/pages/"+projResp.InitialPage.ID+"/translations", transPayload)
+	assert.Equal(t, http.StatusCreated, transRes.Code)
+	var translatedPage models.DocPageResponse
+	require.NoError(t, json.Unmarshal(transRes.Body.Bytes(), &translatedPage))
+	assert.NotEqual(t, projResp.InitialPage.ID, translatedPage.ID)
+	assert.Equal(t, "es", translatedPage.Locale)
+	assert.Equal(t, projResp.InitialPage.ID, translatedPage.TranslationGroupID)
+
+	// 7. Check navigation for Spanish (es) after translation exists -> root hydrated with translated doc, child still untranslated
+	navEsAfterRes := app.Client().WithToken(token).Get("/api/v1/docs/projects/" + projResp.Project.ID + "/navigation?locale=es")
+	assert.Equal(t, http.StatusOK, navEsAfterRes.Code)
+	var navEsAfter models.DocNavigationManifest
+	require.NoError(t, json.Unmarshal(navEsAfterRes.Body.Bytes(), &navEsAfter))
+	require.Len(t, navEsAfter.Items, 1)
+	assert.True(t, navEsAfter.Items[0].HasTranslation)
+	assert.Equal(t, projResp.InitialPage.ID, navEsAfter.Items[0].ID)
+	assert.Equal(t, translatedPage.ID, navEsAfter.Items[0].LocalizedDocID)
+	assert.Equal(t, "Introducción", navEsAfter.Items[0].Title)
+	require.Len(t, navEsAfter.Items[0].Children, 1)
+	assert.False(t, navEsAfter.Items[0].Children[0].HasTranslation)
+
+	// 8. Delete page and project
 	delPageRes := app.Client().WithToken(token).Delete("/api/v1/docs/pages/" + childPage.ID)
 	assert.Equal(t, http.StatusOK, delPageRes.Code)
 

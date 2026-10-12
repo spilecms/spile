@@ -283,12 +283,8 @@ export function PublishPanel({
 						</>
 					) : (
 						<>
-							{!isDoc && (
-								<>
-									<TranslationsSection onNavigate={() => onOpenChange(false)} />
-									<div className="h-px w-full bg-border/60" />
-								</>
-							)}
+							<TranslationsSection onNavigate={() => onOpenChange(false)} />
+							<div className="h-px w-full bg-border/60" />
 
 							<div className="flex flex-col gap-2">
 								<Label htmlFor="publish-status">Status</Label>

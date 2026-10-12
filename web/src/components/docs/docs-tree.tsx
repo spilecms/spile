@@ -67,6 +67,7 @@ interface DocsTreeProps {
 	selectedDocId: string | null;
 	onSelectDoc: (id: string) => void;
 	onUpdateManifest: (updated: DocNavigationManifest) => void;
+	onRefreshManifest?: (updated: DocNavigationManifest) => void;
 	onAddDoc: (parentId?: string) => void;
 	onDeleteDoc: (id: string) => void;
 	onRenameDoc?: (id: string, newTitle: string) => void;
@@ -111,12 +112,13 @@ function RecursiveTreeItem({
 	const inputRef = React.useRef<HTMLInputElement>(null);
 
 	const hasChildren = Boolean(item.children && item.children.length > 0);
-	const isSelected =
-		selectedDocId === item.id ||
-		(Boolean(item.localizedDocId) && selectedDocId === item.localizedDocId);
 	const isUntranslated = Boolean(
 		selectedLocale && selectedLocale !== "en" && item.hasTranslation === false,
 	);
+	const isSelected = isUntranslated
+		? false
+		: selectedDocId === item.id ||
+			(Boolean(item.localizedDocId) && selectedDocId === item.localizedDocId);
 
 	const isDropTarget =
 		hoveredOverId === item.id &&
@@ -564,6 +566,7 @@ export function DocsTree({
 	selectedDocId,
 	onSelectDoc,
 	onUpdateManifest,
+	onRefreshManifest,
 	onAddDoc,
 	onDeleteDoc,
 	onRenameDoc,
@@ -641,32 +644,53 @@ export function DocsTree({
 	);
 
 	const queryClient = useQueryClient();
+	const handleAutoTranslate = React.useCallback(
+		async (itemToTranslate: DocTreeItem) => {
+			if (!currentLocale || isTranslating) return;
+			setIsTranslating(true);
+			try {
+				const sourceId = itemToTranslate.sourceDocId || itemToTranslate.id;
+				const newDoc = await mockApi.docs.createTranslation(
+					sourceId,
+					currentLocale,
+				);
+				queryClient.setQueryData(["docs", newDoc.id], newDoc);
+				toast.success(
+					`Created ${currentLocaleObj.name} translation for "${newDoc.title}"`,
+				);
+				const refreshedNav = await mockApi.docs.getNavigation(
+					newDoc.projectId,
+					currentLocale,
+				);
+				if (onRefreshManifest) {
+					onRefreshManifest(refreshedNav);
+				} else {
+					onUpdateManifest(refreshedNav);
+				}
+				queryClient.invalidateQueries({ queryKey: ["docs-navigation"] });
+				queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
+				setTranslateItem(null);
+				onSelectDoc(newDoc.id);
+			} catch (_err) {
+				toast.error("Failed to create translation");
+			} finally {
+				setIsTranslating(false);
+			}
+		},
+		[
+			currentLocale,
+			currentLocaleObj.name,
+			isTranslating,
+			onRefreshManifest,
+			onSelectDoc,
+			onUpdateManifest,
+			queryClient,
+		],
+	);
+
 	const handleConfirmTranslate = async () => {
-		if (!translateItem || !currentLocale) return;
-		setIsTranslating(true);
-		try {
-			const sourceId = translateItem.sourceDocId || translateItem.id;
-			const newDoc = await mockApi.docs.createTranslation(
-				sourceId,
-				currentLocale,
-			);
-			toast.success(
-				`Created ${currentLocaleObj.name} translation for "${newDoc.title}"`,
-			);
-			const refreshedNav = await mockApi.docs.getNavigation(
-				newDoc.projectId,
-				currentLocale,
-			);
-			onUpdateManifest(refreshedNav);
-			queryClient.invalidateQueries({ queryKey: ["docs-navigation"] });
-			queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
-			setTranslateItem(null);
-			onSelectDoc(newDoc.id);
-		} catch (_err) {
-			toast.error("Failed to create translation");
-		} finally {
-			setIsTranslating(false);
-		}
+		if (!translateItem) return;
+		await handleAutoTranslate(translateItem);
 	};
 
 	const handleDragStart = (event: DragStartEvent) => {
@@ -852,7 +876,7 @@ export function DocsTree({
 									onAddChild={(parentId) => onAddDoc(parentId)}
 									onDeleteDoc={onDeleteDoc}
 									onRenameDoc={onRenameDoc}
-									onRequestTranslate={(it) => setTranslateItem(it)}
+									onRequestTranslate={(it) => handleAutoTranslate(it)}
 								/>
 							))}
 						</SortableContext>

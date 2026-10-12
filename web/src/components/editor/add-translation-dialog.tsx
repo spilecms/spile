@@ -115,7 +115,7 @@ export function AddTranslationDialog({
 				onOpenChange(false);
 				onSuccess?.();
 				navigate(
-					`/editor/doc/${newDoc.id}${projectId ? `?project=${projectId}` : ""}`,
+					`/editor/doc/${newDoc.id}?${projectId ? `project=${projectId}&` : ""}lang=${selectedLocale}`,
 				);
 			} else {
 				const newPost = await mockApi.posts.createTranslation(

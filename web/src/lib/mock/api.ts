@@ -788,6 +788,9 @@ const inMemoryMockApi = {
 
 			const initialPage: DocPage = {
 				id: rootDocId,
+				projectId: projId,
+				translationGroupId: rootDocId,
+				isDefaultLocale: true,
 				title: "Introduction",
 				slug: "introduction",
 				status: "draft",
@@ -1154,11 +1157,19 @@ const inMemoryMockApi = {
 			const existing = docPagesList.find(
 				(d) =>
 					(d.translationGroupId || d.id) === translationGroupId &&
-					d.locale === targetLocale,
+					(d.locale || "en") === targetLocale,
 			);
 			if (existing) return { ...existing };
 
-			const targetLocaleObj = workspaceLocales.find(
+			const canonicalSource =
+				docPagesList.find(
+					(d) =>
+						d.id === (source.translationSourceId || translationGroupId) ||
+						((d.translationGroupId || d.id) === translationGroupId &&
+							(d.isDefaultLocale || d.locale === "en")),
+				) || source;
+
+			const targetLocaleObj = workspaceLocalesList.find(
 				(l) => l.code === targetLocale,
 			);
 			const targetName = targetLocaleObj
@@ -1169,10 +1180,10 @@ const inMemoryMockApi = {
 			const newId = `doc-${nextDocId++}`;
 			const finalTitle =
 				options?.title?.trim() ||
-				(copyContent ? `${source.title} (${targetName})` : "Untitled");
+				(copyContent ? `${canonicalSource.title} (${targetName})` : "Untitled");
 			const cleanSlug =
 				options?.slug?.trim() ||
-				source.slug
+				canonicalSource.slug
 					.toLowerCase()
 					.replace(/[^a-z0-9]+/g, "-")
 					.replace(/(^-|-$)/g, "");
@@ -1180,12 +1191,13 @@ const inMemoryMockApi = {
 
 			const newDocPage: DocPage = {
 				id: newId,
-				projectId: source.projectId || options?.projectId,
-				parentId: source.parentId,
+				projectId:
+					source.projectId || canonicalSource.projectId || options?.projectId,
+				parentId: source.parentId ?? canonicalSource.parentId,
 				translationGroupId,
-				translationSourceId: source.id,
+				translationSourceId: canonicalSource.id,
 				locale: targetLocale,
-				isDefaultLocale: false,
+				isDefaultLocale: targetLocale === "en",
 				title: finalTitle,
 				slug: finalSlug,
 				status: "draft",

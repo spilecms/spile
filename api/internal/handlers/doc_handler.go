@@ -78,7 +78,22 @@ func (h *DocHandler) syncProjectStatus(projectID string) {
 		Update("status", newStatus)
 }
 
+func countTreeItems(items []models.DocTreeItem) int {
+	count := 0
+	for _, item := range items {
+		count++
+		if len(item.Children) > 0 {
+			count += countTreeItems(item.Children)
+		}
+	}
+	return count
+}
+
 func (h *DocHandler) buildNavigationTree(projectID, locale string, publishedOnly ...bool) []models.DocTreeItem {
+	if locale == "" {
+		locale = "en"
+	}
+
 	var pages []models.DocPage
 	q := h.db.Where("project_id = ?", projectID)
 	if len(publishedOnly) > 0 && publishedOnly[0] {
@@ -86,35 +101,98 @@ func (h *DocHandler) buildNavigationTree(projectID, locale string, publishedOnly
 	}
 	q.Order("created_at asc").Find(&pages)
 
-	// Filter or map for locale
-	pageMap := make(map[string]*models.DocPage)
-	for i := range pages {
-		pageMap[pages[i].ID] = &pages[i]
+	// Group pages by translationGroupId so translations are hydrated onto canonical tree nodes
+	type groupData struct {
+		canonical    *models.DocPage
+		translations map[string]*models.DocPage
 	}
 
-	// Group by parent
+	groups := make(map[string]*groupData)
+	var groupOrder []string
+	idToGroup := make(map[string]string)
+
+	for i := range pages {
+		p := &pages[i]
+		groupID := p.TranslationGroupID
+		if groupID == "" {
+			groupID = p.ID
+		}
+		idToGroup[p.ID] = groupID
+
+		g, exists := groups[groupID]
+		if !exists {
+			g = &groupData{
+				translations: make(map[string]*models.DocPage),
+			}
+			groups[groupID] = g
+			groupOrder = append(groupOrder, groupID)
+		}
+
+		loc := p.Locale
+		if loc == "" {
+			loc = "en"
+		}
+		g.translations[loc] = p
+
+		// Identify canonical page (matches groupID, has no translationSourceId, or is first seen)
+		if g.canonical == nil || p.ID == groupID || (p.TranslationSourceID == nil || *p.TranslationSourceID == "") && g.canonical.ID != groupID {
+			g.canonical = p
+		}
+	}
+
 	childrenMap := make(map[string][]models.DocTreeItem)
 	var rootItems []models.DocTreeItem
 
-	for _, p := range pages {
-		item := models.DocTreeItem{
-			ID:                 p.ID,
-			CanonicalID:        p.ID,
-			ParentID:           p.ParentID,
-			TranslationGroupID: p.TranslationGroupID,
-			SourceDocID:        p.ID,
-			LocalizedDocID:     p.ID,
-			Locale:             p.Locale,
-			Title:              p.Title,
-			Slug:               p.Slug,
-			Icon:               p.Icon,
-			Status:             p.Status,
+	for _, groupID := range groupOrder {
+		g := groups[groupID]
+		canon := g.canonical
+		if canon == nil {
+			continue
 		}
 
-		if p.ParentID == nil || *p.ParentID == "" {
+		displayPage := canon
+		hasTranslation := false
+		if locPage, ok := g.translations[locale]; ok {
+			displayPage = locPage
+			hasTranslation = true
+		} else if canon.Locale == locale || (canon.Locale == "" && locale == "en") {
+			hasTranslation = true
+		}
+
+		// Resolve parent ID to canonical page ID if parent belongs to a translation group
+		var resolvedParentID *string
+		if canon.ParentID != nil && *canon.ParentID != "" {
+			rawParent := *canon.ParentID
+			if parentGroupID, ok := idToGroup[rawParent]; ok {
+				if pg, ok := groups[parentGroupID]; ok && pg.canonical != nil {
+					cid := pg.canonical.ID
+					resolvedParentID = &cid
+				}
+			}
+			if resolvedParentID == nil {
+				resolvedParentID = &rawParent
+			}
+		}
+
+		item := models.DocTreeItem{
+			ID:                 canon.ID,
+			CanonicalID:        canon.ID,
+			ParentID:           resolvedParentID,
+			TranslationGroupID: groupID,
+			SourceDocID:        canon.ID,
+			LocalizedDocID:     displayPage.ID,
+			Locale:             displayPage.Locale,
+			Title:              displayPage.Title,
+			Slug:               displayPage.Slug,
+			Icon:               displayPage.Icon,
+			Status:             displayPage.Status,
+			HasTranslation:     hasTranslation,
+		}
+
+		if resolvedParentID == nil || *resolvedParentID == "" {
 			rootItems = append(rootItems, item)
 		} else {
-			parentID := *p.ParentID
+			parentID := *resolvedParentID
 			childrenMap[parentID] = append(childrenMap[parentID], item)
 		}
 	}
@@ -136,6 +214,7 @@ func (h *DocHandler) buildNavigationTree(projectID, locale string, publishedOnly
 
 func (h *DocHandler) ListProjects(c *gin.Context) {
 	pubOnly := auth.IsPublicReadKey(c)
+	locale := c.DefaultQuery("locale", "en")
 	var projects []models.DocumentationProject
 	query := h.db.Order("created_at desc")
 	if pubOnly {
@@ -148,26 +227,19 @@ func (h *DocHandler) ListProjects(c *gin.Context) {
 
 	res := make([]models.DocProjectResponse, len(projects))
 	for i, p := range projects {
-		var pageCount int64
-		countQ := h.db.Model(&models.DocPage{}).Where("project_id = ?", p.ID)
-		if pubOnly {
-			countQ = countQ.Where("status = ?", "published")
-		}
-		countQ.Count(&pageCount)
-
-		items := h.buildNavigationTree(p.ID, "en", pubOnly)
+		items := h.buildNavigationTree(p.ID, locale, pubOnly)
 		res[i] = models.DocProjectResponse{
 			ID:          p.ID,
 			Title:       p.Title,
 			Description: p.Description,
 			Slug:        p.Slug,
 			Status:      p.Status,
-			PagesCount:  int(pageCount),
+			PagesCount:  countTreeItems(items),
 			CreatedAt:   p.CreatedAt.UnixMilli(),
 			UpdatedAt:   p.UpdatedAt.UnixMilli(),
 			Navigation: models.DocNavigationManifest{
 				ID:        p.ID + "-manifest",
-				Locale:    "en",
+				Locale:    locale,
 				Items:     items,
 				UpdatedAt: p.UpdatedAt.UnixMilli(),
 			},
@@ -179,6 +251,7 @@ func (h *DocHandler) ListProjects(c *gin.Context) {
 
 func (h *DocHandler) GetProject(c *gin.Context) {
 	id := c.Param("id")
+	locale := c.DefaultQuery("locale", "en")
 	pubOnly := auth.IsPublicReadKey(c)
 	var p models.DocumentationProject
 	query := h.db.Model(&models.DocumentationProject{})
@@ -190,26 +263,19 @@ func (h *DocHandler) GetProject(c *gin.Context) {
 		return
 	}
 
-	var pageCount int64
-	countQ := h.db.Model(&models.DocPage{}).Where("project_id = ?", p.ID)
-	if pubOnly {
-		countQ = countQ.Where("status = ?", "published")
-	}
-	countQ.Count(&pageCount)
-
-	items := h.buildNavigationTree(p.ID, "en", pubOnly)
+	items := h.buildNavigationTree(p.ID, locale, pubOnly)
 	res := models.DocProjectResponse{
 		ID:          p.ID,
 		Title:       p.Title,
 		Description: p.Description,
 		Slug:        p.Slug,
 		Status:      p.Status,
-		PagesCount:  int(pageCount),
+		PagesCount:  countTreeItems(items),
 		CreatedAt:   p.CreatedAt.UnixMilli(),
 		UpdatedAt:   p.UpdatedAt.UnixMilli(),
 		Navigation: models.DocNavigationManifest{
 			ID:        p.ID + "-manifest",
-			Locale:    "en",
+			Locale:    locale,
 			Items:     items,
 			UpdatedAt: p.UpdatedAt.UnixMilli(),
 		},
@@ -251,12 +317,13 @@ func (h *DocHandler) CreateProject(c *gin.Context) {
 	})
 
 	initPage := models.DocPage{
-		ProjectID: project.ID,
-		Title:     "Introduction",
-		Slug:      "introduction",
-		Locale:    "en",
-		Status:    "draft",
-		Content:   string(initContent),
+		ProjectID:       project.ID,
+		Title:           "Introduction",
+		Slug:            "introduction",
+		Locale:          "en",
+		IsDefaultLocale: true,
+		Status:          "draft",
+		Content:         string(initContent),
 	}
 	_ = h.db.Create(&initPage).Error
 
@@ -318,9 +385,23 @@ func (h *DocHandler) CreatePage(c *gin.Context) {
 		contentStr = string(b)
 	}
 
+	// Normalize parentId to canonical parent ID if a translated parent ID was passed
+	parentID := req.ParentID
+	if parentID != nil && *parentID != "" {
+		var parentDoc models.DocPage
+		if err := h.db.First(&parentDoc, "id = ?", *parentID).Error; err == nil {
+			if parentDoc.TranslationSourceID != nil && *parentDoc.TranslationSourceID != "" {
+				parentID = parentDoc.TranslationSourceID
+			} else if parentDoc.TranslationGroupID != "" {
+				canonID := parentDoc.TranslationGroupID
+				parentID = &canonID
+			}
+		}
+	}
+
 	page := models.DocPage{
 		ProjectID:       req.ProjectID,
-		ParentID:        req.ParentID,
+		ParentID:        parentID,
 		Title:           strings.TrimSpace(req.Title),
 		Slug:            slug,
 		Icon:            req.Icon,
@@ -428,9 +509,6 @@ func (h *DocHandler) UpdateProject(c *gin.Context) {
 		_ = h.searcher.IndexProjectPages(p.ID)
 	}
 
-	var pageCount int64
-	h.db.Model(&models.DocPage{}).Where("project_id = ?", p.ID).Count(&pageCount)
-
 	items := h.buildNavigationTree(p.ID, "en")
 	res := models.DocProjectResponse{
 		ID:          p.ID,
@@ -438,7 +516,7 @@ func (h *DocHandler) UpdateProject(c *gin.Context) {
 		Description: p.Description,
 		Slug:        p.Slug,
 		Status:      p.Status,
-		PagesCount:  int(pageCount),
+		PagesCount:  countTreeItems(items),
 		CreatedAt:   p.CreatedAt.UnixMilli(),
 		UpdatedAt:   p.UpdatedAt.UnixMilli(),
 		Navigation: models.DocNavigationManifest{
@@ -457,7 +535,12 @@ func (h *DocHandler) DeletePage(c *gin.Context) {
 	var page models.DocPage
 	_ = h.db.First(&page, "id = ?", id).Error
 
-	if err := h.db.Delete(&models.DocPage{}, "id = ?", id).Error; err != nil {
+	groupID := page.TranslationGroupID
+	if groupID == "" {
+		groupID = id
+	}
+
+	if err := h.db.Delete(&models.DocPage{}, "id = ? OR translation_group_id = ?", id, groupID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete doc page"})
 		return
 	}
@@ -532,11 +615,15 @@ func (h *DocHandler) UpdateNavigation(c *gin.Context) {
 	var walkItems func(items []models.DocTreeItem, parentID *string)
 	walkItems = func(items []models.DocTreeItem, parentID *string) {
 		for _, it := range items {
+			canonID := it.CanonicalID
+			if canonID == "" {
+				canonID = it.ID
+			}
 			h.db.Model(&models.DocPage{}).
-				Where("id = ? AND project_id = ?", it.ID, projectID).
+				Where("(id = ? OR translation_group_id = ?) AND project_id = ?", canonID, canonID, projectID).
 				Update("parent_id", parentID)
 			if len(it.Children) > 0 {
-				idCopy := it.ID
+				idCopy := canonID
 				walkItems(it.Children, &idCopy)
 			}
 		}
@@ -561,7 +648,7 @@ func (h *DocHandler) UpdateNavigation(c *gin.Context) {
 func (h *DocHandler) GetTranslations(c *gin.Context) {
 	groupID := c.Param("groupId")
 	var pages []models.DocPage
-	query := h.db.Where("translation_group_id = ?", groupID)
+	query := h.db.Where("translation_group_id = ? OR id = ?", groupID, groupID)
 	if auth.IsPublicReadKey(c) {
 		query = query.Where("status = ?", "published")
 	}
@@ -598,20 +685,45 @@ func (h *DocHandler) CreateTranslation(c *gin.Context) {
 		return
 	}
 
+	groupID := source.TranslationGroupID
+	if groupID == "" {
+		groupID = source.ID
+		h.db.Model(&source).Update("translation_group_id", groupID)
+	}
+
 	var existing models.DocPage
-	if err := h.db.Where("translation_group_id = ? AND locale = ?", source.TranslationGroupID, req.Locale).First(&existing).Error; err == nil {
+	if err := h.db.Where("(translation_group_id = ? OR id = ?) AND locale = ?", groupID, groupID, req.Locale).First(&existing).Error; err == nil {
 		c.JSON(http.StatusOK, existing.ToResponse())
 		return
 	}
 
+	canonicalSource := source
+	if source.TranslationSourceID != nil && *source.TranslationSourceID != "" {
+		var canon models.DocPage
+		if err := h.db.First(&canon, "id = ?", *source.TranslationSourceID).Error; err == nil {
+			canonicalSource = canon
+		}
+	} else if groupID != source.ID {
+		var canon models.DocPage
+		if err := h.db.First(&canon, "id = ?", groupID).Error; err == nil {
+			canonicalSource = canon
+		}
+	}
+
+	localeLabel := strings.ToUpper(req.Locale)
+	var wsLocale models.WorkspaceLocale
+	if err := h.db.First(&wsLocale, "code = ?", req.Locale).Error; err == nil && wsLocale.Name != "" {
+		localeLabel = wsLocale.Name
+	}
+
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
-		title = fmt.Sprintf("%s (%s)", source.Title, strings.ToUpper(req.Locale))
+		title = fmt.Sprintf("%s (%s)", canonicalSource.Title, localeLabel)
 	}
 
 	slug := req.Slug
 	if slug == "" {
-		slug = fmt.Sprintf("%s-%s", source.Slug, req.Locale)
+		slug = fmt.Sprintf("%s-%s", canonicalSource.Slug, req.Locale)
 	}
 
 	content := ""
@@ -620,17 +732,27 @@ func (h *DocHandler) CreateTranslation(c *gin.Context) {
 	}
 
 	projID := source.ProjectID
+	if projID == "" {
+		projID = canonicalSource.ProjectID
+	}
 	if req.ProjectID != nil && *req.ProjectID != "" {
 		projID = *req.ProjectID
 	}
 
+	parentID := source.ParentID
+	if parentID == nil {
+		parentID = canonicalSource.ParentID
+	}
+
+	canonicalID := canonicalSource.ID
+
 	newDoc := models.DocPage{
 		ProjectID:           projID,
-		ParentID:            source.ParentID,
-		TranslationGroupID:  source.TranslationGroupID,
-		TranslationSourceID: &source.ID,
+		ParentID:            parentID,
+		TranslationGroupID:  groupID,
+		TranslationSourceID: &canonicalID,
 		Locale:              req.Locale,
-		IsDefaultLocale:     false,
+		IsDefaultLocale:     req.Locale == "en",
 		Title:               title,
 		Slug:                slug,
 		Icon:                source.Icon,

@@ -21,7 +21,7 @@ type DocTreeItem struct {
 	Icon               string        `json:"icon,omitempty"`
 	Status             string        `json:"status,omitempty"`
 	Children           []DocTreeItem `json:"children,omitempty"`
-	HasTranslation     bool          `json:"hasTranslation,omitempty"`
+	HasTranslation     bool          `json:"hasTranslation"`
 }
 
 type DocNavigationManifest struct {

@@ -160,14 +160,14 @@ export default function EditorPage() {
 		enabled: isDoc && Boolean(effectiveProjectId),
 	});
 
-	// Synchronize URL search params if doc has a locale or project and URL hasn't set one yet
+	// Synchronize URL search params with the active loaded document's locale and project
 	React.useEffect(() => {
-		if (isDoc && (doc?.locale || doc?.projectId)) {
+		if (isDoc && doc && doc.id === id && (doc.locale || doc.projectId)) {
 			setSearchParams(
 				(prev) => {
 					let changed = false;
 					const next = new URLSearchParams(prev);
-					if (doc.locale && !prev.get("lang")) {
+					if (doc.locale && prev.get("lang") !== doc.locale) {
 						next.set("lang", doc.locale);
 						changed = true;
 					}
@@ -180,7 +180,7 @@ export default function EditorPage() {
 				{ replace: true },
 			);
 		}
-	}, [isDoc, doc?.locale, doc?.projectId, setSearchParams]);
+	}, [isDoc, id, doc, setSearchParams]);
 
 	const [manifest, setManifest] = React.useState<DocNavigationManifest | null>(
 		null,
@@ -365,21 +365,22 @@ export default function EditorPage() {
 		try {
 			const updated = await mockApi.docs.deletePage(
 				docToDelete,
-				projectId,
+				effectiveProjectId,
 				activeLocale,
 			);
 			setManifest(updated);
 			queryClient.setQueryData(
-				["docs-navigation", projectId, activeLocale],
+				["docs-navigation", effectiveProjectId, activeLocale],
 				updated,
 			);
 			queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
 			toast.success("Document deleted");
 			if (docToDelete === id) {
-				const nextDoc = updated.items[0]?.id;
+				const nextDoc =
+					updated.items[0]?.localizedDocId || updated.items[0]?.id;
 				if (nextDoc) {
 					navigate(
-						`/editor/doc/${nextDoc}?${projectId ? `project=${projectId}&` : ""}lang=${activeLocale}`,
+						`/editor/doc/${nextDoc}?${effectiveProjectId ? `project=${effectiveProjectId}&` : ""}lang=${activeLocale}`,
 					);
 				} else {
 					navigate("/docs");
@@ -434,6 +435,67 @@ export default function EditorPage() {
 	};
 
 	const handleSelectLocale = async (newLocale: string) => {
+		if (newLocale === activeLocale && (doc?.locale || "en") === newLocale) {
+			return;
+		}
+
+		try {
+			await useEditorStore.getState().saveContent?.();
+		} catch {
+			// Ignore save errors before switching
+		}
+
+		if (doc) {
+			try {
+				const groupId = doc.translationGroupId || doc.id;
+				const sourceId = doc.translationSourceId || groupId;
+				const translations = await mockApi.docs.getTranslations(groupId);
+				let targetDoc = translations.find(
+					(t) => (t.locale || "en") === newLocale,
+				);
+				if (!targetDoc && (doc.locale || "en") === newLocale) {
+					targetDoc = doc;
+				}
+
+				if (!targetDoc) {
+					targetDoc = await mockApi.docs.createTranslation(
+						sourceId,
+						newLocale,
+						{
+							copyContent: true,
+							projectId: effectiveProjectId,
+						},
+					);
+					queryClient.setQueryData(["docs", targetDoc.id], targetDoc);
+					toast.success(
+						`Created ${newLocale.toUpperCase()} translation for "${targetDoc.title}"`,
+					);
+				}
+
+				const refreshedNav = await mockApi.docs.getNavigation(
+					effectiveProjectId,
+					newLocale,
+				);
+				setManifest(refreshedNav);
+				queryClient.setQueryData(
+					["docs-navigation", effectiveProjectId, newLocale],
+					refreshedNav,
+				);
+				queryClient.invalidateQueries({
+					queryKey: ["docs", "translations", groupId],
+				});
+				queryClient.invalidateQueries({ queryKey: ["docs-navigation"] });
+				queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
+
+				navigate(
+					`/editor/doc/${targetDoc.id}?${effectiveProjectId ? `project=${effectiveProjectId}&` : ""}lang=${newLocale}`,
+				);
+				return;
+			} catch (_err) {
+				toast.error("Failed to switch document language");
+			}
+		}
+
 		setSearchParams(
 			(prev) => {
 				const next = new URLSearchParams(prev);
@@ -442,18 +504,6 @@ export default function EditorPage() {
 			},
 			{ replace: true },
 		);
-
-		// If current doc has a translation in newLocale, seamlessly switch to it!
-		if (doc) {
-			const groupId = doc.translationGroupId || doc.id;
-			const translations = await mockApi.docs.getTranslations(groupId);
-			const translatedDoc = translations.find((t) => t.locale === newLocale);
-			if (translatedDoc && translatedDoc.id !== id) {
-				navigate(
-					`/editor/doc/${translatedDoc.id}?${projectId ? `project=${projectId}&` : ""}lang=${newLocale}`,
-				);
-			}
-		}
 	};
 
 	const docsSidebar =
@@ -461,27 +511,41 @@ export default function EditorPage() {
 			<DocsTree
 				manifest={manifest}
 				selectedDocId={id || null}
-				onSelectDoc={(docId) =>
+				onSelectDoc={async (docId) => {
+					if (docId !== id) {
+						try {
+							await useEditorStore.getState().saveContent?.();
+						} catch {
+							// Ignore save errors before navigating
+						}
+					}
 					navigate(
-						`/editor/doc/${docId}?${projectId ? `project=${projectId}&` : ""}lang=${activeLocale}`,
-					)
-				}
+						`/editor/doc/${docId}?${effectiveProjectId ? `project=${effectiveProjectId}&` : ""}lang=${activeLocale}`,
+					);
+				}}
+				onRefreshManifest={(refreshed) => {
+					setManifest(refreshed);
+					queryClient.setQueryData(
+						["docs-navigation", effectiveProjectId, activeLocale],
+						refreshed,
+					);
+				}}
 				onUpdateManifest={async (upd) => {
 					const previousManifest = manifest;
 					setManifest(upd);
 					queryClient.setQueryData(
-						["docs-navigation", projectId, activeLocale],
+						["docs-navigation", effectiveProjectId, activeLocale],
 						upd,
 					);
 					try {
 						const saved = await mockApi.docs.updateNavigation(
 							upd.items,
-							projectId,
+							effectiveProjectId,
 							activeLocale,
 						);
 						setManifest(saved);
 						queryClient.setQueryData(
-							["docs-navigation", projectId, activeLocale],
+							["docs-navigation", effectiveProjectId, activeLocale],
 							saved,
 						);
 						queryClient.invalidateQueries({ queryKey: ["docs-projects"] });
@@ -490,7 +554,7 @@ export default function EditorPage() {
 						if (previousManifest) {
 							setManifest(previousManifest);
 							queryClient.setQueryData(
-								["docs-navigation", projectId, activeLocale],
+								["docs-navigation", effectiveProjectId, activeLocale],
 								previousManifest,
 							);
 						}
