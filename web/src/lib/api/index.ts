@@ -142,8 +142,19 @@ export const api = {
 		async list(): Promise<User[]> {
 			return http.get("/users");
 		},
-		async invite(email: string, role: string, name?: string): Promise<User> {
-			return http.post("/users/invite", { email, role, name });
+		async invite(
+			email: string,
+			role: string,
+			name?: string,
+			password?: string,
+		): Promise<User> {
+			return http.post("/users/invite", { email, role, name, password });
+		},
+		async updateRole(userId: string, role: UserRole): Promise<User> {
+			return http.put(`/users/${userId}/role`, { role });
+		},
+		async remove(userId: string): Promise<void> {
+			await http.delete(`/users/${userId}`);
 		},
 		async switchRole(role: UserRole): Promise<User> {
 			return http.put("/users/profile", { role });

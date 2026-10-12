@@ -6,10 +6,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import {
-	ROLE_LABELS,
-	UserPersonaSubmenu,
-} from "@/components/common/role-switcher";
+import { ROLE_LABELS } from "@/components/common/role-switcher";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -126,7 +123,6 @@ export function NavUser() {
 								<Settings2Icon />
 								{t("userMenu.settings")}
 							</DropdownMenuItem>
-							<UserPersonaSubmenu />
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem onClick={handleSignOut}>

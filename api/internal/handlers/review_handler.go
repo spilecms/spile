@@ -34,6 +34,7 @@ type CreateRevisionRequest struct {
 	Title      string                  `json:"title" binding:"required"`
 	Summary    string                  `json:"summary"`
 	Content    any                     `json:"content"`
+	Status     models.RevisionStatus   `json:"status"`
 }
 
 type CreateReviewRequestPayload struct {
@@ -88,18 +89,23 @@ func (h *ReviewHandler) CreateRevision(c *gin.Context) {
 		return
 	}
 
-	var count int64
+	var maxVersion int
 	h.db.Model(&models.ContentRevision{}).
 		Where("target_type = ? AND target_id = ?", req.TargetType, req.TargetID).
-		Count(&count)
+		Select("COALESCE(MAX(version_number), 0)").Scan(&maxVersion)
 
-	versionNum := int(count) + 1
+	versionNum := maxVersion + 1
 	versionLabel := fmt.Sprintf("v%d.0", versionNum)
 
 	var contentStr string
 	if req.Content != nil {
 		b, _ := json.Marshal(req.Content)
 		contentStr = string(b)
+	}
+
+	revStatus := req.Status
+	if revStatus == "" {
+		revStatus = models.RevisionStatusDraft
 	}
 
 	revision := models.ContentRevision{
@@ -112,7 +118,7 @@ func (h *ReviewHandler) CreateRevision(c *gin.Context) {
 		Content:       contentStr,
 		AuthorID:      currentUser.ID,
 		AuthorName:    currentUser.Name,
-		Status:        models.RevisionStatusDraft,
+		Status:        revStatus,
 	}
 
 	if err := h.db.Create(&revision).Error; err != nil {

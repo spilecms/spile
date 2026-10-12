@@ -55,6 +55,10 @@ export function SubmitReviewDialog({
 
 	const submitMutation = useMutation({
 		mutationFn: async () => {
+			const saveContent = useEditorStore.getState().saveContent;
+			if (saveContent) {
+				await saveContent();
+			}
 			const blocks = useEditorStore.getState().blocks;
 			return mockApi.reviews.submit({
 				targetType,

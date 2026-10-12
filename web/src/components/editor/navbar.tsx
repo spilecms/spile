@@ -10,10 +10,7 @@ import {
 	Undo2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import {
-	ROLE_LABELS,
-	UserPersonaSubmenu,
-} from "@/components/common/role-switcher";
+import { ROLE_LABELS } from "@/components/common/role-switcher";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -277,7 +274,6 @@ export default function Navbar({
 							<DropdownMenuItem onClick={() => navigate("/settings")}>
 								Settings
 							</DropdownMenuItem>
-							<UserPersonaSubmenu />
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem

@@ -143,9 +143,22 @@ export function PublishPanel({
 								: "Newsletter issue saved",
 					);
 				} else if (isDoc) {
+					const docStatus = localStatus === "published" ? "published" : "draft";
 					await mockApi.docs.updatePage(postId, {
-						status: localStatus === "published" ? "published" : "draft",
+						status: docStatus,
 						slug: localSlug,
+					});
+					const currentBlocks = useEditorStore.getState().blocks;
+					await mockApi.revisions.create({
+						targetType: "doc",
+						targetId: postId,
+						title: title || "Untitled",
+						summary:
+							docStatus === "published"
+								? "Published document"
+								: "Saved draft snapshot",
+						content: currentBlocks,
+						status: docStatus,
 					});
 					await queryClient.invalidateQueries({ queryKey: ["docs"] });
 					await queryClient.invalidateQueries({
@@ -153,6 +166,9 @@ export function PublishPanel({
 					});
 					await queryClient.invalidateQueries({
 						queryKey: ["docs-projects"],
+					});
+					await queryClient.invalidateQueries({
+						queryKey: ["revisions", postId],
 					});
 					toast.success(
 						localStatus === "published"
@@ -171,7 +187,24 @@ export function PublishPanel({
 								: null,
 						seo: seoPatch,
 					});
+					const currentBlocks = useEditorStore.getState().blocks;
+					await mockApi.revisions.create({
+						targetType: "post",
+						targetId: postId,
+						title: title || "Untitled",
+						summary:
+							localStatus === "published"
+								? "Published post"
+								: localStatus === "scheduled"
+									? "Scheduled post"
+									: "Saved draft snapshot",
+						content: currentBlocks,
+						status: localStatus === "published" ? "published" : "draft",
+					});
 					await queryClient.invalidateQueries({ queryKey: ["posts"] });
+					await queryClient.invalidateQueries({
+						queryKey: ["revisions", postId],
+					});
 					toast.success(
 						localStatus === "published"
 							? "Post published"

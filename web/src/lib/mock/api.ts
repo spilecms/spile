@@ -420,17 +420,39 @@ const inMemoryMockApi = {
 			}
 			return { ...activeUser };
 		},
-		async invite(email: string, role: string): Promise<User> {
+		async invite(
+			email: string,
+			role: string,
+			name?: string,
+			_password?: string,
+		): Promise<User> {
 			await delay(100);
 			const newUser: User = {
 				id: `user-${Date.now()}`,
-				name: email.split("@")[0],
+				name: name?.trim() || email.split("@")[0],
 				email,
 				role: role as User["role"],
 				avatar: `https://images.unsplash.com/photo-${1534528741775 + usersList.length}?w=100&h=100&fit=crop&crop=faces`,
 			};
 			usersList.push(newUser);
 			return newUser;
+		},
+		async updateRole(userId: string, role: UserRole): Promise<User> {
+			await delay(80);
+			const idx = usersList.findIndex((u) => u.id === userId);
+			if (idx === -1) throw new Error("User not found");
+			usersList[idx] = { ...usersList[idx], role };
+			if (activeUser.id === userId) {
+				activeUser = { ...usersList[idx] };
+			}
+			return { ...usersList[idx] };
+		},
+		async remove(userId: string): Promise<void> {
+			await delay(80);
+			const idx = usersList.findIndex((u) => u.id === userId);
+			if (idx !== -1) {
+				usersList.splice(idx, 1);
+			}
 		},
 	},
 	tags: {
@@ -1440,7 +1462,35 @@ const inMemoryMockApi = {
 					d.updatedAt = Date.now();
 				}
 			}
-			return { ...targetRev };
+
+			const targetRevs = revisionsList.filter(
+				(r) =>
+					r.targetType === targetRev.targetType &&
+					r.targetId === targetRev.targetId,
+			);
+			const maxVer = targetRevs.reduce(
+				(max, r) => Math.max(max, r.versionNumber),
+				0,
+			);
+			const nextVer = maxVer + 1;
+			const newRev: ContentRevision = {
+				id: `rev-${Date.now()}`,
+				targetType: targetRev.targetType,
+				targetId: targetRev.targetId,
+				versionNumber: nextVer,
+				versionLabel: `v${nextVer}.0`,
+				title: targetRev.title,
+				summary: `Restored from ${targetRev.versionLabel}`,
+				content: targetRev.content
+					? JSON.parse(JSON.stringify(targetRev.content))
+					: null,
+				authorId: activeUser.id,
+				authorName: activeUser.name,
+				status: "draft",
+				createdAt: Date.now(),
+			};
+			revisionsList.push(newRev);
+			return { ...newRev };
 		},
 	},
 

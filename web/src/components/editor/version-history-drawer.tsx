@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, History, RotateCcw, User } from "lucide-react";
+import { Clock, History, Plus, RotateCcw, User } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
 	Sheet,
 	SheetContent,
@@ -37,12 +39,13 @@ function timeAgo(timestamp: number): string {
 function getStatusBadge(status: ContentRevision["status"]) {
 	switch (status) {
 		case "published":
+		case "approved":
 			return (
 				<Badge
 					variant="outline"
 					className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px]"
 				>
-					Published
+					{status === "approved" ? "Approved" : "Published"}
 				</Badge>
 			);
 		case "in_review":
@@ -80,14 +83,42 @@ export function VersionHistoryDrawer({
 	onOpenChange,
 	targetType,
 	targetId,
+	currentTitle,
 	onRestored,
 }: VersionHistoryDrawerProps) {
 	const qc = useQueryClient();
+	const [snapshotNote, setSnapshotNote] = useState("");
 
 	const { data: revisions = [] } = useQuery({
 		queryKey: ["revisions", targetId],
 		queryFn: () => mockApi.revisions.list(targetType, targetId),
-		enabled: open,
+		enabled: open && Boolean(targetId),
+	});
+
+	const createSnapshotMutation = useMutation({
+		mutationFn: async () => {
+			const saveContent = useEditorStore.getState().saveContent;
+			if (saveContent) {
+				await saveContent();
+			}
+			const { blocks, title, status } = useEditorStore.getState();
+			return mockApi.revisions.create({
+				targetType,
+				targetId,
+				title: title || currentTitle || "Untitled",
+				summary: snapshotNote.trim() || "Manual version snapshot",
+				content: blocks,
+				status: status === "published" ? "published" : "draft",
+			});
+		},
+		onSuccess: (rev) => {
+			setSnapshotNote("");
+			qc.invalidateQueries({ queryKey: ["revisions", targetId] });
+			toast.success(`Saved snapshot ${rev.versionLabel}`);
+		},
+		onError: () => {
+			toast.error("Failed to save version snapshot");
+		},
 	});
 
 	const restoreMutation = useMutation({
@@ -109,6 +140,7 @@ export function VersionHistoryDrawer({
 		onSuccess: (rev) => {
 			qc.invalidateQueries({ queryKey: ["posts", targetId] });
 			qc.invalidateQueries({ queryKey: ["docs", targetId] });
+			qc.invalidateQueries({ queryKey: ["docs-navigation"] });
 			qc.invalidateQueries({ queryKey: ["revisions", targetId] });
 			toast.success(`Restored to ${rev.versionLabel}`);
 			onOpenChange(false);
@@ -131,14 +163,41 @@ export function VersionHistoryDrawer({
 						Version History
 					</SheetTitle>
 					<SheetDescription className="text-xs">
-						Inspect past document snapshots and rollback changes anytime.
+						Save checkpoints of this document and rollback changes anytime.
 					</SheetDescription>
 				</SheetHeader>
+
+				{/* Create Snapshot Bar */}
+				<form
+					onSubmit={(e) => {
+						e.preventDefault();
+						createSnapshotMutation.mutate();
+					}}
+					className="flex items-center gap-2 p-3 border-b bg-muted/20"
+				>
+					<Input
+						value={snapshotNote}
+						onChange={(e) => setSnapshotNote(e.target.value)}
+						placeholder="Version note (e.g. Updated auth examples)..."
+						className="h-8 text-xs flex-1"
+					/>
+					<Button
+						type="submit"
+						size="sm"
+						disabled={createSnapshotMutation.isPending || !targetId}
+						className="h-8 gap-1 text-xs shrink-0"
+					>
+						<Plus className="size-3.5" />
+						{createSnapshotMutation.isPending ? "Saving..." : "Save Snapshot"}
+					</Button>
+				</form>
 
 				<div className="flex-1 overflow-y-auto divide-y divide-border/50">
 					{revisions.length === 0 ? (
 						<div className="p-8 text-center text-xs text-muted-foreground">
-							No historical revisions recorded yet.
+							No historical revisions recorded yet. Click{" "}
+							<strong className="text-foreground">Save Snapshot</strong> above
+							or publish to record a version.
 						</div>
 					) : (
 						revisions.map((rev, index) => {

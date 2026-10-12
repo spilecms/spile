@@ -22,9 +22,10 @@ func NewUserHandler(db *gorm.DB) *UserHandler {
 }
 
 type InviteUserRequest struct {
-	Email string          `json:"email" binding:"required"`
-	Role  models.UserRole `json:"role" binding:"required"`
-	Name  string          `json:"name"`
+	Email    string          `json:"email" binding:"required"`
+	Role     models.UserRole `json:"role" binding:"required"`
+	Name     string          `json:"name"`
+	Password string          `json:"password"`
 }
 
 type UpdateRoleRequest struct {
@@ -86,10 +87,18 @@ func (h *UserHandler) Invite(c *gin.Context) {
 		name = parts[0]
 	}
 
-	// Generate a temporary random password
-	randBytes := make([]byte, 16)
-	_, _ = rand.Read(randBytes)
-	initialPassword := hex.EncodeToString(randBytes)
+	initialPassword := strings.TrimSpace(req.Password)
+	if initialPassword != "" {
+		if len(initialPassword) < 6 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Password must be at least 6 characters long"})
+			return
+		}
+	} else {
+		// Generate a temporary random password
+		randBytes := make([]byte, 16)
+		_, _ = rand.Read(randBytes)
+		initialPassword = hex.EncodeToString(randBytes)
+	}
 
 	hash, err := auth.HashPassword(initialPassword)
 	if err != nil {
