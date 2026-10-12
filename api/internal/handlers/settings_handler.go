@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -197,6 +198,8 @@ func (h *SettingsHandler) CreateApiKey(c *gin.Context) {
 	randBytes := make([]byte, 16)
 	_, _ = rand.Read(randBytes)
 	secret := hex.EncodeToString(randBytes)
+	hashBytes := sha256.Sum256([]byte(secret))
+	secretHash := hex.EncodeToString(hashBytes[:])
 
 	prefix := "pk_live_"
 	fullPrefix := prefix + secret[:6] + "..."
@@ -204,7 +207,7 @@ func (h *SettingsHandler) CreateApiKey(c *gin.Context) {
 	apiKey := models.ApiKey{
 		Name:       req.Name,
 		Prefix:     fullPrefix,
-		SecretHash: secret,
+		SecretHash: secretHash,
 		Type:       models.ApiKeyTypePublicRead,
 	}
 

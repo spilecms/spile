@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"strings"
 	"time"
@@ -43,8 +45,10 @@ func AuthenticateMiddleware(db *gorm.DB) gin.HandlerFunc {
 					return
 				}
 				secret := strings.TrimPrefix(token, "pk_live_")
+				hashBytes := sha256.Sum256([]byte(secret))
+				secretHash := hex.EncodeToString(hashBytes[:])
 				var apiKey models.ApiKey
-				if err := db.First(&apiKey, "secret_hash = ?", secret).Error; err == nil {
+				if err := db.First(&apiKey, "secret_hash = ? OR secret_hash = ?", secretHash, secret).Error; err == nil {
 					now := time.Now()
 					db.Model(&apiKey).Update("last_used_at", &now)
 

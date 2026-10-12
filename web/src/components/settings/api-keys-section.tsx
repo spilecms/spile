@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	Check,
 	Copy,
 	ExternalLink,
 	FileJson2,
 	Key,
 	Plus,
+	ShieldAlert,
 	Trash2,
 	Webhook as WebhookIcon,
 } from "lucide-react";
@@ -35,6 +37,11 @@ export function ApiKeysSection() {
 	const queryClient = useQueryClient();
 	const [keyDialogOpen, setKeyDialogOpen] = React.useState(false);
 	const [keyName, setKeyName] = React.useState("");
+	const [createdToken, setCreatedToken] = React.useState<{
+		name: string;
+		key: string;
+	} | null>(null);
+	const [tokenCopied, setTokenCopied] = React.useState(false);
 
 	const [webhookDialogOpen, setWebhookDialogOpen] = React.useState(false);
 	const [webhookName, setWebhookName] = React.useState("");
@@ -58,18 +65,25 @@ export function ApiKeysSection() {
 		onSuccess: (newKey) => {
 			queryClient.invalidateQueries({ queryKey: ["settings", "api-keys"] });
 			if (newKey.key) {
-				navigator.clipboard.writeText(newKey.key);
-				toast.success(
-					`Generated "${newKey.name}" and copied token to clipboard`,
-				);
+				setCreatedToken({ name: newKey.name, key: newKey.key });
+				setTokenCopied(false);
 			} else {
-				toast.success(`Generated ${newKey.name}`);
+				setKeyDialogOpen(false);
 			}
-			setKeyDialogOpen(false);
 			setKeyName("");
+			toast.success(`Generated "${newKey.name}"`);
 		},
 		onError: () => toast.error("Failed to generate API key"),
 	});
+
+	const closeKeyDialog = (open: boolean) => {
+		setKeyDialogOpen(open);
+		if (!open) {
+			setCreatedToken(null);
+			setTokenCopied(false);
+			setKeyName("");
+		}
+	};
 
 	const deleteKeyMutation = useMutation({
 		mutationFn: (id: string) => mockApi.settings.deleteApiKey(id),
@@ -229,18 +243,7 @@ export function ApiKeysSection() {
 												{key.name}
 											</td>
 											<td className="py-2.5 px-3 font-mono text-[11px] text-muted-foreground">
-												<div className="flex items-center gap-1.5">
-													<span>{key.prefix}</span>
-													<Button
-														variant="ghost"
-														size="icon"
-														className="size-5 text-muted-foreground hover:text-foreground"
-														onClick={() => copyToClipboard(key.prefix)}
-														title="Copy prefix"
-													>
-														<Copy className="size-3" />
-													</Button>
-												</div>
+												<span>{key.prefix}</span>
 											</td>
 											<td className="py-2.5 px-3">
 												<Badge
@@ -383,47 +386,126 @@ export function ApiKeysSection() {
 			</Card>
 
 			{/* Create Token Dialog */}
-			<Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
+			<Dialog open={keyDialogOpen} onOpenChange={closeKeyDialog}>
 				<DialogContent className="sm:max-w-md">
-					<DialogHeader>
-						<DialogTitle className="flex items-center gap-2">
-							<Key className="size-4 text-primary" />
-							<span>Generate Content Delivery Token</span>
-						</DialogTitle>
-						<DialogDescription className="text-xs">
-							Create a read-only <code>pk_live_</code> token for fetching
-							published content from your headless frontend.
-						</DialogDescription>
-					</DialogHeader>
+					{createdToken ? (
+						<>
+							<DialogHeader>
+								<DialogTitle className="flex items-center gap-2">
+									<Key className="size-4 text-primary" />
+									<span>Save Your API Token</span>
+								</DialogTitle>
+								<DialogDescription className="text-xs">
+									Token <strong>{createdToken.name}</strong> has been generated.
+								</DialogDescription>
+							</DialogHeader>
 
-					<div className="flex flex-col gap-3 py-2">
-						<div className="flex flex-col gap-1.5">
-							<Label className="text-xs">Token Name / Description</Label>
-							<Input
-								placeholder="e.g. Next.js Production Frontend"
-								value={keyName}
-								onChange={(e) => setKeyName(e.target.value)}
-								className="h-8 text-xs"
-							/>
-						</div>
-					</div>
+							<div className="flex flex-col gap-3 py-2">
+								<div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400">
+									<ShieldAlert className="size-4 shrink-0 mt-0.5" />
+									<span>
+										Please copy this token now and store it securely. For your
+										security, it will not be shown again once you close this
+										dialog.
+									</span>
+								</div>
 
-					<DialogFooter>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setKeyDialogOpen(false)}
-						>
-							Cancel
-						</Button>
-						<Button
-							size="sm"
-							onClick={() => createKeyMutation.mutate()}
-							disabled={!keyName.trim() || createKeyMutation.isPending}
-						>
-							{createKeyMutation.isPending ? "Generating…" : "Generate Token"}
-						</Button>
-					</DialogFooter>
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-xs">Secret API Token</Label>
+									<div className="flex items-center gap-1.5">
+										<Input
+											readOnly
+											value={createdToken.key}
+											onFocus={(e) => e.currentTarget.select()}
+											className="h-8 text-xs font-mono bg-muted/40"
+										/>
+										<Button
+											type="button"
+											size="sm"
+											variant={tokenCopied ? "secondary" : "default"}
+											className="h-8 gap-1.5 shrink-0 text-xs"
+											onClick={() => {
+												navigator.clipboard.writeText(createdToken.key);
+												setTokenCopied(true);
+												toast.success("API token copied to clipboard");
+											}}
+										>
+											{tokenCopied ? (
+												<>
+													<Check className="size-3.5" />
+													<span>Copied</span>
+												</>
+											) : (
+												<>
+													<Copy className="size-3.5" />
+													<span>Copy</span>
+												</>
+											)}
+										</Button>
+									</div>
+								</div>
+							</div>
+
+							<DialogFooter>
+								<Button size="sm" onClick={() => closeKeyDialog(false)}>
+									Done
+								</Button>
+							</DialogFooter>
+						</>
+					) : (
+						<>
+							<DialogHeader>
+								<DialogTitle className="flex items-center gap-2">
+									<Key className="size-4 text-primary" />
+									<span>Generate Content Delivery Token</span>
+								</DialogTitle>
+								<DialogDescription className="text-xs">
+									Create a read-only <code>pk_live_</code> token for fetching
+									published content from your headless frontend.
+								</DialogDescription>
+							</DialogHeader>
+
+							<div className="flex flex-col gap-3 py-2">
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-xs">Token Name / Description</Label>
+									<Input
+										placeholder="e.g. Next.js Production Frontend"
+										value={keyName}
+										onChange={(e) => setKeyName(e.target.value)}
+										onKeyDown={(e) => {
+											if (
+												e.key === "Enter" &&
+												keyName.trim() &&
+												!createKeyMutation.isPending
+											) {
+												createKeyMutation.mutate();
+											}
+										}}
+										className="h-8 text-xs"
+									/>
+								</div>
+							</div>
+
+							<DialogFooter>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => closeKeyDialog(false)}
+								>
+									Cancel
+								</Button>
+								<Button
+									size="sm"
+									onClick={() => createKeyMutation.mutate()}
+									disabled={!keyName.trim() || createKeyMutation.isPending}
+								>
+									{createKeyMutation.isPending
+										? "Generating…"
+										: "Generate Token"}
+								</Button>
+							</DialogFooter>
+						</>
+					)}
 				</DialogContent>
 			</Dialog>
 
