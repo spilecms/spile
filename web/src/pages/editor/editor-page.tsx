@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { mockApi } from "@/lib/mock/api";
 import { usePermissions } from "@/lib/permissions";
 import { useEditorStore } from "@/lib/store/editor-store";
+import NotFoundPage from "@/pages/errors/not-found-page";
 import type {
 	DocNavigationManifest,
 	DocTreeItem,
@@ -309,26 +310,30 @@ export default function EditorPage() {
 		);
 	}
 
-	if (!isNew && error) {
+	if (!isNew && (error || !activeItem)) {
 		return (
-			<div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6">
-				<p className="text-sm text-red-500 bg-red-50 rounded-md border border-red-200 px-4 py-2 dark:bg-red-950/50 dark:border-red-900">
-					{error instanceof Error ? error.message : "Failed to load"}
-				</p>
-				<button
-					type="button"
-					className="text-sm text-primary underline-offset-4 hover:underline"
-					onClick={() =>
-						navigate(isNewsletter ? "/newsletters" : isDoc ? "/docs" : "/posts")
-					}
-				>
-					{isNewsletter
-						? "Back to newsletters"
+			<NotFoundPage
+				title={
+					isNewsletter
+						? "Newsletter not found"
 						: isDoc
-							? "Back to docs"
-							: "Back to posts"}
-				</button>
-			</div>
+							? "Document not found"
+							: "Post not found"
+				}
+				description={
+					error instanceof Error
+						? error.message
+						: "The item you are trying to open could not be found or may have been deleted."
+				}
+				backTo={isNewsletter ? "/newsletters" : isDoc ? "/docs" : "/posts"}
+				backLabel={
+					isNewsletter
+						? "Back to Newsletters"
+						: isDoc
+							? "Back to Docs"
+							: "Back to Posts"
+				}
+			/>
 		);
 	}
 

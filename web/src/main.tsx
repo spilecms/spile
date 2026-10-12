@@ -25,6 +25,8 @@ const PlaceholderPage = lazy(() => import("./pages/dashboard/placeholder"));
 const PostsPage = lazy(() => import("./pages/dashboard/posts"));
 const SettingsPage = lazy(() => import("./pages/dashboard/settings"));
 const EditorPage = lazy(() => import("./pages/editor/editor-page"));
+const ErrorPage = lazy(() => import("./pages/errors/error-page"));
+const NotFoundPage = lazy(() => import("./pages/errors/not-found-page"));
 
 const queryClient = new QueryClient({
 	defaultOptions: {
@@ -39,6 +41,7 @@ const router = createBrowserRouter([
 	{
 		path: "/login",
 		element: <LoginPage />,
+		errorElement: <ErrorPage />,
 	},
 	{
 		element: (
@@ -46,6 +49,7 @@ const router = createBrowserRouter([
 				<DashboardShell />
 			</ProtectedRoute>
 		),
+		errorElement: <ErrorPage />,
 		children: [
 			{ index: true, element: <Overview /> },
 			{ path: "posts", element: <PostsPage /> },
@@ -62,6 +66,7 @@ const router = createBrowserRouter([
 				element: <Navigate to="/settings?tab=integrations" replace />,
 			},
 			{ path: "help", element: <PlaceholderPage /> },
+			{ path: "*", element: <NotFoundPage /> },
 		],
 	},
 	{
@@ -71,6 +76,7 @@ const router = createBrowserRouter([
 				<EditorPage />
 			</ProtectedRoute>
 		),
+		errorElement: <ErrorPage />,
 	},
 	{
 		path: "/editor/:id",
@@ -79,6 +85,7 @@ const router = createBrowserRouter([
 				<EditorPage />
 			</ProtectedRoute>
 		),
+		errorElement: <ErrorPage />,
 	},
 	{
 		path: "/editor/doc/:id",
@@ -87,6 +94,7 @@ const router = createBrowserRouter([
 				<EditorPage />
 			</ProtectedRoute>
 		),
+		errorElement: <ErrorPage />,
 	},
 	{
 		path: "/editor/newsletter/:id",
@@ -95,8 +103,9 @@ const router = createBrowserRouter([
 				<EditorPage />
 			</ProtectedRoute>
 		),
+		errorElement: <ErrorPage />,
 	},
-	{ path: "*", element: <Navigate to="/" replace /> },
+	{ path: "*", element: <NotFoundPage />, errorElement: <ErrorPage /> },
 ]);
 
 const rootElement = document.getElementById("root");
