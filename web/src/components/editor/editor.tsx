@@ -7,7 +7,6 @@ import EditorJS, {
 } from "@editorjs/editorjs";
 import Header from "@editorjs/header";
 import ImageTool from "@editorjs/image";
-import InlineCode from "@editorjs/inline-code";
 import Marker from "@editorjs/marker";
 import NestedList from "@editorjs/nested-list";
 import Quote from "@editorjs/quote";
@@ -28,6 +27,7 @@ import CodeGroupTool from "./plugins/code-group";
 import CodeHighlightTool from "./plugins/code-highlight";
 import ExpandableTool from "./plugins/expandable";
 import HtmlEmbedTool from "./plugins/html-embed";
+import InlineCode from "./plugins/inline-code";
 import ColorInlineTool from "./plugins/inline-color";
 import InlineFormulaTool from "./plugins/inline-formula";
 import { createMediaTool } from "./plugins/media";

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Outlet } from "react-router-dom";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
@@ -17,7 +18,9 @@ export function DashboardShell() {
 				<SidebarInset>
 					<SiteHeader onActionsRef={setTarget} />
 					<main className="flex flex-1 flex-col">
-						<Outlet />
+						<Suspense fallback={null}>
+							<Outlet />
+						</Suspense>
 					</main>
 				</SidebarInset>
 			</SidebarProvider>

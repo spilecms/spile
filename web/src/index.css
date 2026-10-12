@@ -378,6 +378,11 @@
 	color: var(--ej-fg);
 	border: 1px solid var(--ej-border);
 	border-radius: 4px;
+	padding: 2px 5px;
+	margin: 0 1px;
+	font-family: var(--font-geist-mono, ui-monospace, monospace);
+	font-size: 0.86em;
+	font-weight: 500;
 }
 .codex-editor .ce-delimiter::before {
 	color: var(--ej-muted-fg);

@@ -4,8 +4,7 @@ import type {
 	BlockToolData,
 	ToolboxConfig,
 } from "@editorjs/editorjs";
-import hljs from "highlight.js";
-import "highlight.js/styles/atom-one-dark.css";
+import hljs from "./hljs";
 
 export interface CodeBlockData extends BlockToolData {
 	code: string;

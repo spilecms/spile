@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,19 +11,20 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { DashboardShell } from "@/components/dashboard/shell";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
-import LoginPage from "./pages/auth/login-page";
-import AnalyticsPage from "./pages/dashboard/analytics";
-import DocsPage from "./pages/dashboard/docs";
-import MediaPage from "./pages/dashboard/media";
-import MembersPage from "./pages/dashboard/members";
-import NewslettersPage from "./pages/dashboard/newsletters";
-import Overview from "./pages/dashboard/overview";
-import PlaceholderPage from "./pages/dashboard/placeholder";
-import PostsPage from "./pages/dashboard/posts";
-import SettingsPage from "./pages/dashboard/settings";
-import EditorPage from "./pages/editor/editor-page";
 
 import "./i18n/i18n"; // Import the i18n configuration
+
+const LoginPage = lazy(() => import("./pages/auth/login-page"));
+const AnalyticsPage = lazy(() => import("./pages/dashboard/analytics"));
+const DocsPage = lazy(() => import("./pages/dashboard/docs"));
+const MediaPage = lazy(() => import("./pages/dashboard/media"));
+const MembersPage = lazy(() => import("./pages/dashboard/members"));
+const NewslettersPage = lazy(() => import("./pages/dashboard/newsletters"));
+const Overview = lazy(() => import("./pages/dashboard/overview"));
+const PlaceholderPage = lazy(() => import("./pages/dashboard/placeholder"));
+const PostsPage = lazy(() => import("./pages/dashboard/posts"));
+const SettingsPage = lazy(() => import("./pages/dashboard/settings"));
+const EditorPage = lazy(() => import("./pages/editor/editor-page"));
 
 const queryClient = new QueryClient({
 	defaultOptions: {
@@ -108,7 +109,9 @@ createRoot(rootElement).render(
 		<QueryClientProvider client={queryClient}>
 			<AuthProvider>
 				<ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-					<RouterProvider router={router} />
+					<Suspense fallback={null}>
+						<RouterProvider router={router} />
+					</Suspense>
 				</ThemeProvider>
 			</AuthProvider>
 		</QueryClientProvider>

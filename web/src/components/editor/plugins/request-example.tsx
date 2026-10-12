@@ -4,9 +4,8 @@ import type {
 	BlockToolData,
 	ToolboxConfig,
 } from "@editorjs/editorjs";
-import hljs from "highlight.js";
-import "highlight.js/styles/atom-one-dark.css";
 import { type LanguageOption, SUPPORTED_LANGUAGES } from "./code-highlight";
+import hljs from "./hljs";
 
 export interface RequestTab {
 	id: string;
