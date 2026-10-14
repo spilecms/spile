@@ -31,8 +31,8 @@ export default defineConfig({
 							test: /node_modules[\\/]highlight\.js[\\/]/,
 						},
 						{
-							name: "editorjs",
-							test: /node_modules[\\/]@editorjs[\\/]/,
+							name: "blocknote",
+							test: /node_modules[\\/]@blocknote[\\/]/,
 						},
 						{
 							name: "charts",

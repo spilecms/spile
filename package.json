@@ -1,0 +1,21 @@
+{
+	"name": "spile",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "concurrently -n \"web,api\" -c \"cyan,magenta\" \"pnpm dev:web\" \"pnpm dev:api\"",
+		"dev:web": "pnpm --filter web dev",
+		"dev:api": "go run ./api/main.go",
+		"build": "pnpm build:web && pnpm build:api",
+		"build:web": "pnpm --filter web build",
+		"build:api": "go build -o bin/spile.exe ./api/main.go",
+		"check": "pnpm --filter web check && go vet ./api/...",
+		"check:write": "pnpm --filter web check:write",
+		"test": "pnpm test:api",
+		"test:api": "go test ./api/...",
+		"test:all": "pnpm test:api && pnpm --filter web check"
+	},
+	"devDependencies": {
+		"concurrently": "^10.0.6"
+	}
+}

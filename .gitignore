@@ -15,4 +15,6 @@ uploads/*
 # Compiled Binaries
 *.exe
 spile
+bin/
 dist/
+node_modules/

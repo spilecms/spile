@@ -22,6 +22,30 @@ var (
 	slugHyphenCollapse  = regexp.MustCompile(`[-_\s]+`)
 )
 
+// BlockNoteInline represents an inline formatted text node in BlockNote JSON.
+type BlockNoteInline struct {
+	Type   string         `json:"type"`
+	Text   string         `json:"text"`
+	Styles map[string]any `json:"styles,omitempty"`
+}
+
+// BlockNoteBlock represents a block item in BlockNote JSON.
+type BlockNoteBlock struct {
+	ID       string            `json:"id"`
+	Type     string            `json:"type"`
+	Props    map[string]any    `json:"props"`
+	Content  []BlockNoteInline `json:"content"`
+	Children []BlockNoteBlock  `json:"children"`
+}
+
+func (b *BlockNoteBlock) ExtractText() string {
+	var sb strings.Builder
+	for _, c := range b.Content {
+		sb.WriteString(c.Text)
+	}
+	return StripHTML(sb.String())
+}
+
 // EditorOutputData represents the top-level Editor.js JSON payload.
 type EditorOutputData struct {
 	Time    int64         `json:"time"`
@@ -110,6 +134,75 @@ type rawSectionAccumulator struct {
 	ParamNames   []string
 }
 
+func processBlockNoteBlocks(
+	blocks []BlockNoteBlock,
+	baseTree []string,
+	seenAnchors map[string]int,
+	headingStack *[]headingStackEntry,
+	current **rawSectionAccumulator,
+	accumulators *[]*rawSectionAccumulator,
+) {
+	for _, blk := range blocks {
+		switch blk.Type {
+		case "heading":
+			hTitle := blk.ExtractText()
+			if hTitle == "" {
+				continue
+			}
+			level := 2
+			if blk.Props != nil {
+				if l, ok := blk.Props["level"].(float64); ok && l >= 1 && l <= 6 {
+					level = int(l)
+				}
+			}
+
+			if (*current).Kind == "section" || len((*current).Paragraphs) > 0 || len((*current).CodeBlocks) > 0 || len((*current).ParamNames) > 0 {
+				*accumulators = append(*accumulators, *current)
+			}
+
+			for len(*headingStack) > 0 && (*headingStack)[len(*headingStack)-1].Level >= level {
+				*headingStack = (*headingStack)[:len(*headingStack)-1]
+			}
+			*headingStack = append(*headingStack, headingStackEntry{
+				Level: level,
+				Title: hTitle,
+			})
+
+			path := make([]string, 0, len(baseTree)+len(*headingStack))
+			path = append(path, baseTree...)
+			for _, h := range *headingStack {
+				if len(path) > 0 && strings.EqualFold(path[len(path)-1], h.Title) {
+					continue
+				}
+				path = append(path, h.Title)
+			}
+
+			anchor := SlugifyGitHub(hTitle, seenAnchors)
+			*current = &rawSectionAccumulator{
+				Kind:         "section",
+				SectionTitle: hTitle,
+				Anchor:       anchor,
+				BlockID:      blk.ID,
+				HeadingPath:  path,
+			}
+
+		case "paragraph", "blockquote", "bulletListItem", "numberedListItem", "checkListItem", "callout", "accordion":
+			if txt := blk.ExtractText(); txt != "" {
+				(*current).Paragraphs = append((*current).Paragraphs, txt)
+			}
+
+		case "codeBlock":
+			if c := blk.ExtractText(); c != "" {
+				(*current).CodeBlocks = append((*current).CodeBlocks, c)
+			}
+		}
+
+		if len(blk.Children) > 0 {
+			processBlockNoteBlocks(blk.Children, baseTree, seenAnchors, headingStack, current, accumulators)
+		}
+	}
+}
+
 // ChunkEditorContent parses Editor.js JSON into one or more SearchSection rows ready for database + FTS indexing.
 func ChunkEditorContent(in ChunkInput) []models.SearchSection {
 	locale := strings.TrimSpace(in.Locale)
@@ -129,11 +222,6 @@ func ChunkEditorContent(in ChunkInput) []models.SearchSection {
 	}
 	if len(baseTree) == 0 && strings.TrimSpace(in.PageTitle) != "" {
 		baseTree = append(baseTree, strings.TrimSpace(in.PageTitle))
-	}
-
-	var output EditorOutputData
-	if strings.TrimSpace(in.ContentJSON) != "" {
-		_ = json.Unmarshal([]byte(in.ContentJSON), &output)
 	}
 
 	seenAnchors := make(map[string]int)
@@ -163,6 +251,16 @@ func ChunkEditorContent(in ChunkInput) []models.SearchSection {
 			accumulators = append(accumulators, current)
 		}
 	}
+
+	contentTrimmed := strings.TrimSpace(in.ContentJSON)
+	if strings.HasPrefix(contentTrimmed, "[") {
+		var bnBlocks []BlockNoteBlock
+		if err := json.Unmarshal([]byte(contentTrimmed), &bnBlocks); err == nil && len(bnBlocks) > 0 {
+			processBlockNoteBlocks(bnBlocks, baseTree, seenAnchors, &headingStack, &current, &accumulators)
+		}
+	} else if strings.HasPrefix(contentTrimmed, "{") {
+		var output EditorOutputData
+		_ = json.Unmarshal([]byte(contentTrimmed), &output)
 
 	for _, blk := range output.Blocks {
 		switch blk.Type {
@@ -402,6 +500,7 @@ func ChunkEditorContent(in ChunkInput) []models.SearchSection {
 			}
 		}
 	}
+}
 
 	flushCurrent()
 

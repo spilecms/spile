@@ -27,7 +27,7 @@ export function FloatingToc({
 		const updateHeadings = () => {
 			const elements = Array.from(
 				container.querySelectorAll<HTMLElement>(
-					"h1.ce-header, h2.ce-header, h3.ce-header, h4.ce-header",
+					"[data-content-type='heading'], h1, h2, h3, h4",
 				),
 			);
 
@@ -39,11 +39,15 @@ export function FloatingToc({
 					if (el.id !== anchor) {
 						el.id = anchor;
 					}
+					const parsedLevel =
+						Number(el.getAttribute("data-level")) ||
+						Number(el.tagName.replace("H", "")) ||
+						2;
 					return {
 						id: anchor,
 						el,
 						text,
-						level: Number(el.tagName.replace("H", "")) || 2,
+						level: parsedLevel,
 					};
 				})
 				.filter((item) => item.text.length > 0);
