@@ -1,3 +1,4 @@
+import type { Block } from "@blocknote/core";
 import type {
 	ActivityItem,
 	ContentRevision,
@@ -156,14 +157,56 @@ export const tags: Tag[] = [
 	},
 ];
 
-function blocks(paragraphs: string[]) {
-	return {
-		blocks: paragraphs.map((text) => ({
-			id: Math.random().toString(36).slice(2, 10),
-			type: "paragraph",
-			data: { text },
-		})),
-	};
+export function convertLegacyOrBlocks(content: unknown): Block[] {
+	if (Array.isArray(content)) return content as Block[];
+	if (
+		content &&
+		typeof content === "object" &&
+		"blocks" in content &&
+		Array.isArray((content as { blocks: unknown }).blocks)
+	) {
+		const rawBlocks = (content as { blocks: Array<Record<string, unknown>> })
+			.blocks;
+		return rawBlocks.map((b) => {
+			let text = "";
+			const data = b.data as Record<string, unknown> | undefined;
+			if (typeof data?.text === "string") text = data.text;
+			else if (typeof data?.message === "string") text = data.message;
+			else if (typeof data?.code === "string") text = data.code;
+
+			const type =
+				b.type === "header"
+					? "heading"
+					: b.type === "code"
+						? "codeBlock"
+						: "paragraph";
+			const props: Record<string, unknown> = {};
+			if (type === "heading" && data?.level) {
+				props.level = data.level;
+			}
+			return {
+				id:
+					typeof b.id === "string"
+						? b.id
+						: Math.random().toString(36).slice(2, 10),
+				type,
+				props,
+				content: [{ type: "text", text, styles: {} }],
+				children: [],
+			} as unknown as Block;
+		});
+	}
+	return [];
+}
+
+function blocks(paragraphs: string[]): Block[] {
+	return paragraphs.map((text) => ({
+		id: Math.random().toString(36).slice(2, 10),
+		type: "paragraph",
+		props: {},
+		content: [{ type: "text", text, styles: {} }],
+		children: [],
+	})) as unknown as Block[];
 }
 
 interface PostSeed {
@@ -504,7 +547,7 @@ export const stats = {
 	avgReadTime: 6.4,
 };
 
-export const docPages: DocPage[] = [
+const rawDocPages: Array<Omit<DocPage, "content"> & { content: unknown }> = [
 	{
 		id: "doc-1",
 		projectId: "doc-proj-developer-docs",
@@ -721,6 +764,10 @@ export const docPages: DocPage[] = [
 		},
 	},
 ];
+export const docPages: DocPage[] = rawDocPages.map((d) => ({
+	...d,
+	content: convertLegacyOrBlocks(d.content),
+}));
 
 export const docNavigation: DocNavigationManifest = {
 	id: "nav-en",
@@ -857,7 +904,9 @@ export const members: Member[] = [
 	},
 ];
 
-export const newsletters: Newsletter[] = [
+const rawNewsletters: Array<
+	Omit<Newsletter, "content"> & { content: unknown }
+> = [
 	{
 		id: "nl-1",
 		title: "Spile v2.0 Architecture & Roadmap",
@@ -968,6 +1017,10 @@ export const newsletters: Newsletter[] = [
 		},
 	},
 ];
+export const newsletters: Newsletter[] = rawNewsletters.map((n) => ({
+	...n,
+	content: convertLegacyOrBlocks(n.content),
+}));
 
 export const revisions: ContentRevision[] = [
 	{

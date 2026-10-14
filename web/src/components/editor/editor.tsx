@@ -1,42 +1,17 @@
-import AttachesTool from "@editorjs/attaches";
-import Checklist from "@editorjs/checklist";
-import Delimiter from "@editorjs/delimiter";
-import EditorJS, {
-	type OutputData,
-	type ToolConstructable,
-} from "@editorjs/editorjs";
-import Header from "@editorjs/header";
-import ImageTool from "@editorjs/image";
-import Marker from "@editorjs/marker";
-import NestedList from "@editorjs/nested-list";
-import Quote from "@editorjs/quote";
-import Table from "@editorjs/table";
-import Underline from "@editorjs/underline";
-import Warning from "@editorjs/warning";
+import {
+	type Block,
+	filterSuggestionItems,
+	type PartialBlock,
+} from "@blocknote/core";
+import { SuggestionMenuController, useCreateBlockNote } from "@blocknote/react";
+import { BlockNoteView } from "@blocknote/shadcn";
 import { useQueryClient } from "@tanstack/react-query";
-import DragDrop from "editorjs-dnd";
-import Undo from "editorjs-undo";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
+import { getCustomSlashMenuItems, schema } from "./blocks/schema";
 import { FloatingToc } from "./floating-toc";
 import Navbar from "./navbar";
-import AccordionTool from "./plugins/accordion";
-import CalloutTool from "./plugins/callout";
-import CodeGroupTool from "./plugins/code-group";
-import CodeHighlightTool from "./plugins/code-highlight";
-import ExpandableTool from "./plugins/expandable";
-import HtmlEmbedTool from "./plugins/html-embed";
-import InlineCode from "./plugins/inline-code";
-import ColorInlineTool from "./plugins/inline-color";
-import InlineFormulaTool from "./plugins/inline-formula";
-import { createMediaTool } from "./plugins/media";
-import ParamFieldTool from "./plugins/param-field";
-import RequestExampleTool from "./plugins/request-example";
-import ResponseExampleTool from "./plugins/response-example";
-import ResponseFieldTool from "./plugins/response-field";
-import TocTool from "./plugins/toc";
-import { setupToolboxOrganizer } from "./plugins/toolbox-organizer";
 import { TranslationContextBanner } from "./translation-context-banner";
 
 const AUTOSAVE_DELAY = 800;
@@ -69,36 +44,44 @@ export default function Editor({
 	const queryClient = useQueryClient();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const undoRef = useRef<Undo | null>(null);
-	const editorRef = useRef<EditorJS | null>(null);
 	const cancelledRef = useRef(false);
-	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [savedAt, setSavedAt] = useState<number | null>(null);
 
+	const blocks = useEditorStore((s) => s.blocks);
 	const setBlocks = useEditorStore((s) => s.setBlocks);
 	const title = useEditorStore((s) => s.title);
 	const setTitle = useEditorStore((s) => s.setTitle);
 	const setSaveContent = useEditorStore((s) => s.setSaveContent);
 	const setRenderContent = useEditorStore((s) => s.setRenderContent);
 
+	const editor = useCreateBlockNote({
+		schema,
+		initialContent:
+			blocks && blocks.length > 0
+				? (blocks as unknown as PartialBlock<(typeof schema)["blockSchema"]>[])
+				: undefined,
+		uploadFile: async (file: File) => {
+			const formData = new FormData();
+			formData.append("file", file);
+			const item = await mockApi.media.upload(formData);
+			return item.url;
+		},
+	});
+
 	const flushSave = useCallback(async () => {
-		if (cancelledRef.current || readOnly) return;
+		if (cancelledRef.current || readOnly || !editor) return;
 		if (autosaveTimer.current) {
 			clearTimeout(autosaveTimer.current);
 			autosaveTimer.current = null;
 		}
-		const editor = editorRef.current;
 		const { postId } = useEditorStore.getState();
 		if (!postId) return;
 
 		setSaving(true);
 		try {
-			let data = useEditorStore.getState().blocks;
-			if (editor && typeof editor.save === "function") {
-				data = await editor.save();
-				setBlocks(data);
-			}
+			const data = editor.document as unknown as Block[];
+			setBlocks(data);
 			const {
 				type: itemType,
 				title: currentTitle,
@@ -148,7 +131,7 @@ export default function Editor({
 		} finally {
 			if (!cancelledRef.current) setSaving(false);
 		}
-	}, [setBlocks, readOnly, queryClient]);
+	}, [editor, setBlocks, readOnly, queryClient]);
 
 	const flushSaveRef = useRef(flushSave);
 	flushSaveRef.current = flushSave;
@@ -172,207 +155,27 @@ export default function Editor({
 	}, [flushSave, setSaveContent]);
 
 	useEffect(() => {
-		const container = containerRef.current;
-		if (!container) return;
+		if (!editor) return;
+		return editor.onChange(() => {
+			scheduleSaveRef.current();
+		});
+	}, [editor]);
 
-		cancelledRef.current = false;
-		const holder = document.createElement("div");
-		container.appendChild(holder);
-
-		let editor: EditorJS | null = null;
-		let cleanupOrganizer: (() => void) | null = null;
-
-		try {
-			const { blocks } = useEditorStore.getState();
-			editor = new EditorJS({
-				holder,
-				readOnly: Boolean(readOnly),
-				...(blocks.blocks.length > 0 ? { data: blocks } : {}),
-				placeholder: "Start writing…",
-				tools: {
-					// 1. Basic Blocks
-					header: Header,
-					list: {
-						class: NestedList as unknown as ToolConstructable,
-						inlineToolbar: true,
-						config: {
-							defaultStyle: "unordered",
-						},
-					},
-					checklist: Checklist,
-					quote: { class: Quote, inlineToolbar: true },
-					delimiter: Delimiter,
-
-					// 2. Media
-					image: {
-						class: ImageTool,
-						config: {
-							uploader: {
-								async uploadByFile(file: File) {
-									const formData = new FormData();
-									formData.append("file", file);
-									const item = await mockApi.media.upload(formData);
-									return {
-										success: 1,
-										file: { url: item.url },
-									};
-								},
-							},
-						},
-					},
-					video: {
-						class: createMediaTool("video"),
-						config: {
-							uploader: {
-								async uploadByFile(file: File) {
-									const formData = new FormData();
-									formData.append("file", file);
-									const item = await mockApi.media.upload(formData);
-									return { url: item.url, name: item.name };
-								},
-							},
-						},
-					},
-					audio: {
-						class: createMediaTool("audio"),
-						config: {
-							uploader: {
-								async uploadByFile(file: File) {
-									const formData = new FormData();
-									formData.append("file", file);
-									const item = await mockApi.media.upload(formData);
-									return { url: item.url, name: item.name };
-								},
-							},
-						},
-					},
-					attaches: {
-						class: AttachesTool,
-						config: {
-							uploader: {
-								async uploadByFile(file: File) {
-									const formData = new FormData();
-									formData.append("file", file);
-									const item = await mockApi.media.upload(formData);
-									return {
-										success: 1,
-										file: {
-											url: item.url,
-											name: item.name,
-											size: item.size,
-											extension: item.name.split(".").pop() ?? "",
-										},
-									};
-								},
-							},
-						},
-					},
-
-					// 3. Advanced & Technical Documentation Blocks
-					table: Table,
-					code: CodeHighlightTool,
-					codeGroup: CodeGroupTool,
-					callout: CalloutTool,
-					accordion: AccordionTool,
-					warning: Warning,
-					toc: TocTool,
-					htmlEmbed: HtmlEmbedTool,
-
-					// 4. API Reference Blocks
-					paramField: ParamFieldTool,
-					responseField: ResponseFieldTool,
-					expandable: ExpandableTool,
-					requestExample: RequestExampleTool,
-					responseExample: ResponseExampleTool,
-
-					// 5. Inline Tools (not displayed in Toolbox)
-					inlineCode: InlineCode,
-					marker: { class: Marker, shortcut: "CMD+SHIFT+M" },
-					color: { class: ColorInlineTool, shortcut: "CMD+SHIFT+C" },
-					underline: Underline,
-					inlineFormula: { class: InlineFormulaTool },
-				},
-				autofocus: false,
-				onReady: () => {
-					if (!cancelledRef.current && editor) {
-						editorRef.current = editor;
-						const activeTag = document.activeElement?.tagName;
-						if (
-							!readOnly &&
-							activeTag !== "INPUT" &&
-							activeTag !== "TEXTAREA"
-						) {
-							editor.caret?.focus();
-						}
-						cleanupOrganizer = setupToolboxOrganizer(holder);
-						undoRef.current = new Undo({ editor });
-						undoRef.current.initialize(blocks);
-						const dragDrop = new DragDrop(editor, {
-							dropLineColor: "oklch(0.398 0.195 277.366)",
-							dropLineStyle: "solid",
-							dropLineSize: 2,
-						});
-						holder.addEventListener("dragend", () => {
-							dragDrop.startBlockIndex = null;
-						});
-						setRenderContent(async (data: OutputData) => {
-							if (
-								editorRef.current &&
-								typeof editorRef.current.render === "function"
-							) {
-								await editorRef.current.render(data);
-							}
-							setBlocks(data);
-						});
-					}
-				},
-				onChange: () => scheduleSaveRef.current(),
-			});
-
-			// Async init failures land here, not in the catch below
-			editor.isReady.catch((err) => {
-				if (!cancelledRef.current) {
-					setError(
-						err instanceof Error ? err.message : "Failed to initialize editor",
-					);
-				}
-			});
-		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : "Failed to initialize editor",
-			);
-		}
-
+	useEffect(() => {
+		if (!editor) return;
+		setRenderContent(async (data) => {
+			if (editor && data) {
+				editor.replaceBlocks(
+					editor.document,
+					data as unknown as PartialBlock<(typeof schema)["blockSchema"]>[],
+				);
+			}
+			setBlocks(data as unknown as Block[]);
+		});
 		return () => {
-			cancelledRef.current = true;
 			setRenderContent(null);
-			if (cleanupOrganizer) {
-				cleanupOrganizer();
-				cleanupOrganizer = null;
-			}
-			editorRef.current = null;
-			if (autosaveTimer.current) {
-				clearTimeout(autosaveTimer.current);
-				autosaveTimer.current = null;
-			}
-			undoRef.current = null;
-			const toDestroy = editor;
-			editor = null;
-
-			toDestroy?.isReady
-				.then(() => toDestroy.destroy())
-				.catch((err) => console.error("Editor.js cleanup error:", err))
-				.finally(() => holder.remove());
 		};
-	}, [readOnly, setBlocks, setRenderContent]);
-
-	if (error) {
-		return (
-			<div className="p-4 text-sm text-red-500 bg-red-50 rounded-md border border-red-200 dark:bg-red-950/50 dark:border-red-900">
-				Error loading editor: {error}
-			</div>
-		);
-	}
+	}, [editor, setBlocks, setRenderContent]);
 
 	return (
 		<div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -384,8 +187,22 @@ export default function Editor({
 						scheduleSave();
 					}
 				}}
-				onUndo={() => undoRef.current?.undo()}
-				onRedo={() => undoRef.current?.redo()}
+				onUndo={() => {
+					const tiptap = (
+						editor as unknown as {
+							_tiptapEditor?: { commands?: { undo?: () => void } };
+						}
+					)?._tiptapEditor;
+					tiptap?.commands?.undo?.();
+				}}
+				onRedo={() => {
+					const tiptap = (
+						editor as unknown as {
+							_tiptapEditor?: { commands?: { redo?: () => void } };
+						}
+					)?._tiptapEditor;
+					tiptap?.commands?.redo?.();
+				}}
 				onPublish={onPublish}
 				saving={saving}
 				savedAt={savedAt}
@@ -407,7 +224,23 @@ export default function Editor({
 				)}
 				<main className="flex-1 h-full overflow-y-auto min-w-0 pt-6 editor-scroll">
 					<FloatingToc editorContainerRef={containerRef} />
-					<div ref={containerRef} />
+					<div
+						ref={containerRef}
+						className="px-6 md:px-12 py-4 max-w-4xl mx-auto"
+					>
+						<BlockNoteView
+							editor={editor}
+							editable={!readOnly}
+							slashMenu={false}
+						>
+							<SuggestionMenuController
+								triggerCharacter="/"
+								getItems={async (query) =>
+									filterSuggestionItems(getCustomSlashMenuItems(editor), query)
+								}
+							/>
+						</BlockNoteView>
+					</div>
 				</main>
 			</div>
 		</div>

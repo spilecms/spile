@@ -1,4 +1,4 @@
-import type { OutputData } from "@editorjs/editorjs";
+import type { Block } from "@blocknote/core";
 
 export type PostStatus = "draft" | "published" | "scheduled" | "trashed";
 
@@ -52,7 +52,7 @@ export interface Post {
 	updatedAt: number;
 	publishedAt: number | null;
 	scheduledFor: number | null;
-	content: OutputData | null;
+	content: Block[] | null;
 	locale?: string;
 	isDefaultLocale?: boolean;
 	translationGroupId?: string;
@@ -100,7 +100,7 @@ export interface Newsletter {
 	title: string; // Internal campaign name
 	subject: string; // Email inbox subject
 	previewText?: string; // Preheader snippet
-	content: OutputData | null; // Editor.js blocks
+	content: Block[] | null; // Editor.js blocks
 	status: NewsletterStatus;
 	senderName?: string;
 	senderEmail?: string;
@@ -164,7 +164,7 @@ export interface DocPage {
 	slug: string;
 	icon?: string;
 	status: DocPageStatus;
-	content: OutputData | null;
+	content: Block[] | null;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -290,7 +290,7 @@ export interface ContentRevision {
 	versionLabel: string; // e.g. "v1.0", "v2.0"
 	title: string;
 	summary?: string; // Change summary / commit note
-	content: OutputData | null;
+	content: Block[] | null;
 	authorId: string;
 	authorName: string;
 	status: RevisionStatus;

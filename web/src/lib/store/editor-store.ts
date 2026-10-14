@@ -1,4 +1,4 @@
-import type { OutputData } from "@editorjs/editorjs";
+import type { Block } from "@blocknote/core";
 import { create } from "zustand";
 import type {
 	DocPage,
@@ -14,7 +14,7 @@ interface EditorState {
 	postId: string | null;
 	type: ContentType;
 	status: PostStatus;
-	blocks: OutputData;
+	blocks: Block[];
 	title: string;
 	excerpt: string;
 	slug: string;
@@ -30,9 +30,9 @@ interface EditorState {
 	translationSourceId: string | null;
 	saveContent: (() => Promise<void>) | null;
 	setSaveContent: (fn: (() => Promise<void>) | null) => void;
-	renderContent: ((data: OutputData) => Promise<void>) | null;
-	setRenderContent: (fn: ((data: OutputData) => Promise<void>) | null) => void;
-	setBlocks: (blocks: OutputData) => void;
+	renderContent: ((data: Block[]) => Promise<void>) | null;
+	setRenderContent: (fn: ((data: Block[]) => Promise<void>) | null) => void;
+	setBlocks: (blocks: Block[]) => void;
 	setTitle: (title: string) => void;
 	loadPost: (post: Post) => void;
 	loadDoc: (doc: DocPage) => void;
@@ -58,7 +58,7 @@ const emptyState = {
 	postId: null,
 	type: "post" as ContentType,
 	status: "draft" as PostStatus,
-	blocks: { blocks: [] } as OutputData,
+	blocks: [] as Block[],
 	title: "",
 	excerpt: "",
 	slug: "",
@@ -76,6 +76,11 @@ const emptyState = {
 	renderContent: null,
 };
 
+function safeBlocks(content: unknown): Block[] {
+	if (Array.isArray(content)) return content as Block[];
+	return [];
+}
+
 export const useEditorStore = create<EditorState>()((set) => ({
 	...emptyState,
 	setSaveContent: (saveContent) => set({ saveContent }),
@@ -87,7 +92,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
 			postId: post.id,
 			type: "post",
 			status: post.status,
-			blocks: post.content ?? { blocks: [] },
+			blocks: safeBlocks(post.content),
 			title: post.title,
 			excerpt: post.excerpt,
 			slug: post.slug,
@@ -108,7 +113,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
 			postId: doc.id,
 			type: "doc",
 			status: doc.status,
-			blocks: doc.content ?? { blocks: [] },
+			blocks: safeBlocks(doc.content),
 			title: doc.title,
 			excerpt: "",
 			slug: doc.slug,
@@ -129,7 +134,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
 			postId: nl.id,
 			type: "newsletter",
 			status: (nl.status === "sent" ? "published" : "draft") as PostStatus,
-			blocks: nl.content ?? { blocks: [] },
+			blocks: safeBlocks(nl.content),
 			title: nl.subject,
 			excerpt: nl.previewText ?? "",
 			slug: nl.title,

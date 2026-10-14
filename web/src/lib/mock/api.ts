@@ -1,4 +1,4 @@
-import type { OutputData } from "@editorjs/editorjs";
+import type { Block } from "@blocknote/core";
 import type {
 	ActivityItem,
 	AiSettings,
@@ -255,7 +255,7 @@ const inMemoryMockApi = {
 				updatedAt: now,
 				publishedAt: input.status === "published" ? now : null,
 				scheduledFor: input.scheduledFor ?? null,
-				content: input.content ?? { blocks: [] },
+				content: input.content ?? [],
 				locale,
 				isDefaultLocale: input.isDefaultLocale ?? locale === "en",
 				translationGroupId: input.translationGroupId ?? id,
@@ -680,17 +680,21 @@ const inMemoryMockApi = {
 				title: input.title ?? "Untitled Newsletter",
 				subject: input.subject ?? "New Update from Spile",
 				previewText: input.previewText ?? "",
-				content: input.content ?? {
-					time: now,
-					blocks: [
-						{
-							id: `nl-init-${now}`,
-							type: "paragraph",
-							data: { text: "Write your newsletter issue here..." },
-						},
-					],
-					version: "2.31.7",
-				},
+				content: input.content ?? [
+					{
+						id: `nl-init-${now}`,
+						type: "paragraph",
+						props: {},
+						content: [
+							{
+								type: "text",
+								text: "Write your newsletter issue here...",
+								styles: {},
+							},
+						],
+						children: [],
+					} as unknown as Block,
+				],
 				status: input.status ?? "draft",
 				senderName: input.senderName ?? "Spile Editorial",
 				senderEmail: input.senderEmail ?? "newsletter@spile.dev",
@@ -819,27 +823,30 @@ const inMemoryMockApi = {
 				locale: "en",
 				createdAt: Date.now(),
 				updatedAt: Date.now(),
-				content: {
-					time: Date.now(),
-					blocks: [
-						{
-							id: `blk-${Date.now()}`,
-							type: "header",
-							data: {
-								text: `Welcome to ${data.title}`,
-								level: 1,
-							},
-						},
-						{
-							id: `blk-${Date.now() + 1}`,
-							type: "paragraph",
-							data: {
+				content: [
+					{
+						id: `blk-${Date.now()}`,
+						type: "heading",
+						props: { level: 1 },
+						content: [
+							{ type: "text", text: `Welcome to ${data.title}`, styles: {} },
+						],
+						children: [],
+					} as unknown as Block,
+					{
+						id: `blk-${Date.now() + 1}`,
+						type: "paragraph",
+						props: {},
+						content: [
+							{
+								type: "text",
 								text: "Start writing your documentation guide here...",
+								styles: {},
 							},
-						},
-					],
-					version: "2.31.7",
-				},
+						],
+						children: [],
+					} as unknown as Block,
+				],
 			};
 
 			docPagesList.push(initialPage);
@@ -1080,27 +1087,28 @@ const inMemoryMockApi = {
 				status: "draft",
 				createdAt: Date.now(),
 				updatedAt: Date.now(),
-				content: {
-					time: Date.now(),
-					blocks: [
-						{
-							id: `blk-${Date.now()}`,
-							type: "header",
-							data: {
-								text: pageTitle,
-								level: 1,
-							},
-						},
-						{
-							id: `blk-${Date.now() + 1}`,
-							type: "paragraph",
-							data: {
+				content: [
+					{
+						id: `blk-${Date.now()}`,
+						type: "heading",
+						props: { level: 1 },
+						content: [{ type: "text", text: pageTitle, styles: {} }],
+						children: [],
+					} as unknown as Block,
+					{
+						id: `blk-${Date.now() + 1}`,
+						type: "paragraph",
+						props: {},
+						content: [
+							{
+								type: "text",
 								text: "Start writing document content here...",
+								styles: {},
 							},
-						},
-					],
-					version: "2.31.7",
-				},
+						],
+						children: [],
+					} as unknown as Block,
+				],
 			};
 
 			docPagesList.push(newPage);
@@ -1416,7 +1424,7 @@ const inMemoryMockApi = {
 			targetType: "post" | "doc";
 			targetId: string;
 			title: string;
-			content: OutputData;
+			content: Block[];
 			summary?: string;
 			status?: ContentRevision["status"];
 		}): Promise<ContentRevision> {
@@ -1523,7 +1531,7 @@ const inMemoryMockApi = {
 			targetType: "post" | "doc";
 			targetId: string;
 			targetTitle: string;
-			content: OutputData;
+			content: Block[];
 			summary: string;
 			reviewerId?: string;
 		}): Promise<ReviewRequest> {

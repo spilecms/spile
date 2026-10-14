@@ -79,6 +79,82 @@ func TestChunker_EdgeCasesAndGitHubAnchors(t *testing.T) {
 	assert.NotEmpty(t, sections[4].BodyText)
 }
 
+func TestChunker_BlockNoteFormat_And_NestedAccordions(t *testing.T) {
+	blockNoteJSON := `[
+		{
+			"id": "b0",
+			"type": "paragraph",
+			"props": {},
+			"content": [{"type": "text", "text": "Welcome to the BlockNote powered docs.", "styles": {}}],
+			"children": []
+		},
+		{
+			"id": "h1",
+			"type": "heading",
+			"props": {"level": 2},
+			"content": [{"type": "text", "text": "Architecture Overview", "styles": {}}],
+			"children": []
+		},
+		{
+			"id": "acc1",
+			"type": "accordion",
+			"props": {},
+			"content": [{"type": "text", "text": "Database Schema Details", "styles": {}}],
+			"children": [
+				{
+					"id": "p-nested",
+					"type": "paragraph",
+					"props": {},
+					"content": [{"type": "text", "text": "SQLite WAL mode is enabled for maximum concurrency.", "styles": {}}],
+					"children": []
+				},
+				{
+					"id": "callout1",
+					"type": "callout",
+					"props": {"type": "tip"},
+					"content": [{"type": "text", "text": "Remember to run vacuum regularly.", "styles": {}}],
+					"children": []
+				}
+			]
+		},
+		{
+			"id": "c1",
+			"type": "codeBlock",
+			"props": {"language": "go"},
+			"content": [{"type": "text", "text": "db.Exec(\"PRAGMA journal_mode=WAL;\")", "styles": {}}],
+			"children": []
+		}
+	]`
+
+	sections := search.ChunkEditorContent(search.ChunkInput{
+		EntityID:     "page-bn-1",
+		EntityType:   "doc",
+		ProjectID:    "proj-1",
+		ProjectSlug:  "dev-docs",
+		ProjectTitle: "Developer Docs",
+		Locale:       "en",
+		PageTitle:    "Architecture",
+		PageSlug:     "architecture",
+		PageTreePath: []string{"Developer Docs", "Architecture"},
+		ContentJSON:  blockNoteJSON,
+	})
+
+	require.Len(t, sections, 2)
+
+	// 0: intro
+	assert.Equal(t, "intro", sections[0].Kind)
+	assert.Equal(t, "Welcome to the BlockNote powered docs.", sections[0].BodyText)
+
+	// 1: section "Architecture Overview"
+	assert.Equal(t, "section", sections[1].Kind)
+	assert.Equal(t, "architecture-overview", sections[1].Anchor)
+	assert.Equal(t, "Architecture Overview", sections[1].SectionTitle)
+	assert.Contains(t, sections[1].BodyText, "Database Schema Details")
+	assert.Contains(t, sections[1].BodyText, "SQLite WAL mode is enabled for maximum concurrency.")
+	assert.Contains(t, sections[1].BodyText, "Remember to run vacuum regularly.")
+	assert.Contains(t, sections[1].CodeText, "PRAGMA journal_mode=WAL")
+}
+
 func TestSearchAPI_FTS5_Tokenization_DraftExclusion_And_ClientIndex(t *testing.T) {
 	app := testutils.NewTestApp(t)
 	db := app.DB
