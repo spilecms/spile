@@ -210,15 +210,18 @@ export default function EditorPage() {
 		);
 	}, [activeTitle, id, postId, isDoc]);
 
-	// Load post, doc, or newsletter into editor store
+	// Load post, doc, or newsletter into editor store.
+	// Guarded by postId so we only load when switching documents — not on every
+	// query data identity change (autosave echoes via setQueryData, window-focus
+	// refetches), which would rewrite the store while the user is editing.
 	React.useEffect(() => {
 		if (isNew) return;
 		if (isNewsletter && newsletter) {
-			loadNewsletter(newsletter);
+			if (postId !== newsletter.id) loadNewsletter(newsletter);
 		} else if (!isDoc && !isNewsletter && post) {
-			loadPost(post);
+			if (postId !== post.id) loadPost(post);
 		} else if (isDoc && doc) {
-			loadDoc(doc);
+			if (postId !== doc.id) loadDoc(doc);
 		}
 	}, [
 		isNew,
@@ -227,6 +230,7 @@ export default function EditorPage() {
 		post,
 		doc,
 		newsletter,
+		postId,
 		loadPost,
 		loadDoc,
 		loadNewsletter,
@@ -576,7 +580,11 @@ export default function EditorPage() {
 	return (
 		<>
 			<Editor
-				key={`${id}-${currentUser?.role}-${isReviewLocked && isContributor ? "locked" : "editable"}`}
+				// Remount only when switching documents. Do NOT include role/lock
+				// state here: those arrive async (or toggle) and would remount the
+				// editor, resetting its content, cursor and undo history. The review
+				// lock is already handled via the `readOnly` prop (editable=false).
+				key={id ?? "new"}
 				onPublish={() => setPublishOpen(true)}
 				backUrl={isNewsletter ? "/newsletters" : isDoc ? "/docs" : "/posts"}
 				sidebar={docsSidebar}

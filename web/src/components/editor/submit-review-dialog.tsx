@@ -59,7 +59,9 @@ export function SubmitReviewDialog({
 			if (saveContent) {
 				await saveContent();
 			}
-			const blocks = useEditorStore.getState().blocks;
+			const blocks =
+				useEditorStore.getState().getBlocks?.() ??
+				useEditorStore.getState().blocks;
 			return mockApi.reviews.submit({
 				targetType,
 				targetId,

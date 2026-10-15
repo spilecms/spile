@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@blocknote/shadcn/style.css";
+@import "../node_modules/@blocknote/shadcn/dist/style.css";
 
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
@@ -181,9 +181,336 @@
 }
 
 .bn-editor {
-	padding-inline: 0 !important;
+	padding-left: 54px !important;
+	padding-right: 16px !important;
 	background: transparent !important;
 	color: inherit !important;
+	font-size: 0.9375rem !important;
+	line-height: 1.6 !important;
+}
+
+/* Side Menu (Add button and 6-dots drag handle) */
+.bn-side-menu {
+	display: flex !important;
+	align-items: center !important;
+	gap: 2px !important;
+	height: 24px !important;
+	/* Sit further left so the buttons don't hug the block text */
+	margin-left: -12px !important;
+}
+
+.bn-side-menu button {
+	height: 24px !important;
+	width: 24px !important;
+	min-width: 24px !important;
+	padding: 0 !important;
+	border-radius: 6px !important;
+	color: var(--muted-foreground) !important;
+	transition:
+		color 0.15s,
+		background-color 0.15s !important;
+}
+
+.bn-side-menu button:hover {
+	color: var(--foreground) !important;
+	background-color: var(--accent) !important;
+}
+
+/* Smaller, consistent icons for the + and drag-handle buttons */
+.bn-side-menu button svg {
+	width: 15px !important;
+	height: 15px !important;
+}
+
+.bn-side-menu button[draggable="true"] {
+	cursor: grab !important;
+}
+
+.bn-side-menu button[draggable="true"]:active {
+	cursor: grabbing !important;
+}
+
+/* Compact heading scale */
+.bn-editor [data-content-type="heading"][data-level="1"] h1,
+.bn-editor h1.bn-inline-content {
+	font-size: 1.65rem !important;
+	line-height: 1.25 !important;
+	font-weight: 700 !important;
+	margin-top: 1.25rem !important;
+	margin-bottom: 0.5rem !important;
+}
+
+.bn-editor [data-content-type="heading"][data-level="2"] h2,
+.bn-editor h2.bn-inline-content {
+	font-size: 1.35rem !important;
+	line-height: 1.3 !important;
+	font-weight: 600 !important;
+	margin-top: 1rem !important;
+	margin-bottom: 0.375rem !important;
+}
+
+.bn-editor [data-content-type="heading"][data-level="3"] h3,
+.bn-editor h3.bn-inline-content {
+	font-size: 1.15rem !important;
+	line-height: 1.35 !important;
+	font-weight: 600 !important;
+	margin-top: 0.75rem !important;
+	margin-bottom: 0.25rem !important;
+}
+
+/* Compact block rhythm & full width alignment */
+.bn-editor .bn-block-outer {
+	margin-block: 2px !important;
+}
+
+.bn-editor .bn-block-content {
+	width: 100% !important;
+}
+
+.bn-editor .bn-block-content:not(:has(.bn-inline-content)) > * {
+	width: 100% !important;
+}
+
+.bn-editor p.bn-inline-content {
+	margin-block: 0 !important;
+}
+
+/* Inline Code styling */
+.bn-editor code,
+.bn-inline-content code {
+	background-color: var(--muted) !important;
+	color: var(--foreground) !important;
+	font-family: var(--font-geist-mono), monospace !important;
+	font-size: 0.85em !important;
+	padding: 0.125em 0.35em !important;
+	border-radius: 0.25rem !important;
+	border: 1px solid var(--border) !important;
+}
+
+/* ---------- Code editor (highlight.js overlay) ---------- */
+.code-editor textarea::selection {
+	background: color-mix(in oklch, var(--primary) 22%, transparent);
+	color: transparent;
+}
+
+/* highlight.js token palette aligned with the app's design tokens */
+.bn-editor .hljs {
+	color: var(--foreground);
+	background: transparent;
+}
+.bn-editor .hljs-comment,
+.bn-editor .hljs-quote {
+	color: var(--muted-foreground);
+	font-style: italic;
+}
+.bn-editor .hljs-keyword,
+.bn-editor .hljs-selector-tag,
+.bn-editor .hljs-doctag,
+.bn-editor .hljs-template-tag,
+.bn-editor .hljs-name,
+.bn-editor .hljs-tag {
+	color: #7c3aed;
+}
+.bn-editor .hljs-string,
+.bn-editor .hljs-regexp,
+.bn-editor .hljs-addition {
+	color: #16a34a;
+}
+.bn-editor .hljs-number,
+.bn-editor .hljs-literal {
+	color: #ea580c;
+}
+.bn-editor .hljs-title,
+.bn-editor .hljs-section,
+.bn-editor .hljs-title.function_ {
+	color: #2563eb;
+}
+.bn-editor .hljs-attr,
+.bn-editor .hljs-attribute,
+.bn-editor .hljs-variable,
+.bn-editor .hljs-template-variable {
+	color: #0891b2;
+}
+.bn-editor .hljs-built_in,
+.bn-editor .hljs-builtin-name {
+	color: #9333ea;
+}
+.bn-editor .hljs-symbol,
+.bn-editor .hljs-bullet,
+.bn-editor .hljs-link {
+	color: #db2777;
+}
+.bn-editor .hljs-deletion {
+	color: #dc2626;
+}
+.bn-editor .hljs-operator,
+.bn-editor .hljs-punctuation {
+	color: var(--muted-foreground);
+}
+
+.dark .bn-editor .hljs-keyword,
+.dark .bn-editor .hljs-selector-tag,
+.dark .bn-editor .hljs-doctag,
+.dark .bn-editor .hljs-template-tag,
+.dark .bn-editor .hljs-name,
+.dark .bn-editor .hljs-tag {
+	color: #c4b5fd;
+}
+.dark .bn-editor .hljs-string,
+.dark .bn-editor .hljs-regexp,
+.dark .bn-editor .hljs-addition {
+	color: #4ade80;
+}
+.dark .bn-editor .hljs-number,
+.dark .bn-editor .hljs-literal {
+	color: #fb923c;
+}
+.dark .bn-editor .hljs-title,
+.dark .bn-editor .hljs-section,
+.dark .bn-editor .hljs-title.function_ {
+	color: #60a5fa;
+}
+.dark .bn-editor .hljs-attr,
+.dark .bn-editor .hljs-attribute,
+.dark .bn-editor .hljs-variable,
+.dark .bn-editor .hljs-template-variable {
+	color: #22d3ee;
+}
+.dark .bn-editor .hljs-built_in,
+.dark .bn-editor .hljs-builtin-name {
+	color: #d8b4fe;
+}
+.dark .bn-editor .hljs-symbol,
+.dark .bn-editor .hljs-bullet,
+.dark .bn-editor .hljs-link {
+	color: #f472b6;
+}
+.dark .bn-editor .hljs-deletion {
+	color: #f87171;
+}
+
+/* ---------- Math (KaTeX) ---------- */
+.bn-editor .katex {
+	font-size: 1em;
+}
+.math-block-display .katex-display {
+	margin: 0;
+	overflow-x: auto;
+	overflow-y: hidden;
+	padding: 0.25rem 0;
+}
+
+/* ---------- Sleek, Compact Popovers & Slash Menus ---------- */
+/* Slash Menu / Suggestion Menu */
+.bn-shadcn [data-slot="suggestion-menu-root"],
+.bn-shadcn [role="listbox"],
+.bn-suggestion-menu {
+	min-width: 320px !important;
+	max-width: 400px !important;
+	width: max-content !important;
+	max-height: 320px !important;
+	padding: 4px !important;
+	border-radius: 0.5rem !important;
+	border: 1px solid var(--border) !important;
+	background-color: var(--popover) !important;
+	color: var(--popover-foreground) !important;
+	box-shadow:
+		0 10px 25px -5px rgba(0, 0, 0, 0.1),
+		0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+	backdrop-filter: blur(8px) !important;
+}
+
+.bn-shadcn [data-slot="suggestion-menu-item"],
+.bn-shadcn [role="option"],
+.bn-suggestion-menu-item {
+	min-height: 32px !important;
+	height: auto !important;
+	padding: 4px 8px !important;
+	border-radius: 0.375rem !important;
+	font-size: 0.8125rem !important; /* 13px */
+	gap: 8px !important;
+	cursor: pointer !important;
+}
+
+/* Compact icon in slash menu */
+.bn-shadcn [role="option"] [data-position="left"],
+.bn-suggestion-menu-item [data-position="left"] {
+	padding: 2px !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+}
+
+.bn-shadcn [data-slot="suggestion-menu-item"] svg,
+.bn-shadcn [role="option"] svg,
+.bn-suggestion-menu-item svg {
+	width: 15px !important;
+	height: 15px !important;
+	flex-shrink: 0 !important;
+}
+
+/* Title and description typography */
+.bn-shadcn [role="option"] .text-base {
+	font-size: 0.8125rem !important; /* 13px */
+	font-weight: 500 !important;
+	line-height: 1.25 !important;
+}
+
+.bn-shadcn [role="option"] .text-xs {
+	font-size: 0.6875rem !important; /* 11px */
+	color: var(--muted-foreground) !important;
+	line-height: 1.2 !important;
+	white-space: nowrap !important;
+}
+
+.bn-shadcn [role="option"] [data-position="right"] {
+	margin-left: auto !important;
+	padding-left: 8px !important;
+}
+
+.bn-shadcn [data-slot="suggestion-menu-label"],
+.bn-shadcn [role="presentation"] {
+	font-size: 0.6875rem !important; /* 11px */
+	text-transform: uppercase !important;
+	letter-spacing: 0.05em !important;
+	padding: 4px 8px !important;
+	color: var(--muted-foreground) !important;
+	font-weight: 600 !important;
+}
+
+/* Floating Formatting Toolbar */
+.bn-shadcn [data-slot="toolbar-root"],
+.bn-formatting-toolbar {
+	padding: 3px !important;
+	gap: 2px !important;
+	border-radius: 0.5rem !important;
+	border: 1px solid var(--border) !important;
+	background-color: var(--popover) !important;
+	color: var(--popover-foreground) !important;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09) !important;
+	z-index: 50 !important;
+}
+
+.bn-shadcn [data-slot="toolbar-button"],
+.bn-formatting-toolbar button {
+	height: 28px !important;
+	min-width: 28px !important;
+	padding: 0 6px !important;
+	border-radius: 0.25rem !important;
+}
+
+.bn-shadcn [data-slot="toolbar-button"] svg,
+.bn-formatting-toolbar svg {
+	width: 14px !important;
+	height: 14px !important;
+}
+
+/* Coding Group Block */
+.bn-block-content[data-content-type="codeGroup"] > *,
+.ProseMirror-selectednode
+	> .bn-block-content[data-content-type="codeGroup"]
+	> * {
+	outline: none !important;
 }
 
 /* Custom Sleek Scrollbar */

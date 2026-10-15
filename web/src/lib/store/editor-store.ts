@@ -32,6 +32,9 @@ interface EditorState {
 	setSaveContent: (fn: (() => Promise<void>) | null) => void;
 	renderContent: ((data: Block[]) => Promise<void>) | null;
 	setRenderContent: (fn: ((data: Block[]) => Promise<void>) | null) => void;
+	/** Returns the editor's current blocks without writing them into the store. */
+	getBlocks: (() => Block[]) | null;
+	setGetBlocks: (fn: (() => Block[]) | null) => void;
 	setBlocks: (blocks: Block[]) => void;
 	setTitle: (title: string) => void;
 	loadPost: (post: Post) => void;
@@ -46,6 +49,8 @@ type EditorActions =
 	| "saveContent"
 	| "setRenderContent"
 	| "renderContent"
+	| "setGetBlocks"
+	| "getBlocks"
 	| "setBlocks"
 	| "setTitle"
 	| "loadPost"
@@ -74,6 +79,7 @@ const emptyState = {
 	translationSourceId: null,
 	saveContent: null,
 	renderContent: null,
+	getBlocks: null,
 };
 
 function safeBlocks(content: unknown): Block[] {
@@ -85,6 +91,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
 	...emptyState,
 	setSaveContent: (saveContent) => set({ saveContent }),
 	setRenderContent: (renderContent) => set({ renderContent }),
+	setGetBlocks: (getBlocks) => set({ getBlocks }),
 	setBlocks: (blocks) => set({ blocks, updatedAt: Date.now() }),
 	setTitle: (title) => set({ title, updatedAt: Date.now() }),
 	loadPost: (post) =>

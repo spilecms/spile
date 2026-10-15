@@ -148,7 +148,9 @@ export function PublishPanel({
 						status: docStatus,
 						slug: localSlug,
 					});
-					const currentBlocks = useEditorStore.getState().blocks;
+					const currentBlocks =
+						useEditorStore.getState().getBlocks?.() ??
+						useEditorStore.getState().blocks;
 					await mockApi.revisions.create({
 						targetType: "doc",
 						targetId: postId,
@@ -187,7 +189,9 @@ export function PublishPanel({
 								: null,
 						seo: seoPatch,
 					});
-					const currentBlocks = useEditorStore.getState().blocks;
+					const currentBlocks =
+						useEditorStore.getState().getBlocks?.() ??
+						useEditorStore.getState().blocks;
 					await mockApi.revisions.create({
 						targetType: "post",
 						targetId: postId,

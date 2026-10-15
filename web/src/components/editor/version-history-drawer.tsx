@@ -101,13 +101,13 @@ export function VersionHistoryDrawer({
 			if (saveContent) {
 				await saveContent();
 			}
-			const { blocks, title, status } = useEditorStore.getState();
+			const { blocks, title, status, getBlocks } = useEditorStore.getState();
 			return mockApi.revisions.create({
 				targetType,
 				targetId,
 				title: title || currentTitle || "Untitled",
 				summary: snapshotNote.trim() || "Manual version snapshot",
-				content: blocks,
+				content: getBlocks?.() ?? blocks,
 				status: status === "published" ? "published" : "draft",
 			});
 		},

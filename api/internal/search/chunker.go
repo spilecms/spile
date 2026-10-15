@@ -191,9 +191,36 @@ func processBlockNoteBlocks(
 				(*current).Paragraphs = append((*current).Paragraphs, txt)
 			}
 
+		case "paramField", "responseField":
+			if blk.Props != nil {
+				if name, ok := blk.Props["name"].(string); ok && name != "" {
+					(*current).ParamNames = append((*current).ParamNames, name)
+				}
+			}
+			if txt := blk.ExtractText(); txt != "" {
+				(*current).Paragraphs = append((*current).Paragraphs, txt)
+			}
+
 		case "codeBlock":
 			if c := blk.ExtractText(); c != "" {
 				(*current).CodeBlocks = append((*current).CodeBlocks, c)
+			}
+
+		case "codeGroup":
+			if blk.Props != nil {
+				if tabsStr, ok := blk.Props["tabsJson"].(string); ok && tabsStr != "" {
+					var tabs []struct {
+						Label string `json:"label"`
+						Code  string `json:"code"`
+					}
+					if err := json.Unmarshal([]byte(tabsStr), &tabs); err == nil {
+						for _, tab := range tabs {
+							if tab.Code != "" {
+								(*current).CodeBlocks = append((*current).CodeBlocks, tab.Code)
+							}
+						}
+					}
+				}
 			}
 		}
 

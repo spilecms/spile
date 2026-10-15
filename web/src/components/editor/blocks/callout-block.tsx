@@ -77,7 +77,7 @@ export const CalloutBlock = createReactBlockSpec(
 
 			return (
 				<div
-					className={`flex items-start gap-3 my-2 p-3.5 rounded-lg border ${style.border} ${style.bg} transition-colors`}
+					className={`w-full flex items-start gap-3 my-3 p-3.5 rounded-lg border ${style.border} ${style.bg} transition-colors`}
 				>
 					<div className={`shrink-0 mt-0.5 ${style.iconColor}`}>
 						<IconComponent className="w-5 h-5" />

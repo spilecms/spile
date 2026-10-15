@@ -1,5 +1,5 @@
 import { ChevronRight, ListCollapse } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { slugifyGitHub } from "@/lib/slug";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,17 @@ interface HeadingItem {
 	level: number;
 }
 
+function sameHeadings(a: HeadingItem[], b: HeadingItem[]): boolean {
+	if (a.length !== b.length) return false;
+	return a.every(
+		(item, i) =>
+			item.id === b[i].id &&
+			item.text === b[i].text &&
+			item.level === b[i].level &&
+			item.el === b[i].el,
+	);
+}
+
 export function FloatingToc({
 	editorContainerRef,
 }: {
@@ -18,6 +29,11 @@ export function FloatingToc({
 	const [headings, setHeadings] = useState<HeadingItem[]>([]);
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const [isExpanded, setIsExpanded] = useState(true);
+	// Maps a heading DOM element to its anchor id. This mapping must live outside
+	// the editor DOM: writing attributes (e.g. `id`) onto ProseMirror-managed
+	// nodes corrupts the editor's DOM <-> document position mapping, which breaks
+	// the caret, arrow-key navigation and text selection.
+	const anchorByElRef = useRef(new Map<HTMLElement, string>());
 
 	// 1. Collect headings & observe changes as user writes
 	useEffect(() => {
@@ -27,20 +43,24 @@ export function FloatingToc({
 		const updateHeadings = () => {
 			const elements = Array.from(
 				container.querySelectorAll<HTMLElement>(
-					"[data-content-type='heading'], h1, h2, h3, h4",
+					".bn-editor :is(h1, h2, h3, h4, h5, h6)",
 				),
 			);
 
 			const seenAnchors = new Map<string, number>();
+			const anchorByEl = anchorByElRef.current;
+			const liveEls = new Set<HTMLElement>();
 			const items: HeadingItem[] = elements
 				.map((el) => {
 					const text = el.textContent?.trim() || "";
 					const anchor = slugifyGitHub(text, seenAnchors);
-					if (el.id !== anchor) {
-						el.id = anchor;
-					}
+					anchorByEl.set(el, anchor);
+					liveEls.add(el);
+					const blockContent = el.closest<HTMLElement>(
+						"[data-content-type='heading']",
+					);
 					const parsedLevel =
-						Number(el.getAttribute("data-level")) ||
+						Number(blockContent?.getAttribute("data-level")) ||
 						Number(el.tagName.replace("H", "")) ||
 						2;
 					return {
@@ -52,7 +72,15 @@ export function FloatingToc({
 				})
 				.filter((item) => item.text.length > 0);
 
-			setHeadings(items);
+			// Prune anchors for headings that no longer exist
+			for (const el of Array.from(anchorByEl.keys())) {
+				if (!liveEls.has(el)) anchorByEl.delete(el);
+			}
+
+			// Only update state when the heading list actually changed, so typing
+			// in regular paragraphs doesn't re-render the panel (and re-run the
+			// scroll-spy effect) on every keystroke.
+			setHeadings((prev) => (sameHeadings(prev, items) ? prev : items));
 		};
 
 		let rafId: number | null = null;
@@ -68,9 +96,13 @@ export function FloatingToc({
 
 		const observer = new MutationObserver((mutations) => {
 			const isRelevant = mutations.some((m) => {
-				if (m.type === "attributes" && m.attributeName === "id") return false;
+				// Attribute-only changes never add/remove/rename headings.
+				if (m.type === "attributes") return false;
 				if (m.type === "characterData") {
-					return Boolean(m.target.parentElement?.closest(".ce-header"));
+					return Boolean(
+						m.target.parentElement?.closest("[data-content-type='heading']") ||
+							m.target.parentElement?.closest(":is(h1, h2, h3, h4, h5, h6)"),
+					);
 				}
 				return true;
 			});
@@ -99,7 +131,9 @@ export function FloatingToc({
 			(entries) => {
 				for (const entry of entries) {
 					if (entry.isIntersecting) {
-						setActiveId(entry.target.id);
+						setActiveId(
+							anchorByElRef.current.get(entry.target as HTMLElement) ?? null,
+						);
 						break;
 					}
 				}
@@ -130,11 +164,13 @@ export function FloatingToc({
 		<aside
 			aria-label="Table of contents"
 			className={cn(
-				"fixed right-6 top-20 z-20 hidden lg:flex flex-col transition-all duration-200 select-none",
+				// pointer-events-none so the floating panel never blocks mouse
+				// selection / clicks in the editor text underneath it.
+				"pointer-events-none fixed right-6 top-20 z-20 hidden lg:flex flex-col transition-all duration-200 select-none",
 				isExpanded ? "w-60" : "w-10 items-end",
 			)}
 		>
-			<div className="flex items-center justify-between w-full pb-2 mb-1 border-b border-border/40">
+			<div className="pointer-events-auto flex items-center justify-between w-full pb-2 mb-1 border-b border-border/40">
 				{isExpanded && (
 					<span className="text-xs font-semibold tracking-wider uppercase text-muted-foreground/80">
 						Outline
@@ -156,7 +192,7 @@ export function FloatingToc({
 
 			{/* Expanded list */}
 			{isExpanded ? (
-				<nav className="flex flex-col gap-0.5 max-h-[calc(100vh-160px)] overflow-y-auto pr-1">
+				<nav className="pointer-events-auto flex flex-col gap-0.5 max-h-[calc(100vh-160px)] overflow-y-auto pr-1">
 					{headings.map((h) => {
 						const depth = Math.max(0, h.level - minLevel);
 						const isActive = activeId === h.id;
@@ -184,7 +220,7 @@ export function FloatingToc({
 				<button
 					type="button"
 					onClick={() => setIsExpanded(true)}
-					className="flex flex-col gap-1.5 py-2 cursor-pointer group w-full items-end bg-transparent border-0"
+					className="pointer-events-auto flex flex-col gap-1.5 py-2 cursor-pointer group w-full items-end bg-transparent border-0"
 					title="Expand outline"
 				>
 					{headings.map((h) => {
