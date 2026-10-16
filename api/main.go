@@ -47,7 +47,7 @@ func startScheduler(db *gorm.DB, searcher search.Searcher) {
 				var members []models.Member
 				db.Where("status = ?", models.MemberStatusActive).Find(&members)
 				for _, nl := range dueNewsletters {
-					htmlBody := "<h1>" + nl.Title + "</h1><p>" + nl.PreviewText + "</p>"
+					htmlBody := email.RenderNewsletterHTML(&nl)
 					delivered := 0
 					for _, m := range members {
 						if m.Email != "" && email.Send(db, m.Email, nl.Subject, htmlBody, nl.SenderName, nl.SenderEmail) == nil {

@@ -235,7 +235,7 @@ func (h *NewsletterHandler) SendTest(c *gin.Context) {
 		return
 	}
 
-	htmlBody := "<h1>" + n.Title + "</h1><p>" + n.PreviewText + "</p>"
+	htmlBody := email.RenderNewsletterHTML(&n)
 	if err := email.Send(h.db, req.Email, n.Subject, htmlBody, n.SenderName, n.SenderEmail); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to send test email: " + err.Error()})
 		return
@@ -258,7 +258,7 @@ func (h *NewsletterHandler) Send(c *gin.Context) {
 	var members []models.Member
 	h.db.Where("status = ?", models.MemberStatusActive).Find(&members)
 
-	htmlBody := "<h1>" + n.Title + "</h1><p>" + n.PreviewText + "</p>"
+	htmlBody := email.RenderNewsletterHTML(&n)
 	delivered := 0
 	for _, m := range members {
 		if m.Email == "" {
