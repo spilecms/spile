@@ -44,23 +44,27 @@ func startScheduler(db *gorm.DB, searcher search.Searcher) {
 			db.Where("status = ? AND scheduled_for IS NOT NULL AND scheduled_for <= ?", models.NewsletterStatusScheduled, now).
 				Find(&dueNewsletters)
 			if len(dueNewsletters) > 0 {
-				var members []models.Member
-				db.Where("status = ?", models.MemberStatusActive).Find(&members)
-				for _, nl := range dueNewsletters {
-					htmlBody := email.RenderNewsletterHTML(&nl)
-					delivered := 0
-					for _, m := range members {
-						if m.Email != "" && email.Send(db, m.Email, nl.Subject, htmlBody, nl.SenderName, nl.SenderEmail) == nil {
-							delivered++
+				if configured, reason := email.IsConfigured(db); !configured {
+					log.Printf("[Scheduler] Skipping %d scheduled newsletter(s): %s. Configure email in Settings > Email.", len(dueNewsletters), reason)
+				} else {
+					var members []models.Member
+					db.Where("status = ?", models.MemberStatusActive).Find(&members)
+					for _, nl := range dueNewsletters {
+						htmlBody := email.RenderNewsletterHTML(&nl)
+						delivered := 0
+						for _, m := range members {
+							if m.Email != "" && email.Send(db, m.Email, nl.Subject, htmlBody, nl.SenderName, nl.SenderEmail) == nil {
+								delivered++
+							}
 						}
-					}
-					nl.Status = models.NewsletterStatusSent
-					nl.SentAt = &now
-					nl.RecipientsCount = len(members)
-					nl.DeliveredCount = delivered
-					nl.UpdatedAt = now
-					if err := db.Save(&nl).Error; err == nil {
-						webhook.Dispatch(db, "newsletter.sent", nl.ToResponse())
+						nl.Status = models.NewsletterStatusSent
+						nl.SentAt = &now
+						nl.RecipientsCount = len(members)
+						nl.DeliveredCount = delivered
+						nl.UpdatedAt = now
+						if err := db.Save(&nl).Error; err == nil {
+							webhook.Dispatch(db, "newsletter.sent", nl.ToResponse())
+						}
 					}
 				}
 			}

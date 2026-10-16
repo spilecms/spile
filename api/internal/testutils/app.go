@@ -42,6 +42,12 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	router := routes.SetupRouter(db, storageProv)
 
+	// Seed mock email setting so tests can test newsletter sending workflows
+	_ = db.Create(&models.SystemSetting{
+		Key:       "email",
+		ValueJSON: `{"provider":"mock","fromName":"Spile Test","fromEmail":"test@spile.io"}`,
+	}).Error
+
 	return &TestApp{
 		T:               t,
 		DB:              db,

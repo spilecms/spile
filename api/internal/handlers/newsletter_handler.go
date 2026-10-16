@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -230,6 +231,13 @@ func (h *NewsletterHandler) Duplicate(c *gin.Context) {
 }
 
 func (h *NewsletterHandler) SendTest(c *gin.Context) {
+	if configured, reason := email.IsConfigured(h.db); !configured {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Cannot send test email: %s. Please configure an email provider in Settings > Email.", reason),
+		})
+		return
+	}
+
 	id := c.Param("id")
 	var req SendTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -256,6 +264,13 @@ func (h *NewsletterHandler) SendTest(c *gin.Context) {
 }
 
 func (h *NewsletterHandler) Send(c *gin.Context) {
+	if configured, reason := email.IsConfigured(h.db); !configured {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Cannot start campaign: %s. Please configure an email provider in Settings > Email before launching.", reason),
+		})
+		return
+	}
+
 	id := c.Param("id")
 	var n models.Newsletter
 	if err := h.db.First(&n, "id = ?", id).Error; err != nil {

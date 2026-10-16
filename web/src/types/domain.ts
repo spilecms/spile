@@ -240,6 +240,8 @@ export interface EmailSettings {
 	smtpUser?: string;
 	smtpPassword?: string;
 	smtpSecure?: boolean;
+	isConfigured?: boolean;
+	configuredReason?: string;
 }
 
 export type AiProviderType = "gemini" | "openai";

@@ -115,6 +115,9 @@ func (h *SettingsHandler) GetEmail(c *gin.Context) {
 		"replyTo":   "team@spile.io",
 		"provider":  "resend",
 	})
+	configured, reason := email.IsConfigured(h.db)
+	data["isConfigured"] = configured
+	data["configuredReason"] = reason
 	c.JSON(http.StatusOK, data)
 }
 
@@ -130,10 +133,18 @@ func (h *SettingsHandler) UpdateEmail(c *gin.Context) {
 		existing[k] = v
 	}
 	_ = h.saveSetting("email", existing)
+	configured, reason := email.IsConfigured(h.db)
+	existing["isConfigured"] = configured
+	existing["configuredReason"] = reason
 	c.JSON(http.StatusOK, existing)
 }
 
 func (h *SettingsHandler) TestEmail(c *gin.Context) {
+	if configured, reason := email.IsConfigured(h.db); !configured {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email service is not configured: " + reason})
+		return
+	}
+
 	currentUser, ok := auth.GetCurrentUser(c)
 	toEmail := "admin@spile.dev"
 	if ok && currentUser.Email != "" {

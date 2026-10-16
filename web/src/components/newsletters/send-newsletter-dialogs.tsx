@@ -1,5 +1,6 @@
-import { SendIcon } from "lucide-react";
+import { AlertCircleIcon, SendIcon } from "lucide-react";
 import * as React from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -17,12 +18,16 @@ interface SendTestDialogProps {
 	target: Newsletter | null;
 	onClose: () => void;
 	onSend: (email: string) => Promise<void>;
+	isEmailConfigured?: boolean;
+	configuredReason?: string;
 }
 
 export function SendTestDialog({
 	target,
 	onClose,
 	onSend,
+	isEmailConfigured = true,
+	configuredReason,
 }: SendTestDialogProps) {
 	const [email, setEmail] = React.useState("");
 	const [sending, setSending] = React.useState(false);
@@ -33,7 +38,7 @@ export function SendTestDialog({
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!email.trim() || sending) return;
+		if (!email.trim() || sending || !isEmailConfigured) return;
 		setSending(true);
 		try {
 			await onSend(email.trim());
@@ -53,6 +58,26 @@ export function SendTestDialog({
 							inspect formatting.
 						</DialogDescription>
 					</DialogHeader>
+
+					{!isEmailConfigured && (
+						<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive space-y-1">
+							<p className="font-semibold flex items-center gap-1.5">
+								<AlertCircleIcon className="size-4 shrink-0" />
+								Email service is not connected
+							</p>
+							<p className="text-muted-foreground">
+								{configuredReason ||
+									"No email provider credentials configured."}{" "}
+								<Link
+									to="/settings"
+									className="text-primary underline font-medium"
+								>
+									Configure in Settings &rarr;
+								</Link>
+							</p>
+						</div>
+					)}
+
 					<form onSubmit={handleSubmit} className="space-y-4 py-2">
 						<div className="space-y-1.5">
 							<Label htmlFor="test-recipient-email">
@@ -66,6 +91,7 @@ export function SendTestDialog({
 								onChange={(e) => setEmail(e.target.value)}
 								required
 								autoFocus
+								disabled={!isEmailConfigured}
 							/>
 						</div>
 						<DialogFooter className="pt-2">
@@ -77,7 +103,11 @@ export function SendTestDialog({
 							>
 								Cancel
 							</Button>
-							<Button type="submit" disabled={sending} className="gap-1.5">
+							<Button
+								type="submit"
+								disabled={sending || !isEmailConfigured}
+								className="gap-1.5"
+							>
 								<SendIcon className="size-3.5" />
 								{sending ? "Sending..." : "Send Test Email"}
 							</Button>
@@ -95,6 +125,8 @@ interface BroadcastConfirmDialogProps {
 	onClose: () => void;
 	onConfirm: () => void;
 	isPending: boolean;
+	isEmailConfigured?: boolean;
+	configuredReason?: string;
 }
 
 export function BroadcastConfirmDialog({
@@ -103,6 +135,8 @@ export function BroadcastConfirmDialog({
 	onClose,
 	onConfirm,
 	isPending,
+	isEmailConfigured = true,
+	configuredReason,
 }: BroadcastConfirmDialogProps) {
 	return (
 		<Dialog open={Boolean(target)} onOpenChange={(open) => !open && onClose()}>
@@ -127,6 +161,27 @@ export function BroadcastConfirmDialog({
 							</p>
 						</DialogDescription>
 					</DialogHeader>
+
+					{!isEmailConfigured && (
+						<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive space-y-1">
+							<p className="font-semibold flex items-center gap-1.5">
+								<AlertCircleIcon className="size-4 shrink-0" />
+								Email service is not connected
+							</p>
+							<p className="text-muted-foreground">
+								{configuredReason ||
+									"No email provider credentials configured."}{" "}
+								You cannot launch a campaign until you{" "}
+								<Link
+									to="/settings"
+									className="text-primary underline font-medium"
+								>
+									configure an email service in Settings &rarr;
+								</Link>
+							</p>
+						</div>
+					)}
+
 					<DialogFooter className="pt-3">
 						<Button
 							type="button"
@@ -138,7 +193,7 @@ export function BroadcastConfirmDialog({
 						</Button>
 						<Button
 							onClick={onConfirm}
-							disabled={isPending}
+							disabled={isPending || !isEmailConfigured}
 							className="gap-1.5"
 						>
 							<SendIcon className="size-3.5" />

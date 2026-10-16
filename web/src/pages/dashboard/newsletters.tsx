@@ -1,6 +1,7 @@
 import { PlusCircleIcon } from "@heroicons/react/24/solid";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	AlertCircleIcon,
 	MailIcon,
 	MousePointerClickIcon,
 	PlusIcon,
@@ -73,6 +74,14 @@ export default function NewslettersPage() {
 		queryKey: ["members", "all"],
 		queryFn: () => mockApi.members.list({ status: "all" }),
 	});
+
+	const { data: emailSettings } = useQuery({
+		queryKey: ["settings", "email"],
+		queryFn: () => mockApi.settings.getEmail(),
+	});
+
+	const isEmailConfigured = emailSettings?.isConfigured !== false;
+	const configuredReason = emailSettings?.configuredReason;
 
 	const activeSubscriberCount = React.useMemo(() => {
 		return members.filter((m) => m.status === "active").length;
@@ -178,6 +187,34 @@ export default function NewslettersPage() {
 					New Issue
 				</Button>
 			</HeaderActions>
+
+			{/* Unconfigured Email Service Warning Banner */}
+			{emailSettings && emailSettings.isConfigured === false && (
+				<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm flex items-start justify-between gap-3">
+					<div className="flex items-start gap-3">
+						<AlertCircleIcon className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+						<div>
+							<span className="font-semibold text-amber-900 dark:text-amber-200">
+								Email service is not connected
+							</span>
+							<p className="text-muted-foreground mt-0.5 text-xs">
+								{emailSettings.configuredReason ||
+									"No email provider credentials configured."}{" "}
+								Broadcasts and test previews cannot be delivered until an email
+								integration is configured.
+							</p>
+						</div>
+					</div>
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => navigate("/settings")}
+						className="shrink-0 text-xs"
+					>
+						Configure Email
+					</Button>
+				</div>
+			)}
 
 			{/* KPI Performance Highlights */}
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -331,6 +368,8 @@ export default function NewslettersPage() {
 				target={testTargetNl}
 				onClose={() => setTestTargetNl(null)}
 				onSend={handleSendTest}
+				isEmailConfigured={isEmailConfigured}
+				configuredReason={configuredReason}
 			/>
 
 			{/* Send Broadcast Confirmation Dialog */}
@@ -344,6 +383,8 @@ export default function NewslettersPage() {
 					}
 				}}
 				isPending={sendMutation.isPending}
+				isEmailConfigured={isEmailConfigured}
+				configuredReason={configuredReason}
 			/>
 		</div>
 	);

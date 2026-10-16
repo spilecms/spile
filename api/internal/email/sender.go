@@ -45,9 +45,47 @@ func LoadConfig(db *gorm.DB) Config {
 	return cfg
 }
 
-// Send transmits an email using the configured provider (Resend API or SMTP),
-// or logs delivery in development mode when credentials are not yet set.
+// IsConfigured returns true if a valid email provider configuration exists and has required credentials.
+func IsConfigured(db *gorm.DB) (bool, string) {
+	cfg := LoadConfig(db)
+	provider := strings.ToLower(strings.TrimSpace(cfg.Provider))
+	if provider == "mock" || provider == "dev" || provider == "test" {
+		return true, ""
+	}
+	if strings.TrimSpace(cfg.FromEmail) == "" {
+		return false, "Sender email address is not configured"
+	}
+	switch provider {
+	case "smtp":
+		if strings.TrimSpace(cfg.SmtpHost) == "" {
+			return false, "SMTP host is not configured"
+		}
+		return true, ""
+	case "resend":
+		if strings.TrimSpace(cfg.ApiKey) == "" {
+			return false, "Resend API key is not configured"
+		}
+		return true, ""
+	case "ses", "amazon_ses":
+		if strings.TrimSpace(cfg.ApiKey) == "" {
+			return false, "Amazon SES credentials are not configured"
+		}
+		return true, ""
+	default:
+		if strings.TrimSpace(cfg.ApiKey) == "" && strings.TrimSpace(cfg.SmtpHost) == "" {
+			return false, fmt.Sprintf("%s credentials are not configured", cfg.Provider)
+		}
+		return true, ""
+	}
+}
+
+// Send transmits an email using the configured provider (Resend API or SMTP).
+// Returns an error if the email provider credentials are not configured.
 func Send(db *gorm.DB, toEmail, subject, htmlBody, fromNameOverride, fromEmailOverride string) error {
+	if configured, reason := IsConfigured(db); !configured {
+		return fmt.Errorf("email service is not configured: %s", reason)
+	}
+
 	cfg := LoadConfig(db)
 
 	fromName := cfg.FromName
@@ -60,11 +98,13 @@ func Send(db *gorm.DB, toEmail, subject, htmlBody, fromNameOverride, fromEmailOv
 	}
 	fromHeader := fmt.Sprintf("%s <%s>", fromName, fromEmail)
 
-	if cfg.Provider == "smtp" {
-		if strings.TrimSpace(cfg.SmtpHost) == "" {
-			log.Printf("[email:dev-smtp] To=%s Subject=%q From=%s", toEmail, subject, fromHeader)
-			return nil
-		}
+	provider := strings.ToLower(strings.TrimSpace(cfg.Provider))
+	if provider == "mock" || provider == "dev" || provider == "test" {
+		log.Printf("[email:%s] To=%s Subject=%q From=%s", provider, toEmail, subject, fromHeader)
+		return nil
+	}
+
+	if provider == "smtp" {
 		port := cfg.SmtpPort
 		if port == 0 {
 			port = 587
@@ -85,11 +125,6 @@ func Send(db *gorm.DB, toEmail, subject, htmlBody, fromNameOverride, fromEmailOv
 	}
 
 	// Resend / HTTP API provider
-	if strings.TrimSpace(cfg.ApiKey) == "" {
-		log.Printf("[email:dev-%s] To=%s Subject=%q From=%s", cfg.Provider, toEmail, subject, fromHeader)
-		return nil
-	}
-
 	payload := map[string]any{
 		"from":    fromHeader,
 		"to":      []string{toEmail},

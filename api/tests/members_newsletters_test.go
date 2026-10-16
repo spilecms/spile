@@ -77,3 +77,41 @@ func TestMembersAndNewsletters_Workflow(t *testing.T) {
 	assert.Equal(t, 2, sentNl.RecipientsCount)
 	assert.NotNil(t, sentNl.SentAt)
 }
+
+func TestNewsletter_UnconfiguredEmailServiceRejection(t *testing.T) {
+	app := testutils.NewTestApp(t)
+
+	admin := app.CreateUser("Admin", "admin@spile.io", "Pass12345", models.RoleAdmin)
+	token := app.CreateSession(admin.ID)
+
+	// Set unconfigured email setting (resend with empty apiKey)
+	app.DB.Model(&models.SystemSetting{}).Where("key = ?", "email").Updates(map[string]any{
+		"value_json": `{"provider":"resend","apiKey":"","fromEmail":"newsletter@spile.io"}`,
+	})
+
+	// Create draft newsletter
+	createRes := app.Client().WithToken(token).PostJSON("/api/v1/newsletters", map[string]any{
+		"title":   "Draft Campaign",
+		"subject": "Important Announcement",
+	})
+	assert.Equal(t, http.StatusCreated, createRes.Code)
+
+	var nl models.NewsletterResponse
+	_ = json.Unmarshal(createRes.Body.Bytes(), &nl)
+
+	// Attempting to send broadcast without configured email provider MUST fail
+	sendRes := app.Client().WithToken(token).PostJSON("/api/v1/newsletters/"+nl.ID+"/send", nil)
+	assert.Equal(t, http.StatusBadRequest, sendRes.Code)
+
+	var errBody map[string]string
+	_ = json.Unmarshal(sendRes.Body.Bytes(), &errBody)
+	assert.Contains(t, errBody["error"], "Cannot start campaign")
+	assert.Contains(t, errBody["error"], "Resend API key is not configured")
+
+	// Attempting to send test email MUST also fail
+	testRes := app.Client().WithToken(token).PostJSON("/api/v1/newsletters/"+nl.ID+"/test", map[string]string{
+		"email": "test@example.com",
+	})
+	assert.Equal(t, http.StatusBadRequest, testRes.Code)
+}
+
