@@ -15,9 +15,16 @@
 		"test": "pnpm test:api",
 		"test:api": "go test ./api/...",
 		"test:all": "pnpm test:api && pnpm --filter web check",
-		"setup": "pnpm --filter web install && go mod tidy"
+		"setup": "pnpm --filter web install && go mod tidy",
+		"prepare": "simple-git-hooks"
+	},
+	"simple-git-hooks": {
+		"commit-msg": "pnpm commitlint --edit \"$1\""
 	},
 	"devDependencies": {
-		"concurrently": "^10.0.6"
+		"@commitlint/cli": "^21.2.3",
+		"@commitlint/config-conventional": "^21.2.3",
+		"concurrently": "^10.0.6",
+		"simple-git-hooks": "^2.14.0"
 	}
 }

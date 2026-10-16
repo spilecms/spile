@@ -93,9 +93,10 @@ Spile runs with defaults in development. Optional variables:
 Before submitting a pull request:
 
 1. Create a feature branch from `main` (`git checkout -b feat/your-feature`).
-2. Follow coding standards:
+2. Follow coding & commit standards:
    - Format frontend code with Biome (`pnpm check:write`).
    - Format Go code with `gofmt`.
+   - Follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages and PR titles (`feat:`, `fix:`, `docs:`, `chore:`, etc.). A git hook validates commits locally, and CI validates PR titles.
 3. Ensure all tests and checks pass:
    ```bash
    pnpm test:all

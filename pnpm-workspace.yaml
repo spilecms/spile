@@ -1,0 +1,5 @@
+packages:
+  - 'web'
+
+allowBuilds:
+  simple-git-hooks: true
