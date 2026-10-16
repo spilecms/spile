@@ -119,3 +119,61 @@ func TestDocs_Lifecycle(t *testing.T) {
 	delProjRes := app.Client().WithToken(token).Delete("/api/v1/docs/projects/" + projResp.Project.ID)
 	assert.Equal(t, http.StatusOK, delProjRes.Code)
 }
+
+func TestDocs_SafeDeleteAndCycleProtection(t *testing.T) {
+	app := testutils.NewTestApp(t)
+
+	admin := app.CreateUser("Admin", "admin@spile.io", "Pass12345", models.RoleAdmin)
+	token := app.CreateSession(admin.ID)
+
+	// 1. Create doc project
+	createProjRes := app.Client().WithToken(token).PostJSON("/api/v1/docs/projects", map[string]string{
+		"title": "Cycle and Delete Test",
+	})
+	require.Equal(t, http.StatusCreated, createProjRes.Code)
+	var projResp struct {
+		Project     models.DocProjectResponse `json:"project"`
+		InitialPage models.DocPageResponse    `json:"initialPage"`
+	}
+	require.NoError(t, json.Unmarshal(createProjRes.Body.Bytes(), &projResp))
+	initialPageID := projResp.InitialPage.ID
+
+	// 2. Create Spanish translation of initial page
+	transRes := app.Client().WithToken(token).PostJSON("/api/v1/docs/pages/"+initialPageID+"/translations", map[string]any{
+		"locale": "es",
+		"title":  "Inicio (ES)",
+	})
+	require.Equal(t, http.StatusCreated, transRes.Code)
+	var esPage models.DocPageResponse
+	require.NoError(t, json.Unmarshal(transRes.Body.Bytes(), &esPage))
+
+	// 3. Test Safe Delete: delete the Spanish translation
+	delEsRes := app.Client().WithToken(token).Delete("/api/v1/docs/pages/" + esPage.ID)
+	assert.Equal(t, http.StatusOK, delEsRes.Code)
+
+	// 4. Verify English original still exists
+	getEnRes := app.Client().WithToken(token).Get("/api/v1/docs/pages/" + initialPageID)
+	assert.Equal(t, http.StatusOK, getEnRes.Code)
+
+	// Verify Spanish translation is gone (404)
+	getEsRes := app.Client().WithToken(token).Get("/api/v1/docs/pages/" + esPage.ID)
+	assert.Equal(t, http.StatusNotFound, getEsRes.Code)
+
+	// 5. Test Cycle Detection in UpdateNavigation
+	cycleNavPayload := map[string]any{
+		"items": []any{
+			map[string]any{
+				"id": initialPageID,
+				"children": []any{
+					map[string]any{
+						"id": initialPageID, // Self-ancestor cycle!
+					},
+				},
+			},
+		},
+	}
+	cycleRes := app.Client().WithToken(token).PutJSON("/api/v1/docs/projects/"+projResp.Project.ID+"/navigation", cycleNavPayload)
+	assert.Equal(t, http.StatusBadRequest, cycleRes.Code)
+	assert.Contains(t, cycleRes.Body.String(), "Circular navigation tree hierarchy detected")
+}
+

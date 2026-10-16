@@ -22,6 +22,8 @@ type DocTreeItem struct {
 	Status             string        `json:"status,omitempty"`
 	Children           []DocTreeItem `json:"children,omitempty"`
 	HasTranslation     bool          `json:"hasTranslation"`
+	IsFallback         bool          `json:"isFallback,omitempty"`
+	FallbackLocale     string        `json:"fallbackLocale,omitempty"`
 }
 
 type DocNavigationManifest struct {
