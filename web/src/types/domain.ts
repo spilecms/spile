@@ -268,6 +268,7 @@ export interface Webhook {
 	name: string;
 	url: string;
 	events: string[];
+	secret?: string;
 	active: boolean;
 	createdAt: number;
 }

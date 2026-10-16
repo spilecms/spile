@@ -35,6 +35,7 @@ type Webhook struct {
 	Name       string    `gorm:"size:255;not null" json:"name"`
 	URL        string    `gorm:"size:1000;not null" json:"url"`
 	EventsJSON string    `gorm:"type:text;not null" json:"-"`
+	Secret     string    `gorm:"size:255" json:"secret,omitempty"`
 	Active     bool      `gorm:"default:true" json:"active"`
 	CreatedAt  time.Time `json:"createdAt"`
 }

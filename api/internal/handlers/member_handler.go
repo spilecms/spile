@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/pagination"
 	"gorm.io/gorm"
 )
 
@@ -45,8 +46,15 @@ func (h *MemberHandler) List(c *gin.Context) {
 		dbQuery = dbQuery.Where("LOWER(email) LIKE ? OR LOWER(name) LIKE ?", q, q)
 	}
 
+	params := pagination.Parse(c)
+	var total int64
+	if err := dbQuery.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count members"})
+		return
+	}
+
 	var members []models.Member
-	if err := dbQuery.Find(&members).Error; err != nil {
+	if err := params.ApplyToQuery(dbQuery).Find(&members).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch members"})
 		return
 	}
@@ -55,7 +63,7 @@ func (h *MemberHandler) List(c *gin.Context) {
 	for i, m := range members {
 		res[i] = m.ToResponse()
 	}
-	c.JSON(http.StatusOK, res)
+	pagination.WriteResponse(c, params, total, res)
 }
 
 func (h *MemberHandler) Get(c *gin.Context) {

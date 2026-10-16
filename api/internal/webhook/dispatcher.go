@@ -2,9 +2,13 @@ package webhook
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/spilecms/spile/api/internal/models"
@@ -17,7 +21,15 @@ type WebhookPayload struct {
 	Data      any    `json:"data"`
 }
 
+// ComputeSignature calculates the HMAC-SHA256 signature for a webhook payload using the shared secret.
+func ComputeSignature(payload []byte, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 // Dispatch asynchronously sends an HTTP POST payload to all active webhooks subscribed to the given event.
+// If the webhook has a secret configured, an HMAC-SHA256 signature is included in the X-Spile-Signature header.
 func Dispatch(db *gorm.DB, event string, data any) {
 	if db == nil || event == "" {
 		return
@@ -29,9 +41,10 @@ func Dispatch(db *gorm.DB, event string, data any) {
 			return
 		}
 
+		timestamp := time.Now().UnixMilli()
 		bodyBytes, err := json.Marshal(WebhookPayload{
 			Event:     event,
-			Timestamp: time.Now().UnixMilli(),
+			Timestamp: timestamp,
 			Data:      data,
 		})
 		if err != nil {
@@ -62,6 +75,12 @@ func Dispatch(db *gorm.DB, event string, data any) {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("User-Agent", "Spile-CMS-Webhook/1.0")
 			req.Header.Set("X-Spile-Event", event)
+			req.Header.Set("X-Spile-Timestamp", strconv.FormatInt(timestamp, 10))
+
+			if wh.Secret != "" {
+				sig := ComputeSignature(bodyBytes, wh.Secret)
+				req.Header.Set("X-Spile-Signature", "sha256="+sig)
+			}
 
 			resp, err := client.Do(req)
 			if err != nil {

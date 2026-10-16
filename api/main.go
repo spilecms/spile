@@ -64,6 +64,21 @@ func startScheduler(db *gorm.DB, searcher search.Searcher) {
 					}
 				}
 			}
+
+			// 3. Auto-purge trashed posts older than 30 days
+			thirtyDaysAgo := now.AddDate(0, 0, -30)
+			var expiredPosts []models.Post
+			if err := db.Where("status = ? AND updated_at <= ?", models.PostStatusTrashed, thirtyDaysAgo).Find(&expiredPosts).Error; err == nil && len(expiredPosts) > 0 {
+				for _, p := range expiredPosts {
+					if searcher != nil {
+						_ = searcher.DeleteEntity("post", p.ID)
+					}
+					_ = db.Exec("DELETE FROM post_tags WHERE post_id = ?", p.ID).Error
+					_ = db.Exec("DELETE FROM post_authors WHERE post_id = ?", p.ID).Error
+					db.Delete(&p)
+				}
+				log.Printf("[Scheduler] Auto-purged %d trashed posts older than 30 days", len(expiredPosts))
+			}
 		}
 	}()
 }

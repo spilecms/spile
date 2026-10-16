@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spilecms/spile/api/internal/email"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/pagination"
 	"github.com/spilecms/spile/api/internal/webhook"
 	"gorm.io/gorm"
 )
@@ -62,8 +63,15 @@ func (h *NewsletterHandler) List(c *gin.Context) {
 		dbQuery = dbQuery.Where("LOWER(title) LIKE ? OR LOWER(subject) LIKE ?", q, q)
 	}
 
+	params := pagination.Parse(c)
+	var total int64
+	if err := dbQuery.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query newsletters"})
+		return
+	}
+
 	var newsletters []models.Newsletter
-	if err := dbQuery.Find(&newsletters).Error; err != nil {
+	if err := params.ApplyToQuery(dbQuery).Find(&newsletters).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query newsletters"})
 		return
 	}
@@ -72,7 +80,7 @@ func (h *NewsletterHandler) List(c *gin.Context) {
 	for i, n := range newsletters {
 		res[i] = n.ToResponse()
 	}
-	c.JSON(http.StatusOK, res)
+	pagination.WriteResponse(c, params, total, res)
 }
 
 func (h *NewsletterHandler) Get(c *gin.Context) {

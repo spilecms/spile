@@ -327,12 +327,20 @@ func (h *AnalyticsHandler) GetDocPages(c *gin.Context) {
 		projects[p.ID] = p.Title
 	}
 
+	// Single aggregated query for all doc pageviews to eliminate N+1 database queries
+	var allPvs []models.PageView
+	h.db.Where("entity_type = ?", "doc").
+		Order("created_at desc").
+		Find(&allPvs)
+
+	pvsByEntity := make(map[string][]models.PageView, len(pages))
+	for _, pv := range allPvs {
+		pvsByEntity[pv.EntityID] = append(pvsByEntity[pv.EntityID], pv)
+	}
+
 	res := make([]DocPageAnalyticsItem, 0, len(pages))
 	for _, page := range pages {
-		var pvs []models.PageView
-		h.db.Where("entity_type = ? AND entity_id = ?", "doc", page.ID).
-			Order("created_at desc").
-			Find(&pvs)
+		pvs := pvsByEntity[page.ID]
 
 		views, visitors, avgRead, bounceRate := summarizePageViews(pvs)
 		var lastVisited int64
@@ -365,12 +373,20 @@ func (h *AnalyticsHandler) GetPosts(c *gin.Context) {
 	var posts []models.Post
 	h.db.Order("views desc, updated_at desc").Find(&posts)
 
+	// Single aggregated query for all post pageviews to eliminate N+1 database queries
+	var allPvs []models.PageView
+	h.db.Where("entity_type = ?", "post").
+		Order("created_at desc").
+		Find(&allPvs)
+
+	pvsByEntity := make(map[string][]models.PageView, len(posts))
+	for _, pv := range allPvs {
+		pvsByEntity[pv.EntityID] = append(pvsByEntity[pv.EntityID], pv)
+	}
+
 	res := make([]PostAnalyticsItem, 0, len(posts))
 	for _, post := range posts {
-		var pvs []models.PageView
-		h.db.Where("entity_type = ? AND entity_id = ?", "post", post.ID).
-			Order("created_at desc").
-			Find(&pvs)
+		pvs := pvsByEntity[post.ID]
 
 		views, visitors, avgRead, bounceRate := summarizePageViews(pvs)
 		var lastVisited int64

@@ -38,21 +38,77 @@ type Searcher interface {
 	SyncAllPublished() error
 	Search(params SearchParams) (*models.SearchResponse, error)
 	GetProjectSearchIndex(projectIDOrSlug, locale string) (*models.ClientSearchIndexResponse, string, error)
+	IndexDocPageAsync(page *models.DocPage)
+	IndexPostAsync(post *models.Post)
+	DeleteEntityAsync(entityType, entityID string)
 }
 
 // SQLiteSearcher implements Searcher using SQLite FTS5 with bm25 per-column weights and custom tokenchars '-_'.
 type SQLiteSearcher struct {
-	db      *gorm.DB
-	hasFTS5 bool
+	db        *gorm.DB
+	hasFTS5   bool
+	taskQueue chan func()
 }
 
 // NewSQLiteSearcher initializes a SQLite FTS5-backed Searcher and ensures the FTS virtual table exists.
 func NewSQLiteSearcher(db *gorm.DB) (*SQLiteSearcher, error) {
-	s := &SQLiteSearcher{db: db}
+	s := &SQLiteSearcher{
+		db:        db,
+		taskQueue: make(chan func(), 256),
+	}
 	if err := s.EnsureSchema(); err != nil {
 		return nil, err
 	}
+	go s.worker()
 	return s, nil
+}
+
+func (s *SQLiteSearcher) worker() {
+	for task := range s.taskQueue {
+		if task != nil {
+			task()
+		}
+	}
+}
+
+func (s *SQLiteSearcher) enqueue(task func()) {
+	select {
+	case s.taskQueue <- task:
+	default:
+		go task()
+	}
+}
+
+// IndexDocPageAsync asynchronously indexes a DocPage in the background worker queue.
+func (s *SQLiteSearcher) IndexDocPageAsync(page *models.DocPage) {
+	if page == nil {
+		return
+	}
+	pageCopy := *page
+	s.enqueue(func() {
+		_ = s.IndexDocPage(&pageCopy)
+	})
+}
+
+// IndexPostAsync asynchronously indexes a Post in the background worker queue.
+func (s *SQLiteSearcher) IndexPostAsync(post *models.Post) {
+	if post == nil {
+		return
+	}
+	postCopy := *post
+	s.enqueue(func() {
+		_ = s.IndexPost(&postCopy)
+	})
+}
+
+// DeleteEntityAsync asynchronously deletes an indexed entity in the background worker queue.
+func (s *SQLiteSearcher) DeleteEntityAsync(entityType, entityID string) {
+	if entityID == "" {
+		return
+	}
+	s.enqueue(func() {
+		_ = s.DeleteEntity(entityType, entityID)
+	})
 }
 
 // EnsureSchema creates the FTS5 virtual table with tokenchars '-_' so identifiers like X-Spile-Signature and pk_live stay intact.

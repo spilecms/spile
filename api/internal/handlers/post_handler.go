@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/pagination"
 	"github.com/spilecms/spile/api/internal/search"
 	"github.com/spilecms/spile/api/internal/webhook"
 	"gorm.io/gorm"
@@ -90,13 +91,7 @@ func (h *PostHandler) ensureUniqueSlug(desiredSlug string, excludeID string) str
 }
 
 func (h *PostHandler) refreshTagCounts() {
-	var tags []models.Tag
-	h.db.Find(&tags)
-	for _, t := range tags {
-		var count int64
-		h.db.Table("post_tags").Where("tag_id = ?", t.ID).Count(&count)
-		h.db.Model(&models.Tag{}).Where("id = ?", t.ID).Update("post_count", int(count))
-	}
+	h.db.Exec("UPDATE tags SET post_count = (SELECT COUNT(*) FROM post_tags WHERE post_tags.tag_id = tags.id)")
 }
 
 func (h *PostHandler) List(c *gin.Context) {
@@ -131,8 +126,15 @@ func (h *PostHandler) List(c *gin.Context) {
 		dbQuery = dbQuery.Where("LOWER(title) LIKE ? OR LOWER(excerpt) LIKE ?", q, q)
 	}
 
+	params := pagination.Parse(c)
+	var total int64
+	if err := dbQuery.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count posts"})
+		return
+	}
+
 	var posts []models.Post
-	if err := dbQuery.Find(&posts).Error; err != nil {
+	if err := params.ApplyToQuery(dbQuery).Find(&posts).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query posts"})
 		return
 	}
@@ -142,7 +144,7 @@ func (h *PostHandler) List(c *gin.Context) {
 		res[i] = p.ToResponse()
 	}
 
-	c.JSON(http.StatusOK, res)
+	pagination.WriteResponse(c, params, total, res)
 }
 
 func (h *PostHandler) Get(c *gin.Context) {
@@ -251,7 +253,7 @@ func (h *PostHandler) Create(c *gin.Context) {
 	// Reload with associations
 	h.db.Preload("Authors").Preload("Tags").First(&post, "id = ?", post.ID)
 	if h.searcher != nil {
-		_ = h.searcher.IndexPost(&post)
+		h.searcher.IndexPostAsync(&post)
 	}
 	resp := post.ToResponse()
 	if post.Status == models.PostStatusPublished {
@@ -343,7 +345,7 @@ func (h *PostHandler) Update(c *gin.Context) {
 
 	h.db.Preload("Authors").Preload("Tags").First(&post, "id = ?", post.ID)
 	if h.searcher != nil {
-		_ = h.searcher.IndexPost(&post)
+		h.searcher.IndexPostAsync(&post)
 	}
 	resp := post.ToResponse()
 	if post.Status == models.PostStatusPublished {
@@ -365,7 +367,7 @@ func (h *PostHandler) Delete(c *gin.Context) {
 	_ = h.db.Model(&post).Association("Tags").Clear()
 	_ = h.db.Delete(&post).Error
 	if h.searcher != nil {
-		_ = h.searcher.DeleteEntity("post", id)
+		h.searcher.DeleteEntityAsync("post", id)
 	}
 
 	h.refreshTagCounts()

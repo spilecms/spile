@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/pagination"
 	"github.com/spilecms/spile/api/internal/storage"
 	"gorm.io/gorm"
 )
@@ -200,8 +201,15 @@ func (h *MediaHandler) List(c *gin.Context) {
 	}
 	dbQuery = dbQuery.Order(orderClause)
 
+	params := pagination.Parse(c)
+	var total int64
+	if err := dbQuery.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count media items"})
+		return
+	}
+
 	var items []models.MediaItem
-	if err := dbQuery.Find(&items).Error; err != nil {
+	if err := params.ApplyToQuery(dbQuery).Find(&items).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch media items"})
 		return
 	}
@@ -211,7 +219,7 @@ func (h *MediaHandler) List(c *gin.Context) {
 		res[i] = it.ToResponse()
 	}
 
-	c.JSON(http.StatusOK, res)
+	pagination.WriteResponse(c, params, total, res)
 }
 
 func (h *MediaHandler) Get(c *gin.Context) {

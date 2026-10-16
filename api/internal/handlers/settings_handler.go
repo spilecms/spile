@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,6 +36,7 @@ type CreateWebhookRequest struct {
 	Name   string   `json:"name" binding:"required"`
 	URL    string   `json:"url" binding:"required"`
 	Events []string `json:"events" binding:"required"`
+	Secret string   `json:"secret"`
 }
 
 func (h *SettingsHandler) getSetting(key string, target any, fallback any) {
@@ -241,6 +243,7 @@ func (h *SettingsHandler) ListWebhooks(c *gin.Context) {
 		Name      string   `json:"name"`
 		URL       string   `json:"url"`
 		Events    []string `json:"events"`
+		Secret    string   `json:"secret,omitempty"`
 		Active    bool     `json:"active"`
 		CreatedAt int64    `json:"createdAt"`
 	}
@@ -254,6 +257,7 @@ func (h *SettingsHandler) ListWebhooks(c *gin.Context) {
 			Name:      w.Name,
 			URL:       w.URL,
 			Events:    events,
+			Secret:    w.Secret,
 			Active:    w.Active,
 			CreatedAt: w.CreatedAt.UnixMilli(),
 		}
@@ -269,10 +273,18 @@ func (h *SettingsHandler) CreateWebhook(c *gin.Context) {
 	}
 
 	eventsJSON, _ := json.Marshal(req.Events)
+	secret := strings.TrimSpace(req.Secret)
+	if secret == "" {
+		randomBytes := make([]byte, 16)
+		_, _ = rand.Read(randomBytes)
+		secret = "whsec_" + hex.EncodeToString(randomBytes)
+	}
+
 	wh := models.Webhook{
 		Name:       req.Name,
 		URL:        req.URL,
 		EventsJSON: string(eventsJSON),
+		Secret:     secret,
 		Active:     true,
 	}
 
@@ -286,6 +298,7 @@ func (h *SettingsHandler) CreateWebhook(c *gin.Context) {
 		"name":      wh.Name,
 		"url":       wh.URL,
 		"events":    req.Events,
+		"secret":    wh.Secret,
 		"active":    wh.Active,
 		"createdAt": wh.CreatedAt.UnixMilli(),
 	})

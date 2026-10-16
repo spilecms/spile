@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/pagination"
 	"github.com/spilecms/spile/api/internal/search"
 	"github.com/spilecms/spile/api/internal/webhook"
 	"gorm.io/gorm"
@@ -18,6 +21,23 @@ import (
 type DocHandler struct {
 	db       *gorm.DB
 	searcher search.Searcher
+	navMu    sync.RWMutex
+	navCache map[string][]models.DocTreeItem
+}
+
+func (h *DocHandler) invalidateNavCache(projectID string) {
+	h.navMu.Lock()
+	defer h.navMu.Unlock()
+	if projectID == "" {
+		h.navCache = make(map[string][]models.DocTreeItem)
+		return
+	}
+	prefix := projectID + ":"
+	for k := range h.navCache {
+		if strings.HasPrefix(k, prefix) {
+			delete(h.navCache, k)
+		}
+	}
 }
 
 func NewDocHandler(db *gorm.DB, searchers ...search.Searcher) *DocHandler {
@@ -27,7 +47,11 @@ func NewDocHandler(db *gorm.DB, searchers ...search.Searcher) *DocHandler {
 	} else {
 		s, _ = search.NewSQLiteSearcher(db)
 	}
-	return &DocHandler{db: db, searcher: s}
+	return &DocHandler{
+		db:       db,
+		searcher: s,
+		navCache: make(map[string][]models.DocTreeItem),
+	}
 }
 
 type CreateProjectRequest struct {
@@ -94,9 +118,19 @@ func (h *DocHandler) buildNavigationTree(projectID, locale string, publishedOnly
 		locale = "en"
 	}
 
+	pubOnly := len(publishedOnly) > 0 && publishedOnly[0]
+	cacheKey := projectID + ":" + locale + ":" + strconv.FormatBool(pubOnly)
+
+	h.navMu.RLock()
+	if cached, ok := h.navCache[cacheKey]; ok {
+		h.navMu.RUnlock()
+		return cached
+	}
+	h.navMu.RUnlock()
+
 	var pages []models.DocPage
 	q := h.db.Where("project_id = ?", projectID)
-	if len(publishedOnly) > 0 && publishedOnly[0] {
+	if pubOnly {
 		q = q.Where("status = ?", "published")
 	}
 	q.Order("created_at asc").Find(&pages)
@@ -134,8 +168,12 @@ func (h *DocHandler) buildNavigationTree(projectID, locale string, publishedOnly
 		}
 		g.translations[loc] = p
 
-		// Identify canonical page (matches groupID, has no translationSourceId, or is first seen)
-		if g.canonical == nil || p.ID == groupID || (p.TranslationSourceID == nil || *p.TranslationSourceID == "") && g.canonical.ID != groupID {
+		// Identify canonical page (matches groupID, default locale, or first seen)
+		if g.canonical == nil {
+			g.canonical = p
+		} else if p.ID == groupID {
+			g.canonical = p
+		} else if (p.Locale == "en" || p.IsDefaultLocale) && g.canonical.ID != groupID {
 			g.canonical = p
 		}
 	}
@@ -152,11 +190,21 @@ func (h *DocHandler) buildNavigationTree(projectID, locale string, publishedOnly
 
 		displayPage := canon
 		hasTranslation := false
+		isFallback := false
+		fallbackLocale := ""
+
 		if locPage, ok := g.translations[locale]; ok {
 			displayPage = locPage
 			hasTranslation = true
 		} else if canon.Locale == locale || (canon.Locale == "" && locale == "en") {
 			hasTranslation = true
+		} else {
+			// Translation missing for requested locale: fall back to canonical
+			isFallback = true
+			fallbackLocale = canon.Locale
+			if fallbackLocale == "" {
+				fallbackLocale = "en"
+			}
 		}
 
 		// Resolve parent ID to canonical page ID if parent belongs to a translation group
@@ -187,6 +235,8 @@ func (h *DocHandler) buildNavigationTree(projectID, locale string, publishedOnly
 			Icon:               displayPage.Icon,
 			Status:             displayPage.Status,
 			HasTranslation:     hasTranslation,
+			IsFallback:         isFallback,
+			FallbackLocale:     fallbackLocale,
 		}
 
 		if resolvedParentID == nil || *resolvedParentID == "" {
@@ -209,7 +259,16 @@ func (h *DocHandler) buildNavigationTree(projectID, locale string, publishedOnly
 		return res
 	}
 
-	return attachChildren(rootItems)
+	result := attachChildren(rootItems)
+
+	h.navMu.Lock()
+	if h.navCache == nil {
+		h.navCache = make(map[string][]models.DocTreeItem)
+	}
+	h.navCache[cacheKey] = result
+	h.navMu.Unlock()
+
+	return result
 }
 
 func (h *DocHandler) ListProjects(c *gin.Context) {
@@ -220,7 +279,15 @@ func (h *DocHandler) ListProjects(c *gin.Context) {
 	if pubOnly {
 		query = query.Where("status = ?", "published")
 	}
-	if err := query.Find(&projects).Error; err != nil {
+
+	params := pagination.Parse(c)
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count doc projects"})
+		return
+	}
+
+	if err := params.ApplyToQuery(query).Find(&projects).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch doc projects"})
 		return
 	}
@@ -246,7 +313,7 @@ func (h *DocHandler) ListProjects(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, res)
+	pagination.WriteResponse(c, params, total, res)
 }
 
 func (h *DocHandler) GetProject(c *gin.Context) {
@@ -416,6 +483,8 @@ func (h *DocHandler) CreatePage(c *gin.Context) {
 		return
 	}
 
+	h.invalidateNavCache(req.ProjectID)
+
 	c.JSON(http.StatusCreated, page.ToResponse())
 }
 
@@ -455,11 +524,13 @@ func (h *DocHandler) UpdatePage(c *gin.Context) {
 		return
 	}
 
+	h.invalidateNavCache(page.ProjectID)
+
 	if req.Status != nil {
 		h.syncProjectStatus(page.ProjectID)
 	}
 	if h.searcher != nil {
-		_ = h.searcher.IndexDocPage(&page)
+		h.searcher.IndexDocPageAsync(&page)
 	}
 
 	resp := page.ToResponse()
@@ -505,6 +576,8 @@ func (h *DocHandler) UpdateProject(c *gin.Context) {
 		return
 	}
 
+	h.invalidateNavCache(p.ID)
+
 	if h.searcher != nil {
 		_ = h.searcher.IndexProjectPages(p.ID)
 	}
@@ -533,20 +606,33 @@ func (h *DocHandler) UpdateProject(c *gin.Context) {
 func (h *DocHandler) DeletePage(c *gin.Context) {
 	id := c.Param("id")
 	var page models.DocPage
-	_ = h.db.First(&page, "id = ?", id).Error
+	if err := h.db.First(&page, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Doc page not found"})
+		return
+	}
 
+	deleteAllLocales := c.Query("delete_all_locales") == "true"
 	groupID := page.TranslationGroupID
 	if groupID == "" {
 		groupID = id
 	}
 
-	if err := h.db.Delete(&models.DocPage{}, "id = ? OR translation_group_id = ?", id, groupID).Error; err != nil {
+	var err error
+	if deleteAllLocales {
+		err = h.db.Delete(&models.DocPage{}, "id = ? OR translation_group_id = ?", id, groupID).Error
+	} else {
+		err = h.db.Delete(&models.DocPage{}, "id = ?", id).Error
+	}
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete doc page"})
 		return
 	}
 
+	h.invalidateNavCache(page.ProjectID)
+
 	if h.searcher != nil {
-		_ = h.searcher.DeleteEntity("doc", id)
+		h.searcher.DeleteEntityAsync("doc", id)
 	}
 	if page.ProjectID != "" {
 		h.syncProjectStatus(page.ProjectID)
@@ -561,7 +647,7 @@ func (h *DocHandler) DeleteProject(c *gin.Context) {
 		var pages []models.DocPage
 		if err := h.db.Select("id").Where("project_id = ?", id).Find(&pages).Error; err == nil {
 			for _, pg := range pages {
-				_ = h.searcher.DeleteEntity("doc", pg.ID)
+				h.searcher.DeleteEntityAsync("doc", pg.ID)
 			}
 		}
 	}
@@ -570,6 +656,7 @@ func (h *DocHandler) DeleteProject(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete project"})
 		return
 	}
+	h.invalidateNavCache(id)
 	c.JSON(http.StatusOK, gin.H{"message": "Project deleted successfully"})
 }
 
@@ -607,21 +694,59 @@ func (h *DocHandler) UpdateNavigation(c *gin.Context) {
 		return
 	}
 
-	locale := req.Locale
-	if locale == "" {
-		locale = "en"
-	}
-
-	var walkItems func(items []models.DocTreeItem, parentID *string)
-	walkItems = func(items []models.DocTreeItem, parentID *string) {
+	// 1. Cycle detection in submitted navigation tree
+	hasCycle := false
+	var checkCycles func(items []models.DocTreeItem, ancestors map[string]bool)
+	checkCycles = func(items []models.DocTreeItem, ancestors map[string]bool) {
+		if hasCycle {
+			return
+		}
 		for _, it := range items {
 			canonID := it.CanonicalID
 			if canonID == "" {
 				canonID = it.ID
 			}
-			h.db.Model(&models.DocPage{}).
+			if ancestors[canonID] {
+				hasCycle = true
+				return
+			}
+			ancestors[canonID] = true
+			if len(it.Children) > 0 {
+				checkCycles(it.Children, ancestors)
+			}
+			delete(ancestors, canonID)
+		}
+	}
+	checkCycles(req.Items, make(map[string]bool))
+	if hasCycle {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Circular navigation tree hierarchy detected"})
+		return
+	}
+
+	locale := req.Locale
+	if locale == "" {
+		locale = "en"
+	}
+
+	// 2. Transactional parent_id updates
+	tx := h.db.Begin()
+	var walkErr error
+	var walkItems func(items []models.DocTreeItem, parentID *string)
+	walkItems = func(items []models.DocTreeItem, parentID *string) {
+		if walkErr != nil {
+			return
+		}
+		for _, it := range items {
+			canonID := it.CanonicalID
+			if canonID == "" {
+				canonID = it.ID
+			}
+			if err := tx.Model(&models.DocPage{}).
 				Where("(id = ? OR translation_group_id = ?) AND project_id = ?", canonID, canonID, projectID).
-				Update("parent_id", parentID)
+				Update("parent_id", parentID).Error; err != nil {
+				walkErr = err
+				return
+			}
 			if len(it.Children) > 0 {
 				idCopy := canonID
 				walkItems(it.Children, &idCopy)
@@ -630,6 +755,17 @@ func (h *DocHandler) UpdateNavigation(c *gin.Context) {
 	}
 
 	walkItems(req.Items, nil)
+	if walkErr != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update navigation: " + walkErr.Error()})
+		return
+	}
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit navigation update"})
+		return
+	}
+
+	h.invalidateNavCache(projectID)
 
 	if h.searcher != nil {
 		_ = h.searcher.IndexProjectPages(projectID)
@@ -764,6 +900,8 @@ func (h *DocHandler) CreateTranslation(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create translated doc"})
 		return
 	}
+
+	h.invalidateNavCache(projID)
 
 	c.JSON(http.StatusCreated, newDoc.ToResponse())
 }

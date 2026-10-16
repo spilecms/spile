@@ -164,7 +164,7 @@ func (h *ReviewHandler) RestoreRevision(c *gin.Context) {
 		post.UpdatedAt = time.Now()
 		_ = h.db.Save(&post).Error
 		if h.searcher != nil {
-			_ = h.searcher.IndexPost(&post)
+			h.searcher.IndexPostAsync(&post)
 		}
 	} else if revision.TargetType == models.ReviewTargetDoc {
 		var doc models.DocPage
@@ -177,7 +177,7 @@ func (h *ReviewHandler) RestoreRevision(c *gin.Context) {
 		doc.UpdatedAt = time.Now()
 		_ = h.db.Save(&doc).Error
 		if h.searcher != nil {
-			_ = h.searcher.IndexDocPage(&doc)
+			h.searcher.IndexDocPageAsync(&doc)
 		}
 	}
 
@@ -350,7 +350,7 @@ func (h *ReviewHandler) UpdateReviewRequest(c *gin.Context) {
 			if h.searcher != nil {
 				var updatedPost models.Post
 				if err := h.db.First(&updatedPost, "id = ?", reviewReq.TargetID).Error; err == nil {
-					_ = h.searcher.IndexPost(&updatedPost)
+					h.searcher.IndexPostAsync(&updatedPost)
 				}
 			}
 		} else if reviewReq.TargetType == models.ReviewTargetDoc {
@@ -369,7 +369,7 @@ func (h *ReviewHandler) UpdateReviewRequest(c *gin.Context) {
 				if h.searcher != nil {
 					var updatedDoc models.DocPage
 					if err := h.db.First(&updatedDoc, "id = ?", reviewReq.TargetID).Error; err == nil {
-						_ = h.searcher.IndexDocPage(&updatedDoc)
+						h.searcher.IndexDocPageAsync(&updatedDoc)
 					}
 				}
 			}
