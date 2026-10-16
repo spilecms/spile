@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -42,6 +45,19 @@ func (h *MediaHandler) Upload(c *gin.Context) {
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File is required: " + err.Error()})
+		return
+	}
+
+	maxMB := int64(50)
+	if raw := os.Getenv("MAX_UPLOAD_SIZE_MB"); raw != "" {
+		if parsed, err := strconv.ParseInt(raw, 10, 64); err == nil && parsed > 0 {
+			maxMB = parsed
+		}
+	}
+	if fileHeader.Size > maxMB*1024*1024 {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+			"error": fmt.Sprintf("File size exceeds maximum allowed limit of %d MB", maxMB),
+		})
 		return
 	}
 

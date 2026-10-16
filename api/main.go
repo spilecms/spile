@@ -70,6 +70,9 @@ func startScheduler(db *gorm.DB, searcher search.Searcher) {
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("Configuration error: %v", err)
+	}
 
 	db, err := database.InitDB(cfg.DatabasePath, cfg.Env == "production")
 	if err != nil {
@@ -90,7 +93,7 @@ func main() {
 		log.Fatalf("Storage initialization failed: %v", err)
 	}
 
-	router := routes.SetupRouter(db, storageProv)
+	router := routes.SetupRouter(db, storageProv, cfg)
 
 	// Mount embedded React + Vite SPA
 	if distFS, err := web.DistFS(); err == nil {

@@ -10,6 +10,19 @@ export default defineConfig({
 			"@": "/src",
 		},
 	},
+	server: {
+		port: 5173,
+		proxy: {
+			"/api": {
+				target: "http://localhost:8080",
+				changeOrigin: true,
+			},
+			"/uploads": {
+				target: "http://localhost:8080",
+				changeOrigin: true,
+			},
+		},
+	},
 	build: {
 		// All application & vendor chunks are < 400 kB; raise limit to accommodate
 		// the isolated lazy-loaded `world-map` SVG vector paths chunk (~1.2 MB).

@@ -2,9 +2,11 @@ package routes
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spilecms/spile/api/internal/auth"
+	"github.com/spilecms/spile/api/internal/config"
 	"github.com/spilecms/spile/api/internal/handlers"
 	"github.com/spilecms/spile/api/internal/models"
 	"github.com/spilecms/spile/api/internal/search"
@@ -13,16 +15,25 @@ import (
 )
 
 // SetupRouter initializes Gin engine with all routes and middlewares
-func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
+func SetupRouter(db *gorm.DB, storageProvider storage.Provider, optionalCfg ...*config.Config) *gin.Engine {
+	var cfg *config.Config
+	if len(optionalCfg) > 0 && optionalCfg[0] != nil {
+		cfg = optionalCfg[0]
+	} else {
+		cfg = config.Load()
+	}
+
 	r := gin.New()
 	r.Use(gin.Recovery())
 
-	// Enable CORS for headless frontend clients and local dev servers
+	// Enable CORS for allowed origins with credentials, or wildcard for public requests
 	r.Use(func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
 		if origin != "" {
-			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Access-Control-Allow-Credentials", "true")
+			if cfg.IsOriginAllowed(origin) {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Access-Control-Allow-Credentials", "true")
+			}
 		} else {
 			c.Header("Access-Control-Allow-Origin", "*")
 		}
@@ -59,12 +70,13 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 		searchHandler := handlers.NewSearchHandler(db, searcher)
 		v1.GET("/search", auth.RequireAuth(), searchHandler.Search)
 
-		// Auth routes
+		// Auth routes with brute-force rate limiting (10 attempts / min per IP)
+		authLimiter := NewRateLimiter(10, time.Minute)
 		authHandler := handlers.NewAuthHandler(db)
 		authGroup := v1.Group("/auth")
 		{
-			authGroup.POST("/register", authHandler.Register)
-			authGroup.POST("/login", authHandler.Login)
+			authGroup.POST("/register", authLimiter.Middleware(), authHandler.Register)
+			authGroup.POST("/login", authLimiter.Middleware(), authHandler.Login)
 			authGroup.GET("/me", auth.RequireAuth(), authHandler.Me)
 			authGroup.POST("/logout", auth.RequireAuth(), authHandler.Logout)
 		}
@@ -211,8 +223,9 @@ func SetupRouter(db *gorm.DB, storageProvider storage.Provider) *gin.Engine {
 		v1.GET("/overview/views", auth.RequireAuth(), settingsHandler.OverviewViews)
 		v1.GET("/overview/activity", auth.RequireAuth(), settingsHandler.OverviewActivity)
 
+		analyticsLimiter := NewRateLimiter(60, time.Minute)
 		analyticsHandler := handlers.NewAnalyticsHandler(db)
-		v1.POST("/analytics/track", analyticsHandler.Track)
+		v1.POST("/analytics/track", analyticsLimiter.Middleware(), analyticsHandler.Track)
 		analyticsGroup := v1.Group("/analytics")
 		analyticsGroup.Use(auth.RequireAuth())
 		{

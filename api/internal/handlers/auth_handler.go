@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"net/mail"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -10,6 +11,13 @@ import (
 	"github.com/spilecms/spile/api/internal/models"
 	"gorm.io/gorm"
 )
+
+func isSecureCookie(c *gin.Context) bool {
+	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+		return true
+	}
+	return os.Getenv("APP_ENV") == "production"
+}
 
 type AuthHandler struct {
 	db *gorm.DB
@@ -100,8 +108,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		int(auth.DefaultSessionDuration.Seconds()),
 		"/",
 		"",
-		false, // secure (can be configured)
-		true,  // httpOnly
+		isSecureCookie(c),
+		true, // httpOnly
 	)
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -144,7 +152,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		int(auth.DefaultSessionDuration.Seconds()),
 		"/",
 		"",
-		false,
+		isSecureCookie(c),
 		true,
 	)
 
