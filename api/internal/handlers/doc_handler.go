@@ -271,11 +271,33 @@ func (h *DocHandler) buildNavigationTree(projectID, locale string, publishedOnly
 	return result
 }
 
+func (h *DocHandler) uniqueProjectSlug(desiredSlug string, excludeID string) string {
+	slug := desiredSlug
+	if slug == "" {
+		slug = fmt.Sprintf("docs-%d", time.Now().Unix())
+	}
+	baseSlug := slug
+	counter := 1
+	for {
+		var count int64
+		q := h.db.Model(&models.DocumentationProject{}).Where("slug = ?", slug)
+		if excludeID != "" {
+			q = q.Where("id != ?", excludeID)
+		}
+		q.Count(&count)
+		if count == 0 {
+			return slug
+		}
+		counter++
+		slug = fmt.Sprintf("%s-%d", baseSlug, counter)
+	}
+}
+
 func (h *DocHandler) ListProjects(c *gin.Context) {
 	pubOnly := auth.IsPublicReadKey(c)
 	locale := c.DefaultQuery("locale", "en")
 	var projects []models.DocumentationProject
-	query := h.db.Order("created_at desc")
+	query := h.db.Model(&models.DocumentationProject{}).Order("created_at desc")
 	if pubOnly {
 		query = query.Where("status = ?", "published")
 	}
@@ -358,9 +380,7 @@ func (h *DocHandler) CreateProject(c *gin.Context) {
 	}
 
 	slug := slugify(req.Title)
-	if slug == "" {
-		slug = fmt.Sprintf("docs-%d", time.Now().Unix())
-	}
+	slug = h.uniqueProjectSlug(slug, "")
 
 	project := models.DocumentationProject{
 		Title:       strings.TrimSpace(req.Title),
@@ -559,7 +579,7 @@ func (h *DocHandler) UpdateProject(c *gin.Context) {
 		p.Description = *req.Description
 	}
 	if req.Slug != nil {
-		p.Slug = *req.Slug
+		p.Slug = h.uniqueProjectSlug(*req.Slug, p.ID)
 	}
 	if req.Status != nil {
 		p.Status = *req.Status

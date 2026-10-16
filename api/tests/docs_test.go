@@ -37,6 +37,25 @@ func TestDocs_Lifecycle(t *testing.T) {
 	assert.Equal(t, 1, projResp.Project.PagesCount)
 	assert.Len(t, projResp.Project.Navigation.Items, 1)
 
+	// Verify ListProjects (GET /api/v1/docs/projects) works without 500 and paginates properly
+	listRes := app.Client().WithToken(token).Get("/api/v1/docs/projects")
+	assert.Equal(t, http.StatusOK, listRes.Code)
+	var listResp []models.DocProjectResponse
+	err = json.Unmarshal(listRes.Body.Bytes(), &listResp)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(listResp), 1)
+	assert.Equal(t, "1", listRes.Header().Get("X-Total-Count"))
+
+	// Verify duplicate project title receives deduplicated unique slug without 500 error
+	dupRes := app.Client().WithToken(token).PostJSON("/api/v1/docs/projects", projPayload)
+	assert.Equal(t, http.StatusCreated, dupRes.Code)
+	var dupResp struct {
+		Project models.DocProjectResponse `json:"project"`
+	}
+	err = json.Unmarshal(dupRes.Body.Bytes(), &dupResp)
+	require.NoError(t, err)
+	assert.Equal(t, "api-guide-sdk-2", dupResp.Project.Slug)
+
 	// 2. Create child page under initial page
 	parentID := projResp.InitialPage.ID
 	childPayload := map[string]any{
