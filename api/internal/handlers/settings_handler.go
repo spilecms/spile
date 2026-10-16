@@ -16,6 +16,7 @@ import (
 	"github.com/spilecms/spile/api/internal/auth"
 	"github.com/spilecms/spile/api/internal/email"
 	"github.com/spilecms/spile/api/internal/models"
+	"github.com/spilecms/spile/api/internal/storage"
 	"gorm.io/gorm"
 )
 
@@ -93,6 +94,39 @@ func (h *SettingsHandler) TestStorage(c *gin.Context) {
 		"provider":  "local",
 		"localPath": "./uploads",
 	})
+	provider, _ := cfg["provider"].(string)
+	if provider == "s3" || provider == "r2" || provider == "minio" {
+		bucket, _ := cfg["bucket"].(string)
+		endpoint, _ := cfg["endpoint"].(string)
+		region, _ := cfg["region"].(string)
+		accessKey, _ := cfg["accessKey"].(string)
+		secretKey, _ := cfg["secretKey"].(string)
+		publicURL, _ := cfg["publicUrl"].(string)
+
+		s3Prov, err := storage.NewS3StorageProvider(storage.S3Config{
+			Provider:  provider,
+			Bucket:    bucket,
+			Endpoint:  endpoint,
+			Region:    region,
+			AccessKey: accessKey,
+			SecretKey: secretKey,
+			PublicURL: publicURL,
+		})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid storage configuration: " + err.Error()})
+			return
+		}
+		if err := s3Prov.TestConnection(); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "Storage connection failed: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": fmt.Sprintf("%s bucket %q connection verified successfully!", strings.ToUpper(provider), bucket),
+		})
+		return
+	}
+
 	localPath, _ := cfg["localPath"].(string)
 	if localPath == "" {
 		localPath = "./uploads"
@@ -103,7 +137,7 @@ func (h *SettingsHandler) TestStorage(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Storage directory is accessible and writable!",
+		"message": "Local storage directory is accessible and writable!",
 	})
 }
 

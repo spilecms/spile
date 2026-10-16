@@ -30,6 +30,13 @@ func NewMediaHandler(db *gorm.DB, storageProvider storage.Provider) *MediaHandle
 	}
 }
 
+func (h *MediaHandler) activeStorage() storage.Provider {
+	if h.db != nil {
+		return storage.ResolveProvider(h.db)
+	}
+	return h.storage
+}
+
 type UpdateMediaRequest struct {
 	Name    *string   `json:"name"`
 	Title   *string   `json:"title"`
@@ -101,7 +108,7 @@ func (h *MediaHandler) Upload(c *gin.Context) {
 		}
 	}
 
-	fileURL, size, err := h.storage.Save(fileHeader.Filename, src)
+	fileURL, size, err := h.activeStorage().Save(fileHeader.Filename, src)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store file: " + err.Error()})
 		return
@@ -145,7 +152,7 @@ func (h *MediaHandler) Upload(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&mediaItem).Error; err != nil {
-		_ = h.storage.Delete(fileURL)
+		_ = h.activeStorage().Delete(fileURL)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record media: " + err.Error()})
 		return
 	}
@@ -279,7 +286,7 @@ func (h *MediaHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	_ = h.storage.Delete(item.URL)
+	_ = h.activeStorage().Delete(item.URL)
 	if err := h.db.Delete(&item).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete media record"})
 		return
@@ -298,7 +305,7 @@ func (h *MediaHandler) BulkDelete(c *gin.Context) {
 	var items []models.MediaItem
 	h.db.Where("id IN ?", req.IDs).Find(&items)
 	for _, it := range items {
-		_ = h.storage.Delete(it.URL)
+		_ = h.activeStorage().Delete(it.URL)
 		_ = h.db.Delete(&it)
 	}
 
