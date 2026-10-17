@@ -9,6 +9,7 @@ import {
 	ColorStyleButton,
 	CreateLinkButton,
 	DragHandleButton,
+	FilePanelController,
 	FormattingToolbar,
 	FormattingToolbarController,
 	NestBlockButton,
@@ -31,6 +32,7 @@ import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
 import { cn } from "@/lib/utils";
 import { getCustomSlashMenuItems, schema } from "./blocks/schema";
+import { CustomFilePanel } from "./file-panel";
 import { FloatingToc } from "./floating-toc";
 import Navbar from "./navbar";
 import { CustomSlashMenu } from "./slash-menu";
@@ -615,6 +617,7 @@ export default function Editor({
 							sideMenu={false}
 							slashMenu={false}
 							formattingToolbar={false}
+							filePanel={false}
 							shadCNComponents={
 								customShadCNComponents as unknown as React.ComponentProps<
 									typeof BlockNoteView
@@ -631,6 +634,7 @@ export default function Editor({
 							<FormattingToolbarController
 								formattingToolbar={CustomFormattingToolbar}
 							/>
+							<FilePanelController filePanel={CustomFilePanel} />
 						</BlockNoteView>
 					</div>
 				</main>
