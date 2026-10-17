@@ -213,6 +213,10 @@ export default function Editor({
 
 	const editor = useCreateBlockNote({
 		schema,
+		dropCursor: {
+			color: "var(--primary)",
+			width: 2,
+		},
 		initialContent:
 			blocks && blocks.length > 0
 				? (blocks as unknown as PartialBlock<(typeof schema)["blockSchema"]>[])
