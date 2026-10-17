@@ -16,6 +16,7 @@ type Config struct {
 	Env             string
 	AllowedOrigins  []string
 	MaxUploadSizeMB int64
+	UploadsPath     string
 }
 
 // Validate ensures critical security invariants are satisfied before starting the server.
@@ -84,6 +85,11 @@ func Load() *Config {
 		}
 	}
 
+	uploadsPath := os.Getenv("UPLOADS_PATH")
+	if uploadsPath == "" {
+		uploadsPath = "./uploads"
+	}
+
 	return &Config{
 		Port:            port,
 		DatabasePath:    dbPath,
@@ -91,5 +97,6 @@ func Load() *Config {
 		Env:             env,
 		AllowedOrigins:  allowedOrigins,
 		MaxUploadSizeMB: maxUploadMB,
+		UploadsPath:     uploadsPath,
 	}
 }

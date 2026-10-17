@@ -58,6 +58,7 @@ func TestConfigLoadDefaults(t *testing.T) {
 	loaded := config.Load()
 	assert.Equal(t, "8080", loaded.Port)
 	assert.Equal(t, "spile.db", loaded.DatabasePath)
+	assert.Equal(t, "./uploads", loaded.UploadsPath)
 	assert.Equal(t, "development", loaded.Env)
 	assert.Equal(t, config.DefaultDevSessionSecret, loaded.SessionSecret)
 	assert.True(t, loaded.IsOriginAllowed("http://localhost:5173"))

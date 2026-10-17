@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+.github
+
+# Dependencies
+node_modules
+web/node_modules
+
+# Build artifacts
+bin
+web/dist
+*.exe
+
+# Databases and local uploads
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+uploads/*
+!uploads/.gitkeep
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and system files
+*.log
+.DS_Store
+Thumbs.db

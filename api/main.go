@@ -107,7 +107,7 @@ func main() {
 
 	startScheduler(db, searcher)
 
-	storageProv, err := storage.NewLocalStorageProvider("./uploads", "/uploads")
+	storageProv, err := storage.NewLocalStorageProvider(cfg.UploadsPath, "/uploads")
 	if err != nil {
 		log.Fatalf("Storage initialization failed: %v", err)
 	}
