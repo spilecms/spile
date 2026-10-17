@@ -84,6 +84,9 @@ Spile runs with defaults in development. Optional variables:
 | `PORT` | `8080` | Port for the Go server |
 | `DATABASE_PATH` | `spile.db` | Path to SQLite database file |
 | `SESSION_SECRET` | *(dev fallback)* | Secret for sessions and tokens |
+| `ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:8080` | Comma-separated list of allowed CORS origins |
+| `UPLOADS_PATH` | `./uploads` | Local media uploads directory |
+| `MAX_UPLOAD_SIZE_MB` | `50` | Maximum upload size in megabytes |
 | `APP_ENV` | `development` | `development` or `production` |
 
 ---
