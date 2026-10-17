@@ -433,22 +433,6 @@ export default function Editor({
 						scheduleSave();
 					}
 				}}
-				onUndo={() => {
-					const tiptap = (
-						editor as unknown as {
-							_tiptapEditor?: { commands?: { undo?: () => void } };
-						}
-					)?._tiptapEditor;
-					tiptap?.commands?.undo?.();
-				}}
-				onRedo={() => {
-					const tiptap = (
-						editor as unknown as {
-							_tiptapEditor?: { commands?: { redo?: () => void } };
-						}
-					)?._tiptapEditor;
-					tiptap?.commands?.redo?.();
-				}}
 				onPublish={onPublish}
 				saving={saving}
 				savedAt={savedAt}

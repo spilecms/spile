@@ -5,9 +5,7 @@ import {
 	History,
 	PanelLeftCloseIcon,
 	PanelLeftIcon,
-	Redo2,
 	Send,
-	Undo2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ROLE_LABELS } from "@/components/common/role-switcher";
@@ -36,8 +34,6 @@ import { SaveStatus } from "./save-status";
 interface NavbarProps {
 	title: string;
 	onTitleChange: (title: string) => void;
-	onUndo: () => void;
-	onRedo: () => void;
 	onPublish: () => void;
 	saving: boolean;
 	savedAt: number | null;
@@ -63,8 +59,6 @@ function initials(name: string): string {
 export default function Navbar({
 	title,
 	onTitleChange,
-	onUndo,
-	onRedo,
 	onPublish,
 	saving,
 	savedAt,
@@ -165,39 +159,6 @@ export default function Navbar({
 						</Tooltip>
 					</TooltipProvider>
 				)}
-
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger
-							render={
-								<Button
-									size="icon-sm"
-									variant="ghost"
-									aria-label="Undo"
-									onClick={onUndo}
-								/>
-							}
-						>
-							<Undo2 />
-						</TooltipTrigger>
-						<TooltipContent>Undo</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger
-							render={
-								<Button
-									size="icon-sm"
-									variant="ghost"
-									aria-label="Redo"
-									onClick={onRedo}
-								/>
-							}
-						>
-							<Redo2 />
-						</TooltipTrigger>
-						<TooltipContent>Redo</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
 
 				<div className="mx-2 h-5 w-px bg-border" />
 
