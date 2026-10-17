@@ -197,12 +197,13 @@
 	height: 24px !important;
 	/* Sit further left so the buttons don't hug the block text */
 	margin-left: -12px !important;
+	transform: translateX(-8px);
 }
 
 .bn-side-menu button {
-	height: 24px !important;
-	width: 24px !important;
-	min-width: 24px !important;
+	height: 32px !important;
+	width: 32px !important;
+	min-width: 32px !important;
 	padding: 0 !important;
 	border-radius: 6px !important;
 	color: var(--muted-foreground) !important;
@@ -211,15 +212,15 @@
 		background-color 0.15s !important;
 }
 
-.bn-side-menu button:hover {
+/* .bn-side-menu button:hover {
 	color: var(--foreground) !important;
 	background-color: var(--accent) !important;
-}
+} */
 
 /* Smaller, consistent icons for the + and drag-handle buttons */
 .bn-side-menu button svg {
-	width: 15px !important;
-	height: 15px !important;
+	width: 20px !important;
+	height: 20px !important;
 }
 
 .bn-side-menu button[draggable="true"] {

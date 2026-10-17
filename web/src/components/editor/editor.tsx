@@ -147,11 +147,11 @@ function CustomAddBlockButton() {
 				e.preventDefault();
 			}}
 			onClick={onClick}
-			className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+			className="inline-flex size-8 items-center justify-center rounded text-muted-foreground hover:bg-accent  transition-colors cursor-pointer"
 			title="Add block below"
 			aria-label="Add block"
 		>
-			<Plus className="size-4" />
+			<Plus className="size-5" />
 		</button>
 	);
 }
