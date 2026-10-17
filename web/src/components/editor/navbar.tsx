@@ -1,3 +1,4 @@
+import { ArrowUpTrayIcon } from "@heroicons/react/24/solid";
 import { useQuery } from "@tanstack/react-query";
 import {
 	ChevronLeftIcon,
@@ -7,6 +8,7 @@ import {
 	PanelLeftIcon,
 	Send,
 } from "lucide-react";
+import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ROLE_LABELS } from "@/components/common/role-switcher";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -44,6 +46,8 @@ interface NavbarProps {
 	isLocked?: boolean;
 	onHistory?: () => void;
 	onSubmitReview?: () => void;
+	onImport?: (file: File) => void;
+	readOnly?: boolean;
 }
 
 function initials(name: string): string {
@@ -69,8 +73,11 @@ export default function Navbar({
 	isLocked,
 	onHistory,
 	onSubmitReview,
+	onImport,
+	readOnly,
 }: NavbarProps) {
 	const navigate = useNavigate();
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const { logout } = useAuth();
 	const { data: currentUser } = useQuery({
 		queryKey: ["users", "current"],
@@ -139,6 +146,45 @@ export default function Navbar({
 				className="flex shrink-0 items-center gap-0.7"
 			>
 				<SaveStatus saving={saving} savedAt={savedAt} />
+
+				{onImport && !readOnly && !isLocked && (
+					<>
+						<input
+							type="file"
+							ref={fileInputRef}
+							onChange={(e) => {
+								const file = e.target.files?.[0];
+								if (file) {
+									onImport(file);
+								}
+								e.target.value = "";
+							}}
+							accept=".md,.markdown,.html,.htm,.txt,text/markdown,text/html,text/plain"
+							className="hidden"
+							tabIndex={-1}
+						/>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger
+									render={
+										<Button
+											size="icon-sm"
+											variant="ghost"
+											aria-label="Import document"
+											onMouseDown={(e) => {
+												e.preventDefault();
+											}}
+											onClick={() => fileInputRef.current?.click()}
+										/>
+									}
+								>
+									<ArrowUpTrayIcon />
+								</TooltipTrigger>
+								<TooltipContent>Import (.md, .html, .txt)</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</>
+				)}
 
 				{onHistory && (
 					<TooltipProvider>

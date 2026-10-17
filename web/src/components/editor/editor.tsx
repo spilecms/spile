@@ -26,6 +26,7 @@ import { BlockNoteView } from "@blocknote/shadcn";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { mockApi } from "@/lib/mock/api";
 import { useEditorStore } from "@/lib/store/editor-store";
 import { cn } from "@/lib/utils";
@@ -362,6 +363,22 @@ export default function Editor({
 		});
 	}, [editor]);
 
+	const lastActiveBlockRef = useRef<Block | null>(null);
+
+	useEffect(() => {
+		if (!editor) return;
+		return editor.onSelectionChange(() => {
+			try {
+				const pos = editor.getTextCursorPosition();
+				if (pos?.block) {
+					lastActiveBlockRef.current = pos.block as unknown as Block;
+				}
+			} catch {
+				// Cursor might not be in a block
+			}
+		});
+	}, [editor]);
+
 	// Flush pending saves when the tab is hidden / the page is unloaded, and on
 	// unmount (client-side navigation) so no edits are lost.
 	useEffect(() => {
@@ -401,6 +418,134 @@ export default function Editor({
 			setRenderContent(null);
 		};
 	}, [editor, setBlocks, setRenderContent]);
+
+	const handleImport = useCallback(
+		async (file: File) => {
+			if (!editor || readOnly || isLocked) return;
+			try {
+				const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+				const text = await file.text();
+				if (!text.trim()) {
+					toast.error("The selected file is empty.");
+					return;
+				}
+
+				let parsedBlocks: PartialBlock<(typeof schema)["blockSchema"]>[] = [];
+
+				if (ext === "html" || ext === "htm") {
+					parsedBlocks = editor.tryParseHTMLToBlocks(
+						text,
+					) as unknown as PartialBlock<(typeof schema)["blockSchema"]>[];
+				} else if (ext === "txt") {
+					try {
+						parsedBlocks = editor.tryParseMarkdownToBlocks(
+							text,
+						) as unknown as PartialBlock<(typeof schema)["blockSchema"]>[];
+					} catch {
+						parsedBlocks = text
+							.split(/\r?\n\r?\n/)
+							.map((chunk) => chunk.trim())
+							.filter(Boolean)
+							.map((p) => ({
+								type: "paragraph",
+								content: [{ type: "text", text: p, styles: {} }],
+							})) as unknown as PartialBlock<(typeof schema)["blockSchema"]>[];
+					}
+				} else {
+					parsedBlocks = editor.tryParseMarkdownToBlocks(
+						text,
+					) as unknown as PartialBlock<(typeof schema)["blockSchema"]>[];
+				}
+
+				if (!parsedBlocks || parsedBlocks.length === 0) {
+					toast.error("Could not parse content from the file.");
+					return;
+				}
+
+				let targetBlock: Block | undefined;
+				try {
+					targetBlock = editor.getTextCursorPosition()
+						?.block as unknown as Block;
+				} catch {
+					targetBlock = undefined;
+				}
+
+				if (!targetBlock && lastActiveBlockRef.current) {
+					targetBlock = lastActiveBlockRef.current;
+				}
+
+				const currentDoc = editor.document as unknown as Block[];
+				const targetBlockExists = targetBlock
+					? currentDoc.some((b) => b.id === targetBlock.id)
+					: false;
+
+				const isBlockEmpty = (b: Block) => {
+					if (b.type !== "paragraph") return false;
+					const c = b.content;
+					if (!c || !Array.isArray(c) || c.length === 0) return true;
+					if (
+						c.length === 1 &&
+						typeof c[0] === "object" &&
+						c[0] !== null &&
+						"type" in c[0] &&
+						c[0].type === "text" &&
+						(!c[0].text || c[0].text.trim() === "")
+					) {
+						return true;
+					}
+					return false;
+				};
+
+				let insertedBlocks: Block[] = [];
+
+				if (targetBlock && targetBlockExists) {
+					if (isBlockEmpty(targetBlock)) {
+						const res = editor.replaceBlocks([targetBlock], parsedBlocks);
+						insertedBlocks = res.insertedBlocks as unknown as Block[];
+					} else {
+						insertedBlocks = editor.insertBlocks(
+							parsedBlocks,
+							targetBlock,
+							"after",
+						) as unknown as Block[];
+					}
+				} else {
+					const lastBlock = currentDoc[currentDoc.length - 1];
+					if (lastBlock) {
+						if (currentDoc.length === 1 && isBlockEmpty(lastBlock)) {
+							const res = editor.replaceBlocks([lastBlock], parsedBlocks);
+							insertedBlocks = res.insertedBlocks as unknown as Block[];
+						} else {
+							insertedBlocks = editor.insertBlocks(
+								parsedBlocks,
+								lastBlock,
+								"after",
+							) as unknown as Block[];
+						}
+					} else {
+						const res = editor.replaceBlocks(editor.document, parsedBlocks);
+						insertedBlocks = res.insertedBlocks as unknown as Block[];
+					}
+				}
+
+				if (insertedBlocks && insertedBlocks.length > 0) {
+					const lastInserted = insertedBlocks[insertedBlocks.length - 1];
+					editor.setTextCursorPosition(lastInserted, "end");
+				}
+				editor.focus();
+
+				scheduleSave();
+				toast.success(`Imported ${file.name}`);
+			} catch (err) {
+				console.error("Import error:", err);
+				toast.error(
+					"Failed to import file: " +
+						(err instanceof Error ? err.message : String(err)),
+				);
+			}
+		},
+		[editor, readOnly, isLocked, scheduleSave],
+	);
 
 	const getSlashMenuItems = useCallback(
 		async (query: string) => {
@@ -443,6 +588,8 @@ export default function Editor({
 				isLocked={isLocked}
 				onSubmitReview={onSubmitReview}
 				onHistory={onHistory}
+				onImport={handleImport}
+				readOnly={readOnly}
 			/>
 			{banner}
 			<TranslationContextBanner />
