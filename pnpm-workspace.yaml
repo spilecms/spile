@@ -1,5 +1,8 @@
 packages:
   - 'web'
+  - 'sdks/js'
 
 allowBuilds:
+  esbuild: true
   simple-git-hooks: true
+

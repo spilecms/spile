@@ -1,0 +1,66 @@
+{
+  "name": "@spilecms/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript & JavaScript SDK for Spile Headless CMS with React & shadcn integration",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check ."
+  },
+  "keywords": [
+    "spile",
+    "spilecms",
+    "cms",
+    "headless",
+    "sdk",
+    "react",
+    "shadcn",
+    "nextjs",
+    "blocknote"
+  ],
+  "author": "Spile CMS",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tsup": "^9.0.0",
+    "typescript": "^5.7.0"
+  }
+}
