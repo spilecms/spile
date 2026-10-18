@@ -116,6 +116,13 @@ const openAPISpecJSON = `{
             "required": false,
             "description": "Filter posts by author ID",
             "schema": { "type": "string" }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "description": "Filter posts by language code (e.g. 'en', 'es')",
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
@@ -139,13 +146,20 @@ const openAPISpecJSON = `{
         "tags": ["Posts"],
         "operationId": "getPost",
         "summary": "Get a published post by ID or slug",
-        "description": "Fetches a single published blog post by its UUID or URL slug.",
+        "description": "Fetches a single published blog post by its UUID or URL slug. If locale is provided, resolves the translated variant or falls back to canonical.",
         "parameters": [
           {
             "name": "idOrSlug",
             "in": "path",
             "required": true,
             "description": "Post UUID or URL slug",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "description": "Preferred language code. If translated post variant exists, it will be returned; otherwise falls back to canonical.",
             "schema": { "type": "string" }
           }
         ],
@@ -334,6 +348,7 @@ const openAPISpecJSON = `{
         "tags": ["Docs"],
         "operationId": "getDocPage",
         "summary": "Get a published documentation page by ID or slug",
+        "description": "Fetches a published documentation page by its UUID or URL slug. If locale is provided, resolves the translated variant or falls back to canonical.",
         "parameters": [
           {
             "name": "idOrSlug",
@@ -341,11 +356,18 @@ const openAPISpecJSON = `{
             "required": true,
             "description": "Documentation page UUID or URL slug",
             "schema": { "type": "string" }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "description": "Preferred language code. If translated page variant exists, it will be returned; otherwise falls back to canonical.",
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
           "200": {
-            "description": "Published documentation page with Editor.js content blocks",
+            "description": "Published documentation page with BlockNote content blocks",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/DocPage" }
@@ -522,30 +544,55 @@ const openAPISpecJSON = `{
           "error": { "type": "string" }
         }
       },
-      "EditorBlock": {
+      "BlockNoteInlineContent": {
         "type": "object",
-        "required": ["type", "data"],
+        "required": ["type"],
         "properties": {
-          "id": { "type": "string" },
           "type": {
             "type": "string",
-            "description": "Block type (e.g. header, paragraph, list, code, quote, callout, image, table, delimiter)"
+            "enum": ["text", "link"],
+            "example": "text"
           },
-          "data": {
+          "text": {
+            "type": "string",
+            "example": "Spile is a self-hosted headless CMS."
+          },
+          "href": {
+            "type": "string",
+            "example": "https://github.com/spilecms/spile"
+          },
+          "styles": {
             "type": "object",
+            "description": "Inline formatting styles (bold, italic, underline, strike, code, textColor, backgroundColor)",
             "additionalProperties": true
           }
         }
       },
-      "EditorContent": {
+      "BlockNoteBlock": {
         "type": "object",
-        "required": ["blocks"],
+        "required": ["id", "type"],
         "properties": {
-          "time": { "type": "integer", "format": "int64" },
-          "version": { "type": "string" },
-          "blocks": {
+          "id": {
+            "type": "string",
+            "example": "c596ef30-4e3a-4299-a9a7-85b9b71329c2"
+          },
+          "type": {
+            "type": "string",
+            "description": "Block type: paragraph, heading, bulletListItem, numberedListItem, checkListItem, codeBlock, codeGroup, mathBlock, callout, paramField, responseField, image, video, audio, file, table, etc.",
+            "example": "paragraph"
+          },
+          "props": {
+            "type": "object",
+            "description": "Block properties such as textColor, backgroundColor, textAlignment, level, language, etc.",
+            "additionalProperties": true
+          },
+          "content": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/EditorBlock" }
+            "items": { "$ref": "#/components/schemas/BlockNoteInlineContent" }
+          },
+          "children": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/BlockNoteBlock" }
           }
         }
       },
@@ -594,7 +641,11 @@ const openAPISpecJSON = `{
           "updatedAt": { "type": "integer", "format": "int64" },
           "publishedAt": { "type": "integer", "format": "int64", "nullable": true },
           "scheduledFor": { "type": "integer", "format": "int64", "nullable": true },
-          "content": { "$ref": "#/components/schemas/EditorContent" },
+          "content": {
+            "type": "array",
+            "description": "Structured BlockNote document blocks",
+            "items": { "$ref": "#/components/schemas/BlockNoteBlock" }
+          },
           "locale": { "type": "string", "example": "en" },
           "isDefaultLocale": { "type": "boolean" },
           "translationGroupId": { "type": "string" },
@@ -687,7 +738,11 @@ const openAPISpecJSON = `{
           "isDefaultLocale": { "type": "boolean" },
           "translationGroupId": { "type": "string" },
           "translationSourceId": { "type": "string", "nullable": true },
-          "content": { "$ref": "#/components/schemas/EditorContent" },
+          "content": {
+            "type": "array",
+            "description": "Structured BlockNote document blocks",
+            "items": { "$ref": "#/components/schemas/BlockNoteBlock" }
+          },
           "createdAt": { "type": "integer", "format": "int64" },
           "updatedAt": { "type": "integer", "format": "int64" }
         }

@@ -437,6 +437,8 @@ func (h *DocHandler) CreateProject(c *gin.Context) {
 
 func (h *DocHandler) GetPage(c *gin.Context) {
 	id := c.Param("id")
+	locale := strings.TrimSpace(c.Query("locale"))
+
 	var page models.DocPage
 	query := h.db.Model(&models.DocPage{})
 	if auth.IsPublicReadKey(c) {
@@ -446,6 +448,27 @@ func (h *DocHandler) GetPage(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Doc page not found"})
 		return
 	}
+
+	// If locale query is provided and differs from the page's current locale, resolve translated variant
+	if locale != "" && page.Locale != locale {
+		groupID := page.TranslationGroupID
+		if groupID == "" {
+			groupID = page.ID
+		}
+
+		var transPage models.DocPage
+		transQuery := h.db.Model(&models.DocPage{})
+		if auth.IsPublicReadKey(c) {
+			transQuery = transQuery.Where("status = ?", "published")
+		}
+
+		if err := transQuery.First(&transPage, "(translation_group_id = ? OR id = ?) AND locale = ?", groupID, groupID, locale).Error; err == nil {
+			c.JSON(http.StatusOK, transPage.ToResponse())
+			return
+		}
+		// Graceful fallback to canonical page when translation is missing
+	}
+
 	c.JSON(http.StatusOK, page.ToResponse())
 }
 

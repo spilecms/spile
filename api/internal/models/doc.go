@@ -110,7 +110,7 @@ func (d *DocPage) ToResponse() DocPageResponse {
 		_ = json.Unmarshal([]byte(d.Content), &contentObj)
 	}
 	if contentObj == nil {
-		contentObj = map[string]any{"blocks": []any{}}
+		contentObj = []any{}
 	}
 
 	return DocPageResponse{

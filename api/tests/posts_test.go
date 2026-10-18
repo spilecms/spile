@@ -145,4 +145,49 @@ func TestPosts_LocalizationAndTranslations(t *testing.T) {
 	var groupPosts []models.PostResponse
 	_ = json.Unmarshal(groupRes.Body.Bytes(), &groupPosts)
 	assert.Len(t, groupPosts, 2)
+
+	// 4. Test List filtering by locale
+	esListRes := app.Client().WithToken(token).Get("/api/v1/posts?locale=es")
+	assert.Equal(t, http.StatusOK, esListRes.Code)
+	var esList []models.PostResponse
+	_ = json.Unmarshal(esListRes.Body.Bytes(), &esList)
+	assert.Len(t, esList, 1)
+	assert.Equal(t, "es", esList[0].Locale)
+	assert.Equal(t, transPost.ID, esList[0].ID)
+
+	enListRes := app.Client().WithToken(token).Get("/api/v1/posts?locale=en")
+	assert.Equal(t, http.StatusOK, enListRes.Code)
+	var enList []models.PostResponse
+	_ = json.Unmarshal(enListRes.Body.Bytes(), &enList)
+	assert.Len(t, enList, 1)
+	assert.Equal(t, "en", enList[0].Locale)
+	assert.Equal(t, sourcePost.ID, enList[0].ID)
+
+	// 5. Test Get by ID/slug with locale resolution
+	// Requesting English post with ?locale=es should resolve to Spanish post
+	resolveEsRes := app.Client().WithToken(token).Get("/api/v1/posts/" + sourcePost.Slug + "?locale=es")
+	assert.Equal(t, http.StatusOK, resolveEsRes.Code)
+	var resolvedEs models.PostResponse
+	_ = json.Unmarshal(resolveEsRes.Body.Bytes(), &resolvedEs)
+	assert.Equal(t, "es", resolvedEs.Locale)
+	assert.Equal(t, transPost.ID, resolvedEs.ID)
+
+	// Requesting with non-existent locale (e.g. ?locale=fr) should fall back to canonical English post
+	fallbackRes := app.Client().WithToken(token).Get("/api/v1/posts/" + sourcePost.Slug + "?locale=fr")
+	assert.Equal(t, http.StatusOK, fallbackRes.Code)
+	var resolvedFallback models.PostResponse
+	_ = json.Unmarshal(fallbackRes.Body.Bytes(), &resolvedFallback)
+	assert.Equal(t, "en", resolvedFallback.Locale)
+	assert.Equal(t, sourcePost.ID, resolvedFallback.ID)
+
+	// 6. Test empty content serialization returns empty array [] for BlockNote
+	emptyPostRes := app.Client().WithToken(token).PostJSON("/api/v1/posts", map[string]any{
+		"title": "Empty Post",
+	})
+	assert.Equal(t, http.StatusCreated, emptyPostRes.Code)
+	var emptyPost models.PostResponse
+	_ = json.Unmarshal(emptyPostRes.Body.Bytes(), &emptyPost)
+	contentSlice, ok := emptyPost.Content.([]any)
+	assert.True(t, ok)
+	assert.Empty(t, contentSlice)
 }

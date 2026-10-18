@@ -121,7 +121,7 @@ func (p *Post) ToResponse() PostResponse {
 		_ = json.Unmarshal([]byte(p.Content), &contentObj)
 	}
 	if contentObj == nil {
-		contentObj = map[string]any{"blocks": []any{}}
+		contentObj = []any{}
 	}
 
 	return PostResponse{

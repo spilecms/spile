@@ -196,3 +196,59 @@ func TestDocs_SafeDeleteAndCycleProtection(t *testing.T) {
 	assert.Contains(t, cycleRes.Body.String(), "Circular navigation tree hierarchy detected")
 }
 
+func TestDocs_LocaleResolutionAndFallback(t *testing.T) {
+	app := testutils.NewTestApp(t)
+
+	admin := app.CreateUser("Admin", "admin@spile.io", "Pass12345", models.RoleAdmin)
+	token := app.CreateSession(admin.ID)
+
+	// Create project
+	createProjRes := app.Client().WithToken(token).PostJSON("/api/v1/docs/projects", map[string]string{
+		"title": "Localization Docs Test",
+	})
+	require.Equal(t, http.StatusCreated, createProjRes.Code)
+	var projResp struct {
+		Project     models.DocProjectResponse `json:"project"`
+		InitialPage models.DocPageResponse    `json:"initialPage"`
+	}
+	require.NoError(t, json.Unmarshal(createProjRes.Body.Bytes(), &projResp))
+	initialPageID := projResp.InitialPage.ID
+
+	// Create Spanish translation
+	transRes := app.Client().WithToken(token).PostJSON("/api/v1/docs/pages/"+initialPageID+"/translations", map[string]any{
+		"locale": "es",
+		"title":  "Inicio (ES)",
+	})
+	require.Equal(t, http.StatusCreated, transRes.Code)
+	var esPage models.DocPageResponse
+	require.NoError(t, json.Unmarshal(transRes.Body.Bytes(), &esPage))
+
+	// 1. Resolve English slug with ?locale=es -> should return Spanish page
+	resolveEsRes := app.Client().WithToken(token).Get("/api/v1/docs/pages/" + projResp.InitialPage.Slug + "?locale=es")
+	assert.Equal(t, http.StatusOK, resolveEsRes.Code)
+	var resolvedEs models.DocPageResponse
+	require.NoError(t, json.Unmarshal(resolveEsRes.Body.Bytes(), &resolvedEs))
+	assert.Equal(t, "es", resolvedEs.Locale)
+	assert.Equal(t, esPage.ID, resolvedEs.ID)
+
+	// 2. Resolve with missing locale ?locale=fr -> should fall back to English canonical page
+	fallbackRes := app.Client().WithToken(token).Get("/api/v1/docs/pages/" + projResp.InitialPage.Slug + "?locale=fr")
+	assert.Equal(t, http.StatusOK, fallbackRes.Code)
+	var resolvedFallback models.DocPageResponse
+	require.NoError(t, json.Unmarshal(fallbackRes.Body.Bytes(), &resolvedFallback))
+	assert.Equal(t, "en", resolvedFallback.Locale)
+	assert.Equal(t, initialPageID, resolvedFallback.ID)
+
+	// 3. Test empty doc page content serialization returns []
+	createEmptyRes := app.Client().WithToken(token).PostJSON("/api/v1/docs/pages", map[string]any{
+		"projectId": projResp.Project.ID,
+		"title":     "Empty Page",
+	})
+	assert.Equal(t, http.StatusCreated, createEmptyRes.Code)
+	var emptyPage models.DocPageResponse
+	require.NoError(t, json.Unmarshal(createEmptyRes.Body.Bytes(), &emptyPage))
+	slice, ok := emptyPage.Content.([]any)
+	assert.True(t, ok)
+	assert.Empty(t, slice)
+}
+

@@ -99,6 +99,7 @@ func (h *PostHandler) List(c *gin.Context) {
 	query := c.Query("query")
 	tagID := c.Query("tagId")
 	authorID := c.Query("authorId")
+	locale := strings.TrimSpace(c.Query("locale"))
 
 	dbQuery := h.db.Model(&models.Post{}).
 		Preload("Authors").
@@ -109,6 +110,10 @@ func (h *PostHandler) List(c *gin.Context) {
 		dbQuery = dbQuery.Where("status = ?", models.PostStatusPublished)
 	} else if status != "" && status != "all" {
 		dbQuery = dbQuery.Where("status = ?", status)
+	}
+
+	if locale != "" && locale != "all" {
+		dbQuery = dbQuery.Where("posts.locale = ?", locale)
 	}
 
 	if tagID != "" {
@@ -149,6 +154,8 @@ func (h *PostHandler) List(c *gin.Context) {
 
 func (h *PostHandler) Get(c *gin.Context) {
 	id := c.Param("id")
+	locale := strings.TrimSpace(c.Query("locale"))
+
 	var post models.Post
 	query := h.db.Preload("Authors").Preload("Tags")
 	if auth.IsPublicReadKey(c) {
@@ -158,6 +165,27 @@ func (h *PostHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
 		return
 	}
+
+	// If locale query is provided and differs from the post's current locale, resolve translated variant
+	if locale != "" && post.Locale != locale {
+		groupID := post.TranslationGroupID
+		if groupID == "" {
+			groupID = post.ID
+		}
+
+		var transPost models.Post
+		transQuery := h.db.Preload("Authors").Preload("Tags")
+		if auth.IsPublicReadKey(c) {
+			transQuery = transQuery.Where("status = ?", models.PostStatusPublished)
+		}
+
+		if err := transQuery.First(&transPost, "(translation_group_id = ? OR id = ?) AND locale = ?", groupID, groupID, locale).Error; err == nil {
+			c.JSON(http.StatusOK, transPost.ToResponse())
+			return
+		}
+		// Graceful fallback to canonical post when translation is missing
+	}
+
 	c.JSON(http.StatusOK, post.ToResponse())
 }
 
