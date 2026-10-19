@@ -132,28 +132,59 @@ func (h *AnalyticsHandler) Track(c *gin.Context) {
 	}
 
 	device := strings.ToLower(strings.TrimSpace(req.Device))
-	if device != "mobile" && device != "tablet" {
+	if device == "" {
+		ua := strings.ToLower(c.GetHeader("User-Agent"))
+		if strings.Contains(ua, "ipad") || strings.Contains(ua, "tablet") {
+			device = "tablet"
+		} else if strings.Contains(ua, "mobile") || strings.Contains(ua, "android") || strings.Contains(ua, "iphone") {
+			device = "mobile"
+		} else {
+			device = "desktop"
+		}
+	} else if device != "mobile" && device != "tablet" {
 		device = "desktop"
 	}
+
 	countryCode := strings.ToUpper(strings.TrimSpace(req.CountryCode))
 	if countryCode == "" {
-		countryCode = "UN"
+		countryCode = strings.ToUpper(strings.TrimSpace(c.GetHeader("CF-IPCountry")))
+		if countryCode == "" {
+			countryCode = "UN"
+		}
 	}
+
 	countryName := strings.TrimSpace(req.CountryName)
 	if countryName == "" {
 		countryName = "Unknown"
 	}
+
 	referrer := strings.TrimSpace(req.Referrer)
 	if referrer == "" {
-		referrer = "Direct / Bookmark"
+		referrer = strings.TrimSpace(c.GetHeader("Referer"))
+		if referrer == "" {
+			referrer = "Direct / Bookmark"
+		}
 	}
+
 	readTime := req.ReadTimeSeconds
 	if readTime < 0 {
 		readTime = 0
 	}
+
 	visitorHash := strings.TrimSpace(req.VisitorHash)
 	if visitorHash == "" {
-		visitorHash = c.ClientIP()
+		visitorHash = strings.TrimSpace(c.GetHeader("X-Forwarded-For"))
+		if visitorHash != "" {
+			if comma := strings.Index(visitorHash, ","); comma != -1 {
+				visitorHash = strings.TrimSpace(visitorHash[:comma])
+			}
+		}
+		if visitorHash == "" {
+			visitorHash = strings.TrimSpace(c.GetHeader("X-Real-IP"))
+		}
+		if visitorHash == "" {
+			visitorHash = c.ClientIP()
+		}
 	}
 
 	pv := models.PageView{
