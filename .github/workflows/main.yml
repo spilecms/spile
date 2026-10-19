@@ -11,52 +11,55 @@ concurrency:
 
 jobs:
   check:
-    name: Lint and typecheck
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-
-  test:
-    name: Go tests
+    name: Lint, format and vet
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - name: Build web (needed for go:embed)
-        working-directory: web
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm build
+          cache-dependency-path: pnpm-lock.yaml
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
 
-      - run: go test ./api/... -v
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+  test:
+    name: Tests (SDK & API)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build and test SDK
+        run: |
+          pnpm build:sdk
+          pnpm test:sdk
+
+      - name: Build web (needed for go:embed)
+        run: pnpm build:web
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run Go tests
+        run: go test ./api/... -v
