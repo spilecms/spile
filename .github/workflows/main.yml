@@ -30,6 +30,10 @@ jobs:
           cache: true
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Build web (needed for go:embed during go vet)
+        run: pnpm build:web
+
       - run: pnpm check
 
   test:
