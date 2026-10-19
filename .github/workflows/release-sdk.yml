@@ -7,6 +7,8 @@ on:
     paths:
       - 'sdks/js/**'
       - '.changeset/**'
+      - 'package.json'
+      - '.github/workflows/release-sdk.yml'
   workflow_dispatch:
 
 concurrency:
