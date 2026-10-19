@@ -90,6 +90,32 @@ export interface MathBlockProps {
 	[key: string]: unknown;
 }
 
+export interface CodeGroupTab {
+	id: string;
+	label: string;
+	language: string;
+	code: string;
+}
+
+export interface CodeGroupBlockProps {
+	tabsJson?: string;
+	activeTabIndex?: number;
+	[key: string]: unknown;
+}
+
+export interface ParamFieldBlockProps {
+	name?: string;
+	type?: string;
+	required?: boolean;
+	[key: string]: unknown;
+}
+
+export interface ResponseFieldBlockProps {
+	name?: string;
+	type?: string;
+	[key: string]: unknown;
+}
+
 // --- Taxonomy & Locale Types ---
 
 export interface WorkspaceLocale {
