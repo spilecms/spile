@@ -1,6 +1,6 @@
 {
 	"name": "@spilecms/sdk",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Official TypeScript & JavaScript SDK for Spile Headless CMS with React & shadcn integration",
 	"type": "module",
 	"main": "./dist/index.cjs",
