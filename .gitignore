@@ -16,5 +16,8 @@ uploads/*
 *.exe
 spile
 bin/
-dist/
+/dist/
+sdks/js/dist/
+web/dist/*
+!web/dist/.gitkeep
 node_modules/
