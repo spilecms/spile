@@ -1,6 +1,8 @@
 /**
  * @spilecms/sdk
- * Official client SDK for Spile Headless CMS
+ * Official Universal Client SDK for Spile Headless CMS
  */
 
-export const VERSION = "0.1.0";
+export * from "./client.js";
+export * from "./types/index.js";
+export * from "./webhooks.js";
