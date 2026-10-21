@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import logoImg from "@/assets/logo4.png";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -93,7 +94,7 @@ export default function LoginPage() {
 				<CardHeader className="text-center pb-2">
 					<div className="flex items-center justify-center gap-2 mb-2">
 						<span className="font-extrabold text-2xl tracking-tight text-foreground">
-							Spile<span className="text-primary">.</span>
+							<img src={logoImg} alt="Spile CMS Logo" className="size-13" />
 						</span>
 					</div>
 					<CardTitle className="text-xl font-bold tracking-tight">
